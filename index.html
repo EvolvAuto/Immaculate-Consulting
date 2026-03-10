@@ -384,7 +384,7 @@ async function submitForm(){
   try{var r=await fetch('https://formspree.io/f/mqeyknpr',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(d)});
     if(r.ok){document.getElementById('fc').style.display='none';document.getElementById('sm').style.display='block'}else{throw new Error('fb')}}
   catch(x){var body=Object.entries(d).filter(function(x){return x[1]&&!x[0].startsWith('_')}).map(function(x){return x[0]+': '+x[1]}).join('%0A');
-    window.location.href='mailto:hello@immaculateconsulting.com?subject='+encodeURIComponent(d._subject)+'&body='+body;
+    window.location.href='mailto:leonard.croom@immaculate-consulting.org?subject='+encodeURIComponent(d._subject)+'&body='+body;
     document.getElementById('fc').style.display='none';document.getElementById('sm').style.display='block'}
   b.disabled=false;b.textContent='Submit Request';
 }
