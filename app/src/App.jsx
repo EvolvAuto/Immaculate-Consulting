@@ -166,4 +166,3 @@ export default function App() {
   // Logged in — show dashboard
   return <ICBOS />;
 }
-```
