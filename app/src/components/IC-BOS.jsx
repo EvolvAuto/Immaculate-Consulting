@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import VapiAssistant from "./VapiAssistant";
+import { AddClientPanel, AddDealPanel, AddTaskPanel, AddInvoicePanel, AddCommPanel } from "./ICBOSForms";
+import { supabase } from "../lib/supabaseClient";
 
 // ═══════════════════════════════════════════════════════════════════════
 // IC-BOS — Immaculate Consulting Business Operating System
@@ -1118,7 +1120,7 @@ function CommsTab() {
 // ═══════════════════════════════════════════════════════════════════════
 export default function ICBOS() {
   const [tab, setTab] = useState("overview");
-
+const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoice'|'comm'
   const tabs = [
     { id:"overview", l:"Overview" }, { id:"pipeline", l:"Pipeline" }, { id:"clients", l:"Clients" },
     { id:"roi", l:"ROI" }, { id:"financials", l:"Financials" }, { id:"invoicing", l:"Invoicing" },
@@ -1204,7 +1206,7 @@ export default function ICBOS() {
           </div>
         )}
         {tab==="pipeline"&&<><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0",marginBottom:4}}>Sales Pipeline</h2><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard/></>}
-        {tab==="clients"&&<><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0",marginBottom:4}}>Client Health</h2><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{CLIENTS.length} clients</p>
+        {tab==="clients"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Client Health</h2><button onClick={()=>setShowForm("client")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Client</button></div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{CLIENTS.length} clients</p>
           <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1.3fr",gap:6,padding:"8px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",fontSize:9,fontWeight:600,color:"#6b7280",textTransform:"uppercase",fontFamily:M}}><span>Client</span><span>Status</span><span>Health</span><span>No-Show</span><span>MRR</span><span>Next</span></div>
             {CLIENTS.map((c,i)=>{const sc=c.healthScore>=90?"#4ade80":c.healthScore>=70?"#fbbf24":"#fb923c";const stc={active:"#4ade80",onboarding:"#38bdf8"};return(
@@ -1247,7 +1249,11 @@ export default function ICBOS() {
         {tab==="comms"&&<CommsTab/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
-
+{showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>setShowForm(null)}/>}
+      {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>setShowForm(null)}/>}
+      {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>setShowForm(null)}/>}
+      {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>setShowForm(null)}/>}
+      {showForm==="comm"&&<AddCommPanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>setShowForm(null)}/>}
     {/* Voice Layer — Vapi SDK */}
       <VapiAssistant onTabChange={(tabId) => setTab(tabId)} />
   </div>
