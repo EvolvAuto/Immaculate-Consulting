@@ -1151,7 +1151,7 @@ export default function ICBOS() {
       {/* Header */}
       <header style={{ position:"sticky", top:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 24px", background:"rgba(10,10,15,0.9)", backdropFilter:"blur(20px)", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:30, height:30, borderRadius:8, background:"linear-gradient(135deg,#6366f1,#8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"white" }}>IC</div>
+          <img src="/src/Immaculate Logo v2 250px.png" alt="Immaculate Consulting" style={{ width:30, height:30, borderRadius:8, objectFit:"contain" }} />
           <div><div style={{ fontSize:13, fontWeight:700, color:"#f0f0f0" }}>IC-BOS</div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>Immaculate Consulting Business Operating System</div></div>
         </div>
         <nav style={{ display:"flex", gap:1, flexWrap:"wrap", justifyContent:"center", maxWidth:820 }}>
