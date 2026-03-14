@@ -1247,5 +1247,6 @@ export default function ICBOS() {
 
     {/* Voice Layer — Vapi SDK */}
       <VapiAssistant onTabChange={(tabId) => setTab(tabId)} />
+  </div>
   );
 }
