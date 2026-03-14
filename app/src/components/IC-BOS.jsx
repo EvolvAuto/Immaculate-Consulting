@@ -1161,7 +1161,10 @@ export default function ICBOS() {
             {t.id==="invoicing"&&overdueInvs.length>0&&<span style={{ position:"absolute", top:2, right:2, width:5, height:5, borderRadius:"50%", background:"#f87171" }}/>}
           </button>))}
         </nav>
-        <span style={{ fontSize:9, color:"#4ade80", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:4, height:4, borderRadius:"50%", background:"#4ade80" }}/>LIVE</span>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+  <span style={{ fontSize:9, color:"#4ade80", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:4, height:4, borderRadius:"50%", background:"#4ade80" }}/>LIVE</span>
+  <button onClick={async () => { const { supabase } = await import('../lib/supabaseClient'); await supabase.auth.signOut(); window.location.reload(); }} style={{ fontSize:10, color:"#9ca3af", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>Sign Out</button>
+</div>
       </header>
 
       {/* Main */}
