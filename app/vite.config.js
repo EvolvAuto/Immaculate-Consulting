@@ -10,16 +10,3 @@ export default defineConfig({
   },
 });
 ```
-
-Commit.
-
----
-
-### Create `app/.gitignore`
-```
-node_modules/
-.env.local
-.env.*.local
-.env
-dist/
-.DS_Store
