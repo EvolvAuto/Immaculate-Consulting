@@ -1246,7 +1246,7 @@ const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoi
         {tab==="renewals"&&<RenewalsTab/>}
         {tab==="proposal"&&<ProposalTab/>}
         {tab==="salesprep"&&<SalesPrepTab/>}
-       {tab==="tasks"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Action Items</h2><button onClick={()=>setShowForm("task")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Task</button></div><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS].sort((a,b)=>({high:0,medium:1,low:2})[a.priority]-({high:0,medium:1,low:2})[b.priority]).map((t,i)=><TaskItem key={t.id} task={t} delay={i*30}/>)}</div></>}
+        {tab==="tasks"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Action Items</h2><button onClick={()=>setShowForm("task")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Task</button></div><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS].sort((a,b)=>({high:0,medium:1,low:2})[a.priority]-({high:0,medium:1,low:2})[b.priority]).map((t,i)=><TaskItem key={t.id} task={t} delay={i*30}/>)}</div></>}
         {tab==="comms"&&<CommsTab/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
