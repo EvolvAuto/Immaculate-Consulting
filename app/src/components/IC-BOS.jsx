@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import VapiAssistant from "./VapiAssistant";
 
 // ═══════════════════════════════════════════════════════════════════════
 // IC-BOS — Immaculate Consulting Business Operating System
@@ -1117,24 +1119,6 @@ function CommsTab() {
 // ═══════════════════════════════════════════════════════════════════════
 export default function ICBOS() {
   const [tab, setTab] = useState("overview");
-  const [voiceOn, setVoiceOn] = useState(false);
-  const [vState, setVState] = useState("idle");
-  const [transcript, setTranscript] = useState("");
-  const [response, setResponse] = useState("");
-  const inRef = useRef(null);
-
-  const toggleVoice = useCallback(() => {
-    if (voiceOn) { setVoiceOn(false); setVState("idle"); setTranscript(""); setResponse(""); }
-    else { setVoiceOn(true); setVState("listening"); setResponse("IC-BOS active. Try \"morning briefing\", \"who hasn't paid\", \"prep me for Raleigh\", \"client profitability\", or \"weekly report\"."); setTimeout(()=>inRef.current?.focus(),100); }
-  }, [voiceOn]);
-
-  const runCmd = useCallback((text) => {
-    if (!text.trim()) return;
-    setVState("thinking"); setTranscript(text);
-    setTimeout(() => { const r=processVoice(text); setResponse(r.response); setVState("speaking"); if(r.tab) setTab(r.tab); setTimeout(()=>setVState("listening"),3500); }, 500);
-  }, []);
-
-  useEffect(() => { const h=(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();toggleVoice();}}; window.addEventListener("keydown",h); return()=>window.removeEventListener("keydown",h); }, [toggleVoice]);
 
   const tabs = [
     { id:"overview", l:"Overview" }, { id:"pipeline", l:"Pipeline" }, { id:"clients", l:"Clients" },
@@ -1262,22 +1246,7 @@ export default function ICBOS() {
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
 
-      {/* Voice Bar */}
-      <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:100, padding:"12px 24px 16px", background:"linear-gradient(to top,rgba(10,10,15,0.98) 65%,transparent)" }}>
-        <div style={{ maxWidth:720, margin:"0 auto", display:"flex", alignItems:"center", gap:12, background:voiceOn?"rgba(99,102,241,0.05)":"rgba(255,255,255,0.025)", border:`1px solid ${voiceOn?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.05)"}`, borderRadius:16, padding:"6px 6px 6px 20px", transition:"all 0.3s" }}>
-          <div style={{ flex:1, display:"flex", flexDirection:"column", gap:2 }}>
-            {voiceOn&&response&&<div style={{ fontSize:11, color:"#a5b4fc", lineHeight:1.4, maxHeight:75, overflow:"auto", animation:"fu 0.3s ease", whiteSpace:"pre-line" }}>{response}</div>}
-            <input ref={inRef} type="text" placeholder={voiceOn?"Ask IC-BOS anything...":"Press orb to activate IC-BOS..."} value={transcript} onChange={e=>setTranscript(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&transcript.trim()){runCmd(transcript);setTranscript("");}}} disabled={!voiceOn} style={{ background:"none", border:"none", outline:"none", color:"#e5e7eb", fontSize:12.5, fontFamily:"inherit", width:"100%", opacity:voiceOn?1:0.4 }}/>
-          </div>
-          <button onClick={toggleVoice} style={{ position:"relative", width:56, height:56, borderRadius:"50%", border:"none", cursor:"pointer", flexShrink:0, background:voiceOn?"radial-gradient(circle at 40% 40%,#6366f1,#4f46e5 60%,#3730a3)":"radial-gradient(circle at 40% 40%,#374151,#1f2937 60%,#111827)", boxShadow:voiceOn?"0 0 0 3px rgba(99,102,241,0.2),0 0 28px rgba(99,102,241,0.2)":"0 0 0 2px rgba(55,65,81,0.2)", transition:"all 0.4s", display:"flex", alignItems:"center", justifyContent:"center" }}>
-            {voiceOn&&<><span style={{ position:"absolute", inset:-5, borderRadius:"50%", border:"2px solid rgba(99,102,241,0.25)", animation:"pr 2s ease-out infinite" }}/><span style={{ position:"absolute", inset:-12, borderRadius:"50%", border:"1px solid rgba(99,102,241,0.1)", animation:"pr 2s ease-out infinite .5s" }}/></>}
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={voiceOn?"#e0e7ff":"#9ca3af"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {vState==="listening"?<><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" fill="rgba(224,231,255,0.15)"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></>:<><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill={voiceOn?"rgba(224,231,255,0.1)":"none"}/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></>}
-            </svg>
-          </button>
-        </div>
-        {!voiceOn&&<div style={{ textAlign:"center", marginTop:5 }}><span style={{ fontSize:9, color:"#4b5563" }}>Click orb or <kbd style={{ padding:"1px 4px", background:"rgba(255,255,255,0.04)", borderRadius:3, fontSize:8, border:"1px solid rgba(255,255,255,0.06)" }}>⌘K</kbd></span></div>}
-      </div>
-    </div>
+    {/* Voice Layer — Vapi SDK */}
+      <VapiAssistant onTabChange={(tabId) => setTab(tabId)} />
   );
 }
