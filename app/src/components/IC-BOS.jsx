@@ -309,7 +309,7 @@ function InvoicingTab() {
   const stColors = { paid:"#4ade80", pending:"#fbbf24", overdue:"#f87171" };
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-      <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Invoicing & Billing</h2>
+     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Invoicing & Billing</h2><button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"invoice"}))} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Invoice</button></div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
         <KPI label="Mar Billed" value={totalBilled} prefix="$" spark={[17500,20000,22000,24000,27500,27635]} sparkColor="#818cf8"/>
         <KPI label="Collected" value={collected} prefix="$" spark={[11000,15000,18000,22000,24500,6548]} sparkColor="#4ade80" delay={60}/>
@@ -1100,7 +1100,7 @@ function CommsTab() {
   const tc={email:"#38bdf8",call:"#4ade80",meeting:"#c084fc",sms:"#fbbf24"};
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, maxWidth:680 }}>
-      <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Communication Log</h2>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Communication Log</h2><button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"comm"}))} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Log Comms</button></div>
       <div style={{ position:"relative", paddingLeft:20 }}>
         <div style={{ position:"absolute", left:6, top:0, bottom:0, width:2, background:"rgba(255,255,255,0.04)" }}/>
         {all.map((c,i)=>(<div key={i} style={{ position:"relative", marginBottom:10, animation:`fu 0.3s ease ${i*30}ms both` }}>
@@ -1121,6 +1121,7 @@ function CommsTab() {
 export default function ICBOS() {
   const [tab, setTab] = useState("overview");
 const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoice'|'comm'
+  useEffect(()=>{const h=(e)=>setShowForm(e.detail);document.addEventListener("ic-show-form",h);return()=>document.removeEventListener("ic-show-form",h);},[]);
   const tabs = [
     { id:"overview", l:"Overview" }, { id:"pipeline", l:"Pipeline" }, { id:"clients", l:"Clients" },
     { id:"roi", l:"ROI" }, { id:"financials", l:"Financials" }, { id:"invoicing", l:"Invoicing" },
@@ -1205,7 +1206,7 @@ const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoi
             <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#818cf8", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard/></Panel>
           </div>
         )}
-        {tab==="pipeline"&&<><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0",marginBottom:4}}>Sales Pipeline</h2><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard/></>}
+        {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Sales Pipeline</h2><button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button></div>
         {tab==="clients"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Client Health</h2><button onClick={()=>setShowForm("client")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Client</button></div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{CLIENTS.length} clients</p>
           <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1.3fr",gap:6,padding:"8px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",fontSize:9,fontWeight:600,color:"#6b7280",textTransform:"uppercase",fontFamily:M}}><span>Client</span><span>Status</span><span>Health</span><span>No-Show</span><span>MRR</span><span>Next</span></div>
@@ -1245,7 +1246,7 @@ const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoi
         {tab==="renewals"&&<RenewalsTab/>}
         {tab==="proposal"&&<ProposalTab/>}
         {tab==="salesprep"&&<SalesPrepTab/>}
-        {tab==="tasks"&&<><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0",marginBottom:4}}>Action Items</h2><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS].sort((a,b)=>({high:0,medium:1,low:2})[a.priority]-({high:0,medium:1,low:2})[b.priority]).map((t,i)=><TaskItem key={t.id} task={t} delay={i*30}/>)}</div></>}
+        {tab==="tasks"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Action Items</h2><button onClick={()=>setShowForm("task")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Task</button></div><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS].sort((a,b)=>({high:0,medium:1,low:2})[a.priority]-({high:0,medium:1,low:2})[b.priority]).map((t,i)=><TaskItem key={t.id} task={t} delay={i*30}/>)}</div></>}
         {tab==="comms"&&<CommsTab/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
