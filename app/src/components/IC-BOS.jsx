@@ -149,7 +149,7 @@ function processVoice(text) {
     const high = TASKS.filter(t=>t.priority==="high");
     const totalROI = CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0);
     const overdue = INVOICES.filter(i=>i.status==="overdue");
-    let r = `Good morning, Leonard. IC-BOS daily briefing for March 8th.\n\n`;
+   let r = `Good morning, Leonard. IC-BOS daily briefing for ${new Date().toLocaleDateString('en-US', { month:'long', day:'numeric' })}.\n\n`;
     if (crit.length) r += `⚠️ CRITICAL: ${crit.map(a=>`${a.client} ${a.name} at ${a.successRate}%`).join("; ")}.\n\n`;
     r += `📋 ${high.length} high-priority tasks: ${high.map(t=>t.text).join("; ")}.\n\n`;
     r += `💰 Client value recovered: $${Math.round(totalROI).toLocaleString()}. MRR $${FINANCIALS.mrr.toLocaleString()}, cash $${FINANCIALS.cashOnHand.toLocaleString()}.`;
