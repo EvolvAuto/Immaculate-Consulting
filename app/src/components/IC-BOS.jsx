@@ -1256,7 +1256,7 @@ const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoi
       {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>setShowForm(null)}/>}
       {showForm==="comm"&&<AddCommPanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>setShowForm(null)}/>}
     {/* Voice Layer — Vapi SDK */}
-      <VapiAssistant onTabChange={(tabId) => setTab(tabId)} />
+      <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
   </div>
   );
 }
