@@ -34,7 +34,22 @@ const TAB_KEYWORDS = {
   comms:         ["commun", "contact", "touchpoint"],
   report:        ["weekly report", "week summary", "this week"],
 };
+// Form open keywords — detected in user speech to open slide-in panels
+const FORM_KEYWORDS = {
+  client:  ["add a client", "new client", "add client", "create client"],
+  deal:    ["add a deal", "new deal", "add deal", "new prospect", "add prospect"],
+  task:    ["add a task", "new task", "add task", "create task"],
+  invoice: ["add an invoice", "new invoice", "add invoice", "create invoice", "log invoice"],
+  comm:    ["log a call", "log a meeting", "log an email", "log comms", "log communication", "add comms"],
+};
 
+function detectForm(text) {
+  const lower = text.toLowerCase();
+  for (const [formId, keywords] of Object.entries(FORM_KEYWORDS)) {
+    if (keywords.some(kw => lower.includes(kw))) return formId;
+  }
+  return null;
+}
 function detectTab(text) {
   const lower = text.toLowerCase();
   for (const [tabId, keywords] of Object.entries(TAB_KEYWORDS)) {
@@ -43,7 +58,7 @@ function detectTab(text) {
   return null;
 }
 
-export default function VapiAssistant({ onTabChange }) {
+export default function VapiAssistant({ onTabChange, onOpenForm }) {
   const vapiRef  = useRef(null);
   const inRef    = useRef(null);
 
@@ -75,11 +90,14 @@ export default function VapiAssistant({ onTabChange }) {
     // Message events — assistant responses + tab navigation
     vapi.on("message", (msg) => {
       // Live transcript from user
-      if (msg.type === "transcript" && msg.role === "user") {
+     if (msg.type === "transcript" && msg.role === "user") {
         setTranscript(msg.transcript);
-        // Detect tab navigation intent in user speech
+        // Detect tab navigation intent
         const tab = detectTab(msg.transcript);
         if (tab && onTabChange) onTabChange(tab);
+        // Detect form open intent
+        const form = detectForm(msg.transcript);
+        if (form && onOpenForm) onOpenForm(form);
       }
 
       // Assistant final response
