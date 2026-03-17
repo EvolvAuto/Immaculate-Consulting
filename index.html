@@ -6,388 +6,355 @@
 <title>Immaculate Consulting | AI Operations for NC Medical Practices</title>
 <meta name="description" content="AI automation, staff training, and custom web apps for NC medical practices. All payers. Reduce no-shows 40-60%. Save 10-15 staff hours per week.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;800;900&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <style>
-:root{--navy:#1B3A5C;--navy-deep:#0F1F33;--blue:#2E75B6;--blue-light:#D5E8F0;--gold:#D4A843;--gold-light:#FFF8E7;--white:#FFFFFF;--off-white:#FAFBFC;--gray:#F2F4F7;--gray-text:#6B7280;--dark:#0A1628;--green:#16A34A;--red:#DC2626;--orange:#EA580C}
+:root{--navy:#175A9D;--navy-deep:#0E3A6B;--blue:#2192CA;--blue-light:#E8F4FB;--accent:#2192CA;--accent-glow:rgba(33,146,202,.12);--white:#FFFFFF;--off:#F7F9FC;--gray-text:#5A6B7E;--gray-border:#E2E8F0;--dark-text:#0E2A47;--green:#22C55E;--glass:rgba(255,255,255,.7);--glass-border:rgba(33,146,202,.1)}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'DM Sans',sans-serif;color:var(--navy);background:var(--white);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;color:var(--dark-text);background:var(--white);-webkit-font-smoothing:antialiased;overflow-x:hidden}
 .pf{font-family:'Playfair Display',Georgia,serif}
+
+/* ── Subtle texture ── */
+body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");pointer-events:none;z-index:9999;opacity:.3}
+
+/* ── Reveal system ── */
+.rv{opacity:0;transform:translateY(40px);transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}
+.rv.vis{opacity:1;transform:translateY(0)}
+.rv-1{transition-delay:.12s}.rv-2{transition-delay:.24s}.rv-3{transition-delay:.36s}.rv-4{transition-delay:.48s}.rv-5{transition-delay:.6s}
+.rv-scale{opacity:0;transform:scale(.92);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+.rv-scale.vis{opacity:1;transform:scale(1)}
+
+/* ── Nav ── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:20px 32px;transition:all .4s cubic-bezier(.4,0,.2,1)}
+.nav.scrolled{padding:12px 32px;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 1px 12px rgba(14,42,71,.06)}
+.nav-inner{max-width:1240px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+.nav-logo{font-size:20px;font-weight:800;color:var(--white);letter-spacing:.3px}.nav-logo span{color:var(--blue)}
+.nav.scrolled .nav-logo{color:var(--dark-text)}
+.nav-links{display:flex;gap:32px;align-items:center}
+.nav-links a{color:rgba(255,255,255,.7);font-size:14px;font-weight:500;transition:color .3s;letter-spacing:.3px}
+.nav-links a:hover{color:var(--white)}
+.nav.scrolled .nav-links a{color:var(--gray-text)}.nav.scrolled .nav-links a:hover{color:var(--navy)}
+.nav-cta{background:var(--accent);color:var(--white);padding:10px 28px;border-radius:100px;font-weight:700;font-size:13px;letter-spacing:.5px;transition:all .4s;border:none;cursor:pointer}
+.nav-cta:hover{box-shadow:0 0 24px var(--accent-glow);transform:translateY(-1px)}
 a{text-decoration:none;color:inherit}
 
-/* Animations */
-.rv{opacity:0;transform:translateY(24px);transition:opacity .65s ease,transform .65s ease}
-.rv.vis{opacity:1;transform:translateY(0)}
-.rv-1{transition-delay:.1s}.rv-2{transition-delay:.2s}.rv-3{transition-delay:.3s}.rv-4{transition-delay:.4s}
+/* ── Hero (keeps dark for impact) ── */
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:160px 32px 120px;position:relative;overflow:hidden;background:linear-gradient(170deg,#0B1829 0%,var(--navy) 50%,var(--blue) 100%)}
+.hero-bg{position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 40%,rgba(33,146,202,.15),transparent),radial-gradient(ellipse 60% 50% at 20% 80%,rgba(33,146,202,.08),transparent);pointer-events:none}
+.hero-orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;animation:orbFloat 20s ease-in-out infinite}
+.hero-orb-1{width:500px;height:500px;background:rgba(33,146,202,.12);top:-10%;left:-10%;animation-delay:0s}
+.hero-orb-2{width:400px;height:400px;background:rgba(93,196,232,.08);bottom:-5%;right:-5%;animation-delay:-7s}
+.hero-orb-3{width:300px;height:300px;background:rgba(33,146,202,.07);top:30%;right:10%;animation-delay:-14s}
+@keyframes orbFloat{0%,100%{transform:translate(0,0)}25%{transform:translate(30px,-20px)}50%{transform:translate(-20px,30px)}75%{transform:translate(20px,15px)}}
+.hero-inner{position:relative;z-index:1;max-width:900px}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 20px;border-radius:100px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(12px);font-size:12px;font-weight:600;letter-spacing:2px;text-transform:uppercase;color:#A8E0F6;margin-bottom:32px}
+.hero-badge::before{content:'';width:6px;height:6px;border-radius:50%;background:#5DC4E8;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+.hero h1{font-size:clamp(42px,6.5vw,80px);line-height:1.05;font-weight:900;letter-spacing:-.02em;margin-bottom:28px;color:var(--white)}
+.hero h1 em{font-style:normal;background:linear-gradient(135deg,#5DC4E8,#A8E0F6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:clamp(16px,2vw,20px);color:rgba(255,255,255,.8);line-height:1.75;max-width:620px;margin:0 auto 44px}
+.hero-sub strong{color:var(--white)}
+.hero-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+.btn-glow{padding:16px 40px;background:var(--white);color:var(--navy);font-weight:700;font-size:15px;border-radius:100px;border:none;cursor:pointer;transition:all .4s;font-family:'DM Sans',sans-serif}
+.btn-glow:hover{box-shadow:0 0 40px rgba(255,255,255,.25);transform:translateY(-2px)}
+.btn-ghost{padding:16px 36px;background:transparent;color:var(--white);font-weight:600;font-size:15px;border-radius:100px;border:1px solid rgba(255,255,255,.2);cursor:pointer;transition:all .4s;font-family:'DM Sans',sans-serif;backdrop-filter:blur(8px)}
+.btn-ghost:hover{border-color:var(--white);color:var(--white)}
 
-/* Nav */
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 24px;transition:background .3s,box-shadow .3s}
-.nav.scrolled{background:rgba(15,31,51,.97);box-shadow:0 2px 20px rgba(0,0,0,.15);backdrop-filter:blur(12px)}
-.nav-inner{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
-.nav-logo{color:var(--white);font-size:18px;font-weight:700;letter-spacing:.5px}
-.nav-logo span{color:var(--gold)}
-.nav-links{display:flex;gap:28px;align-items:center}
-.nav-links a{color:rgba(255,255,255,.75);font-size:14px;font-weight:500;transition:color .2s}
-.nav-links a:hover{color:var(--gold)}
-.nav-cta{background:var(--gold);color:var(--navy);padding:10px 24px;border-radius:6px;font-weight:700;font-size:14px;transition:all .3s;border:2px solid var(--gold)}
-.nav-cta:hover{background:transparent;color:var(--gold)}
+/* ── Stats strip ── */
+.stats{padding:0 32px 80px;position:relative;z-index:2;background:linear-gradient(to bottom,var(--blue) 0%,var(--off) 50%,var(--off) 100%)}
+.stats-inner{max-width:1000px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--gray-border);border-radius:20px;overflow:hidden;border:1px solid var(--gray-border);box-shadow:0 8px 40px rgba(14,42,71,.08)}
+.stat{padding:40px 32px;text-align:center;background:var(--white);transition:background .4s}
+.stat:hover{background:var(--blue-light)}
+.stat-n{font-size:clamp(32px,4vw,48px);font-weight:900;background:linear-gradient(135deg,var(--navy),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1}
+.stat-l{font-size:13px;color:var(--gray-text);margin-top:8px;letter-spacing:.5px}
 
-/* Hero */
-.hero{background:linear-gradient(170deg,var(--dark) 0%,var(--navy) 50%,var(--blue) 100%);padding:140px 24px 160px;position:relative;overflow:hidden;min-height:100vh;display:flex;align-items:center}
-.hero::before{content:'';position:absolute;top:-30%;right:-15%;width:60%;height:160%;background:radial-gradient(ellipse,rgba(212,168,67,.06) 0%,transparent 65%);pointer-events:none}
-.hero::after{content:'';position:absolute;bottom:0;left:0;right:0;height:160px;background:linear-gradient(to top,var(--white),transparent);pointer-events:none}
-.hero .inner{max-width:1200px;margin:0 auto;position:relative;z-index:1;width:100%}
-.hero .tag{color:var(--gold);font-size:13px;font-weight:600;letter-spacing:3px;text-transform:uppercase;margin-bottom:24px;display:flex;align-items:center;gap:12px}
-.hero .tag::before{content:'';width:40px;height:2px;background:var(--gold)}
-.hero h1{font-size:clamp(40px,5.5vw,64px);color:var(--white);line-height:1.1;max-width:750px;margin-bottom:28px;font-weight:800}
-.hero h1 em{font-style:normal;color:var(--gold)}
-.hero .sub{font-size:20px;color:#9BB0C8;line-height:1.7;max-width:600px;margin-bottom:40px}
-.hero .sub strong{color:var(--white)}
-.btn-row{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
-.btn-primary{display:inline-flex;align-items:center;gap:8px;padding:18px 40px;background:var(--gold);color:var(--navy);font-weight:700;font-size:16px;border-radius:8px;border:2px solid var(--gold);cursor:pointer;transition:all .3s;font-family:'DM Sans',sans-serif}
-.btn-primary:hover{background:transparent;color:var(--gold)}
-.btn-secondary{display:inline-flex;align-items:center;gap:8px;padding:16px 32px;background:transparent;color:var(--white);font-weight:600;font-size:15px;border-radius:8px;border:2px solid rgba(255,255,255,.2);cursor:pointer;transition:all .3s;font-family:'DM Sans',sans-serif}
-.btn-secondary:hover{border-color:var(--gold);color:var(--gold)}
-.hero-stats{display:flex;gap:48px;margin-top:56px;padding-top:40px;border-top:1px solid rgba(255,255,255,.08)}
-.hero-stat .num{font-size:42px;font-weight:800;color:var(--gold);line-height:1}
-.hero-stat .lbl{font-size:13px;color:#7A8FA3;margin-top:4px}
-
-/* Section helpers */
-.sec{padding:100px 24px}.sec-white{background:var(--white)}.sec-gray{background:var(--gray)}.sec-navy{background:var(--navy)}.sec-dark{background:var(--dark)}
+/* ── Sections ── */
+.sec{padding:120px 32px;position:relative;background:var(--white)}
+.sec-alt{background:var(--off)}
 .mx{max-width:1200px;margin:0 auto}
-.mx-sm{max-width:900px;margin:0 auto}
-.mx-md{max-width:1000px;margin:0 auto}
-.stag{color:var(--gold);font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;margin-bottom:16px}
-.stitle{font-size:clamp(28px,3.5vw,42px);line-height:1.2;margin-bottom:20px;font-weight:700}
-.sdesc{font-size:17px;color:var(--gray-text);line-height:1.7;max-width:600px}
+.stag{font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:16px}
+.stitle{font-size:clamp(32px,4vw,52px);font-weight:800;line-height:1.1;letter-spacing:-.01em;margin-bottom:20px;color:var(--dark-text)}
+.sdesc{font-size:17px;color:var(--gray-text);line-height:1.8;max-width:560px}
+.svc-name{font-size:20px;font-weight:700;margin-bottom:10px;color:var(--dark-text)}
+.svc-desc{font-size:14px;color:var(--gray-text);line-height:1.7}
 
-/* Value Props */
-.vp-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:32px;margin-top:56px}
-.vp-card{padding:36px 28px;border-radius:12px;background:var(--white);border:1px solid #E8EBF0;transition:all .35s;position:relative;overflow:hidden}
-.vp-card::before{content:'';position:absolute;top:0;left:0;width:100%;height:4px;background:var(--gold);transform:scaleX(0);transition:transform .35s;transform-origin:left}
-.vp-card:hover{transform:translateY(-6px);box-shadow:0 16px 48px rgba(27,58,92,.10)}.vp-card:hover::before{transform:scaleX(1)}
-.vp-icon{font-size:32px;margin-bottom:16px}
-.vp-title{font-size:18px;font-weight:700;color:var(--navy);margin-bottom:8px}
-.vp-desc{font-size:14px;color:var(--gray-text);line-height:1.6}
+/* ── Gradient divider ── */
+.gdiv{height:1px;background:linear-gradient(90deg,transparent,rgba(33,146,202,.2),rgba(23,90,157,.1),transparent);margin:0 auto;max-width:900px}
 
-/* Tiers */
-.tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:48px}
-.tier-card{background:var(--white);border-radius:16px;padding:0;overflow:hidden;border:2px solid #E8EBF0;transition:all .35s;position:relative}
-.tier-card:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(27,58,92,.12)}
-.tier-card.pop{border-color:var(--gold);box-shadow:0 8px 32px rgba(212,168,67,.15)}
-.tier-card.pop::after{content:'MOST POPULAR';position:absolute;top:16px;right:-32px;background:var(--gold);color:var(--navy);font-size:10px;font-weight:800;letter-spacing:1.5px;padding:6px 40px;transform:rotate(45deg);z-index:2}
-.tier-head{padding:32px 28px 24px;text-align:center}
-.tier-name{font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--blue);margin-bottom:4px}
-.tier-title{font-size:22px;font-weight:700;color:var(--navy);margin-bottom:4px}
-.tier-for{font-size:13px;color:var(--gray-text);margin-bottom:16px}
-.tier-price{font-size:36px;font-weight:800;color:var(--navy)}.tier-price span{font-size:16px;font-weight:500;color:var(--gray-text)}
-.tier-body{padding:0 28px 32px}
-.tier-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;font-size:14px;color:var(--navy);line-height:1.5}
-.tier-check{color:var(--green);font-weight:700;flex-shrink:0;margin-top:2px}
-.tier-btn{display:block;text-align:center;padding:14px;margin:0 28px 28px;border-radius:8px;font-weight:700;font-size:15px;transition:all .3s;cursor:pointer}
-.tier-btn-fill{background:var(--gold);color:var(--navy);border:2px solid var(--gold)}.tier-btn-fill:hover{background:transparent;color:var(--gold)}
-.tier-btn-out{background:transparent;color:var(--navy);border:2px solid var(--navy)}.tier-btn-out:hover{background:var(--navy);color:var(--white)}
+/* ── Services grid ── */
+.svc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px}
+.svc-card{padding:36px 28px;border-radius:16px;background:var(--white);border:1px solid var(--gray-border);transition:all .5s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}
+.svc-card::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at top left,var(--accent-glow),transparent 70%);opacity:0;transition:opacity .5s}
+.svc-card:hover{border-color:rgba(33,146,202,.25);transform:translateY(-4px);box-shadow:0 16px 48px rgba(14,42,71,.08)}.svc-card:hover::before{opacity:1}
+.svc-icon{font-size:36px;margin-bottom:20px;display:block}
+.svc-name{font-size:20px;font-weight:700;margin-bottom:10px;color:var(--dark-text)}
+.svc-desc{font-size:14px;color:var(--gray-text);line-height:1.7}
 
-/* Individual Services */
-.svc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:48px}
-.svc-card{background:var(--white);border-radius:12px;padding:32px;border:1px solid #E8EBF0;transition:all .3s}
-.svc-card:hover{box-shadow:0 8px 32px rgba(27,58,92,.08);border-color:var(--blue-light)}
-.svc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
-.svc-name{font-size:18px;font-weight:700;color:var(--navy)}
-.svc-price{font-size:14px;font-weight:700;color:var(--gold);background:var(--gold-light);padding:4px 14px;border-radius:20px;white-space:nowrap}
-.svc-desc{font-size:14px;color:var(--gray-text);line-height:1.6;margin-bottom:12px}
-.svc-details{font-size:13px;color:var(--blue);font-weight:600}
+/* ── Tiers ── */
+.tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:56px}
+.tier{border-radius:20px;overflow:hidden;border:1px solid var(--gray-border);background:var(--white);transition:all .5s;position:relative}
+.tier:hover{transform:translateY(-4px);box-shadow:0 16px 48px rgba(14,42,71,.08)}
+.tier.pop{border-color:var(--accent);border-width:2px;box-shadow:0 8px 32px rgba(33,146,202,.1)}
+.tier.pop::before{content:'MOST POPULAR';position:absolute;top:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--white);font-size:10px;font-weight:800;letter-spacing:1.5px;padding:5px 16px;border-radius:100px;z-index:2}
+.tier-head{padding:48px 28px 28px;text-align:center;border-bottom:1px solid var(--gray-border)}
+.tier-label{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.tier-name{font-size:24px;font-weight:800;color:var(--dark-text);margin-bottom:4px}
+.tier-for{font-size:13px;color:var(--gray-text);margin-bottom:20px}
+.tier-price{font-size:40px;font-weight:900;color:var(--dark-text)}.tier-price span{font-size:16px;font-weight:400;color:var(--gray-text)}
+.tier-body{padding:28px}
+.tier-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;font-size:14px;color:var(--gray-text);line-height:1.5}
+.tier-chk{color:var(--green);flex-shrink:0;font-weight:700;margin-top:1px}
+.tier-btn{display:block;margin:8px 28px 28px;padding:14px;text-align:center;border-radius:100px;font-weight:700;font-size:14px;letter-spacing:.3px;cursor:pointer;transition:all .4s}
+.tier-btn-gold{background:var(--accent);color:var(--white);border:none}.tier-btn-gold:hover{box-shadow:0 0 24px var(--accent-glow)}
+.tier-btn-out{background:transparent;color:var(--navy);border:1px solid var(--gray-border)}.tier-btn-out:hover{border-color:var(--accent);color:var(--accent)}
 
-/* Process */
-.process-steps{display:flex;gap:0;margin-top:56px;position:relative}
-.process-steps::before{content:'';position:absolute;top:28px;left:60px;right:60px;height:3px;background:linear-gradient(90deg,var(--gold),var(--blue))}
-.step{flex:1;text-align:center;position:relative;z-index:1}
-.step-num{width:56px;height:56px;border-radius:50%;background:var(--navy);color:var(--gold);font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;border:3px solid var(--white);box-shadow:0 4px 16px rgba(27,58,92,.15)}
-.step-title{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:6px}
-.step-desc{font-size:13px;color:var(--gray-text);line-height:1.5;padding:0 8px}
+/* ── Individual services ── */
+.ind-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:48px}
+.ind-card{padding:28px;border-radius:16px;background:var(--white);border:1px solid var(--gray-border);transition:all .4s}
+.ind-card:hover{border-color:rgba(33,146,202,.2);box-shadow:0 8px 32px rgba(14,42,71,.06)}
+.ind-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.ind-name{font-size:18px;font-weight:700;color:var(--dark-text)}
+.ind-price{font-size:13px;font-weight:700;color:var(--accent);background:var(--blue-light);padding:4px 14px;border-radius:100px;white-space:nowrap}
+.ind-desc{font-size:14px;color:var(--gray-text);line-height:1.6;margin-bottom:10px}
+.ind-detail{font-size:12px;color:var(--navy);font-weight:600}
 
-/* Payers */
-.payer-row{display:flex;justify-content:center;gap:24px;flex-wrap:wrap;margin-top:32px}
-.payer-tag{padding:10px 24px;background:var(--white);border-radius:8px;font-size:14px;font-weight:600;color:var(--navy);border:1px solid #E5E7EB}
+/* ── Process ── */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;margin-top:56px}
+.step{text-align:center;position:relative}
+.step-num{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:24px;font-weight:900;color:var(--white);position:relative}
+.step-num::before{content:'';position:absolute;inset:-3px;border-radius:50%;background:linear-gradient(135deg,#175A9D,#2192CA);z-index:-1}
+.step-num::after{content:'';position:absolute;inset:0;border-radius:50%;background:linear-gradient(135deg,var(--navy),var(--blue));z-index:-1}
+.step-title{font-size:16px;font-weight:700;color:var(--dark-text);margin-bottom:8px}
+.step-desc{font-size:13px;color:var(--gray-text);line-height:1.6}
 
-/* CTA */
-.cta-sec{text-align:center}
-.cta-sec h2{color:var(--white)}
-.cta-sec .sdesc{color:#8899AA;margin:0 auto 36px}
+/* ── Payers ── */
+.payer-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:32px}
+.payer-tag{padding:10px 22px;border-radius:100px;font-size:13px;font-weight:600;color:var(--navy);border:1px solid var(--gray-border);background:var(--white);transition:all .3s}
+.payer-tag:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 4px 16px rgba(33,146,202,.08)}
 
-/* Footer */
-.footer{padding:40px 24px;text-align:center;border-top:1px solid rgba(255,255,255,.05)}
-.footer p{color:#556677;font-size:13px}
-.footer .links{margin-bottom:12px}.footer .links a{color:#778899;font-size:13px;margin:0 12px;transition:color .2s}.footer .links a:hover{color:var(--gold)}
+/* ── Security (dark band for contrast) ── */
+.sec-navy-band{background:linear-gradient(170deg,var(--navy-deep),var(--navy));color:var(--white)}
+.sec-navy-band .stitle{color:var(--white)}
+.sec-navy-band .stag{color:#5DC4E8}
+.sec-navy-band .sec-item-title{color:var(--white)}
+.sec-items{display:flex;justify-content:center;gap:56px;margin-top:48px;flex-wrap:wrap}
+.sec-item{text-align:center;max-width:140px}
+.sec-item-icon{font-size:32px;margin-bottom:12px}
+.sec-item-title{font-size:14px;font-weight:700;margin-bottom:4px}
+.sec-item-desc{font-size:12px;color:rgba(255,255,255,.7)}
 
-/* Modal */
-.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(10,22,40,.7);z-index:9999;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(6px)}
-.modal-overlay.active{display:flex}
-.modal{background:var(--white);border-radius:16px;max-width:560px;width:100%;box-shadow:0 32px 80px rgba(0,0,0,.3);overflow:hidden;position:relative;animation:mIn .35s ease;max-height:92vh;overflow-y:auto}
-@keyframes mIn{from{opacity:0;transform:translateY(20px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-.modal-head{background:var(--navy);padding:28px 32px}.modal-head h3{color:var(--white);font-size:22px;margin-bottom:4px}.modal-head p{color:var(--gold);font-size:14px}
-.modal-x{position:absolute;top:20px;right:24px;background:none;border:none;color:rgba(255,255,255,.5);font-size:28px;cursor:pointer;transition:color .2s;line-height:1}.modal-x:hover{color:var(--white)}
-.modal-body{padding:32px}
-.fg{margin-bottom:18px}.fg label{display:block;font-size:12px;font-weight:700;color:var(--navy);margin-bottom:5px;letter-spacing:.5px;text-transform:uppercase}
-.fg input,.fg select,.fg textarea{width:100%;padding:12px 16px;border:2px solid #E5E7EB;border-radius:8px;font-size:15px;font-family:'DM Sans',sans-serif;color:var(--navy);background:var(--white);transition:border-color .2s;outline:none}
-.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--gold)}
+/* ── CTA (dark band) ── */
+.cta-sec{padding:140px 32px;text-align:center;position:relative;overflow:hidden;background:linear-gradient(170deg,var(--navy),var(--blue))}
+.cta-sec .stitle{color:var(--white)}
+.cta-sec .stag{color:#5DC4E8}
+.cta-sec .sdesc{color:rgba(255,255,255,.75)}
+.cta-sec::before{content:'';position:absolute;top:50%;left:50%;width:700px;height:700px;transform:translate(-50%,-50%);background:radial-gradient(ellipse,rgba(93,196,232,.1),transparent 65%);pointer-events:none}
+
+/* ── Footer ── */
+.footer{padding:40px 32px;text-align:center;border-top:1px solid var(--gray-border);background:var(--off)}
+.footer-links{margin-bottom:12px}.footer-links a{color:var(--gray-text);font-size:13px;margin:0 16px;transition:color .3s}.footer-links a:hover{color:var(--accent)}
+.footer p{color:rgba(90,107,126,.5);font-size:12px}
+
+/* ── Modal ── */
+.mo{display:none;position:fixed;inset:0;background:rgba(14,42,71,.4);z-index:9999;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(12px)}
+.mo.active{display:flex}
+.modal{background:var(--white);border:1px solid var(--gray-border);border-radius:20px;max-width:540px;width:100%;box-shadow:0 40px 100px rgba(14,42,71,.15);overflow:hidden;position:relative;animation:mIn .4s cubic-bezier(.16,1,.3,1);max-height:92vh;overflow-y:auto}
+@keyframes mIn{from{opacity:0;transform:translateY(24px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+.m-head{padding:32px;border-bottom:1px solid var(--gray-border);background:linear-gradient(135deg,var(--navy),var(--blue))}.m-head h3{font-size:24px;font-weight:800;margin-bottom:4px;color:var(--white)}.m-head p{font-size:14px;color:rgba(255,255,255,.7)}
+.m-x{position:absolute;top:24px;right:24px;background:none;border:none;color:rgba(255,255,255,.5);font-size:24px;cursor:pointer;transition:color .2s;line-height:1}.m-x:hover{color:var(--white)}
+.m-body{padding:32px}
+.fg{margin-bottom:16px}.fg label{display:block;font-size:11px;font-weight:700;color:var(--navy);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase}
+.fg input,.fg select,.fg textarea{width:100%;padding:12px 16px;border:1px solid var(--gray-border);border-radius:10px;font-size:15px;font-family:'DM Sans',sans-serif;color:var(--dark-text);background:var(--white);transition:border-color .3s;outline:none}
+.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--accent)}
+.fg input::placeholder,.fg textarea::placeholder{color:#B0BEC5}
+.fg select{color:var(--gray-text)}
 .fg textarea{resize:vertical;min-height:72px}
-.fr{display:flex;gap:14px}.fr .fg{flex:1}
-.f-submit{width:100%;padding:16px;background:var(--gold);color:var(--navy);font-weight:700;font-size:16px;border-radius:8px;border:2px solid var(--gold);cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .3s;margin-top:4px}
-.f-submit:hover{background:var(--navy);color:var(--gold);border-color:var(--navy)}.f-submit:disabled{opacity:.5;cursor:not-allowed}
-.f-success{text-align:center;padding:48px 32px}.f-success .chk{font-size:56px;margin-bottom:16px}.f-success h3{font-size:22px;color:var(--navy);margin-bottom:8px}.f-success p{color:var(--gray-text);font-size:15px;line-height:1.6}
+.fr{display:flex;gap:12px}.fr .fg{flex:1}
+.f-sub{width:100%;padding:16px;background:var(--accent);color:var(--white);font-weight:700;font-size:15px;border-radius:100px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .4s;margin-top:8px}
+.f-sub:hover{box-shadow:0 0 24px var(--accent-glow)}.f-sub:disabled{opacity:.4;cursor:not-allowed}
+.f-ok{text-align:center;padding:48px 32px}.f-ok .chk{font-size:56px;margin-bottom:16px}.f-ok h3{font-size:24px;font-weight:800;color:var(--dark-text);margin-bottom:8px}.f-ok p{color:var(--gray-text);font-size:15px;line-height:1.6}
 
-@media(max-width:900px){
-  .vp-grid,.tiers{grid-template-columns:1fr}
-  .svc-grid{grid-template-columns:1fr}
-  .process-steps{flex-direction:column;gap:24px}
-  .process-steps::before{display:none}
-  .hero-stats{flex-direction:column;gap:24px}
-  .nav-links{display:none}
-  .hero{padding:120px 24px 140px}
-  .tier-card.pop::after{display:none}
-}
-@media(max-width:600px){
-  .fr{flex-direction:column;gap:0}
-  .payer-row{gap:12px}.payer-tag{padding:8px 16px;font-size:12px}
-}
+@media(max-width:900px){.svc-grid,.tiers{grid-template-columns:1fr}.ind-grid{grid-template-columns:1fr}.steps{grid-template-columns:repeat(2,1fr)}.nav-links{display:none}.hero{padding:140px 24px 100px}.stats-inner{grid-template-columns:1fr}.tier.pop::before{position:static;display:block;text-align:center;transform:none;margin:16px auto 0;width:fit-content}}
+@media(max-width:600px){.fr{flex-direction:column;gap:0}.sec-items{gap:32px}.steps{grid-template-columns:1fr}.hero h1{font-size:36px}.payer-row{gap:8px}.payer-tag{padding:8px 16px;font-size:11px}}
 </style>
 </head>
 <body>
 
-<!-- NAV -->
-<nav class="nav" id="nav">
-  <div class="nav-inner">
-    <div class="nav-logo pf">Immaculate <span>Consulting</span></div>
-    <div class="nav-links">
-      <a href="#services">Services</a>
-      <a href="#packages">Packages</a>
-      <a href="#process">Process</a>
-      <a href="#individual">Individual Services</a>
-      <a class="nav-cta" onclick="openModal()">Free Assessment</a>
-    </div>
-  </div>
-</nav>
+<nav class="nav" id="nav"><div class="nav-inner"><div class="nav-logo pf">Immaculate <span>Consulting</span></div><div class="nav-links"><a href="#services">Services</a><a href="#packages">Packages</a><a href="#process">Process</a><a href="#individual">Individual</a><button class="nav-cta" onclick="openModal()">FREE ASSESSMENT</button></div></div></nav>
 
-<!-- HERO -->
 <section class="hero">
-  <div class="inner">
-    <p class="tag rv">AI Operations Studio</p>
+  <div class="hero-bg"></div>
+  <div class="hero-orb hero-orb-1"></div>
+  <div class="hero-orb hero-orb-2"></div>
+  <div class="hero-orb hero-orb-3"></div>
+  <div class="hero-inner">
+    <div class="hero-badge rv">AI Operations Consulting</div>
     <h1 class="pf rv rv-1">Reclaim your practice's <em>time & revenue</em></h1>
-    <p class="sub rv rv-2">We help NC medical practices reduce administrative burden by <strong>30–50%</strong> through intelligent automation, AI-powered tools, and custom web applications. All payers welcome.</p>
-    <div class="btn-row rv rv-3">
-      <button class="btn-primary" onclick="openModal()">Free 20-Min Assessment →</button>
-      <a href="#packages" class="btn-secondary">View Packages</a>
-    </div>
-    <div class="hero-stats rv rv-4">
-      <div class="hero-stat"><div class="num">40–60%</div><div class="lbl">No-show reduction</div></div>
-      <div class="hero-stat"><div class="num">10–15</div><div class="lbl">Staff hours saved / week</div></div>
-      <div class="hero-stat"><div class="num">$50K+</div><div class="lbl">Annual revenue recovered</div></div>
+    <p class="hero-sub rv rv-2">We help NC medical practices reduce administrative burden by <strong>30–50%</strong> through intelligent automation, AI-powered tools, and custom web applications.</p>
+    <div class="hero-btns rv rv-3">
+      <button class="btn-glow" onclick="openModal()">Schedule Free Assessment →</button>
+      <a href="#packages" class="btn-ghost">View Packages</a>
     </div>
   </div>
 </section>
 
-<!-- VALUE PROPS -->
-<section class="sec sec-white" id="services">
-  <div class="mx">
-    <div class="rv"><p class="stag">What We Do</p></div>
-    <h2 class="pf stitle rv rv-1">AI operations built for <br>medical practices</h2>
-    <p class="sdesc rv rv-2">From appointment reminders to custom dashboards, we design, build, and manage the automation that frees your team to focus on patient care.</p>
-    <div class="vp-grid">
-      <div class="vp-card rv"><div class="vp-icon">📲</div><div class="vp-title">Appointment Reminders</div><div class="vp-desc">Automated SMS + email reminders that reduce no-shows 40–60%. Multi-interval, multi-channel, fully integrated with your EHR.</div></div>
-      <div class="vp-card rv rv-1"><div class="vp-icon">🤖</div><div class="vp-title">AI Chat Assistant</div><div class="vp-desc">24/7 virtual assistant trained on your practice's policies. Answers patient questions, escalates to staff when needed.</div></div>
-      <div class="vp-card rv rv-2"><div class="vp-icon">🔍</div><div class="vp-title">AI Knowledge Hub</div><div class="vp-desc">Every policy, payer rule, and procedure searchable in plain English. Instant answers with source citations.</div></div>
-      <div class="vp-card rv"><div class="vp-icon">📊</div><div class="vp-title">Practice Dashboard</div><div class="vp-desc">Real-time KPIs, no-show tracking, revenue metrics, and automation performance — all at a glance.</div></div>
-      <div class="vp-card rv rv-1"><div class="vp-icon">🛡️</div><div class="vp-title">Claims & Verification</div><div class="vp-desc">Automated insurance verification, claims denial monitoring, and AI-drafted appeal letters.</div></div>
-      <div class="vp-card rv rv-2"><div class="vp-icon">🖥️</div><div class="vp-title">Custom Web Apps</div><div class="vp-desc">Operations dashboards, patient portals, referral trackers — purpose-built for your workflows. Source code owned by you.</div></div>
-    </div>
-  </div>
-</section>
+<div class="stats rv-scale"><div class="stats-inner">
+  <div class="stat"><div class="stat-n pf">40–60%</div><div class="stat-l">No-show reduction</div></div>
+  <div class="stat"><div class="stat-n pf">10–15 hrs</div><div class="stat-l">Staff time saved per week</div></div>
+  <div class="stat"><div class="stat-n pf">$50K+</div><div class="stat-l">Annual revenue recovered</div></div>
+</div></div>
 
-<!-- MANAGED PACKAGES -->
-<section class="sec sec-gray" id="packages">
-  <div class="mx">
-    <div style="text-align:center" class="rv"><p class="stag">Managed Packages</p></div>
-    <h2 class="pf stitle rv rv-1" style="text-align:center">Choose the tier that fits your practice</h2>
-    <p class="sdesc rv rv-2" style="text-align:center;margin:0 auto 0">Monthly subscription. Full implementation, training, support, and optimization included.</p>
-    <div class="tiers">
-      <div class="tier-card rv">
-        <div class="tier-head">
-          <div class="tier-name">Tier 1</div>
-          <div class="tier-title pf">AI Starter</div>
-          <div class="tier-for">1–3 Providers</div>
-          <div class="tier-price pf">$3,500<span>/mo</span></div>
-        </div>
-        <div class="tier-body">
-          <div class="tier-item"><span class="tier-check">✓</span>Appointment reminder automation (SMS + email)</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Basic AI chat assistant</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Insurance verification (up to 100/mo)</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Automation dashboard + 2 training sessions</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Unlimited support + monthly reporting</div>
-        </div>
-        <div class="tier-btn tier-btn-out" onclick="openModal()">Get Started</div>
+<section class="sec sec-alt" id="services"><div class="mx">
+  <p class="stag rv">What We Do</p>
+  <h2 class="pf stitle rv rv-1">AI operations built for<br>medical practices</h2>
+  <p class="sdesc rv rv-2">From appointment reminders to custom dashboards, we design, build, and manage the automation that frees your team to focus on patient care.</p>
+  <div class="svc-grid">
+    <div class="svc-card rv"><span class="svc-icon">📲</span><div class="svc-name">Appointment Reminders</div><div class="svc-desc">Automated SMS + email reminders that reduce no-shows 40–60%. Multi-interval, multi-channel, fully EHR-integrated.</div></div>
+    <div class="svc-card rv rv-1"><span class="svc-icon">🤖</span><div class="svc-name">AI Chat Assistant</div><div class="svc-desc">24/7 virtual assistant trained on your practice's policies. Answers patient questions, escalates to staff when needed.</div></div>
+    <div class="svc-card rv rv-2"><span class="svc-icon">🔍</span><div class="svc-name">AI Knowledge Hub</div><div class="svc-desc">Every policy, payer rule, and procedure searchable in plain English. Instant answers with source citations.</div></div>
+    <div class="svc-card rv rv-3"><span class="svc-icon">📊</span><div class="svc-name">Practice Dashboard</div><div class="svc-desc">Real-time KPIs, no-show tracking, revenue metrics, and automation performance — all at a glance.</div></div>
+    <div class="svc-card rv rv-4"><span class="svc-icon">🛡️</span><div class="svc-name">Claims & Verification</div><div class="svc-desc">Automated insurance verification, claims denial monitoring, and AI-drafted appeal letters.</div></div>
+    <div class="svc-card rv rv-5"><span class="svc-icon">🖥️</span><div class="svc-name">Custom Web Apps</div><div class="svc-desc">Operations dashboards, patient portals, referral trackers — purpose-built for your workflows. Source code owned by you.</div></div>
+  </div>
+</div></section>
+
+<div class="gdiv"></div>
+
+<section class="sec sec-alt" id="packages"><div class="mx" style="text-align:center">
+  <p class="stag rv">Managed Packages</p>
+  <h2 class="pf stitle rv rv-1">Choose the tier that fits<br>your practice</h2>
+  <p class="sdesc rv rv-2" style="margin:0 auto">Monthly subscription with full implementation, training, support, and optimization.</p>
+  <div class="tiers">
+    <div class="tier rv">
+      <div class="tier-head"><div class="tier-label">Tier 1</div><div class="tier-name pf">AI Starter</div><div class="tier-for">1–3 Providers</div><div class="tier-price pf">$3,500<span>/mo</span></div></div>
+      <div class="tier-body">
+        <div class="tier-item"><span class="tier-chk">✓</span>Appointment reminders (SMS + email)</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Basic AI chat assistant</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Insurance verification (100/mo)</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Dashboard + 2 training sessions</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Unlimited support + monthly reports</div>
       </div>
-      <div class="tier-card pop rv rv-1">
-        <div class="tier-head">
-          <div class="tier-name" style="color:var(--gold)">Tier 2</div>
-          <div class="tier-title pf">Productivity Suite</div>
-          <div class="tier-for">4–10 Providers</div>
-          <div class="tier-price pf">$6,500<span>/mo</span></div>
-        </div>
-        <div class="tier-body">
-          <div class="tier-item"><span class="tier-check">✓</span>Everything in Tier 1</div>
-          <div class="tier-item"><span class="tier-check">✓</span>AI Knowledge Hub (NotebookLM-powered)</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Lab results routing + claims denial monitoring</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Unlimited verification + patient portal automation</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Advanced dashboard + quarterly business reviews</div>
-        </div>
-        <div class="tier-btn tier-btn-fill" onclick="openModal()">Get Started</div>
+      <div class="tier-btn tier-btn-out" onclick="openModal()">Get Started</div>
+    </div>
+    <div class="tier pop rv rv-1">
+      <div class="tier-head"><div class="tier-label">Tier 2</div><div class="tier-name pf">Productivity Suite</div><div class="tier-for">4–10 Providers</div><div class="tier-price pf">$6,500<span>/mo</span></div></div>
+      <div class="tier-body">
+        <div class="tier-item"><span class="tier-chk">✓</span>Everything in Tier 1</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>AI Knowledge Hub (NotebookLM)</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Lab routing + claims monitoring</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Unlimited verification + portal</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Advanced dashboard + QBRs</div>
       </div>
-      <div class="tier-card rv rv-2">
-        <div class="tier-head">
-          <div class="tier-name">Tier 3</div>
-          <div class="tier-title pf">Transformation</div>
-          <div class="tier-for">10+ Providers</div>
-          <div class="tier-price pf">$10K–$20K<span>/mo</span></div>
-        </div>
-        <div class="tier-body">
-          <div class="tier-item"><span class="tier-check">✓</span>Everything in Tier 2</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Custom AI agents for your workflows</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Predictive analytics + capacity planning</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Custom web apps INCLUDED</div>
-          <div class="tier-item"><span class="tier-check">✓</span>Dedicated implementation team</div>
-        </div>
-        <div class="tier-btn tier-btn-out" onclick="openModal()">Contact Us</div>
+      <div class="tier-btn tier-btn-gold" onclick="openModal()">Get Started</div>
+    </div>
+    <div class="tier rv rv-2">
+      <div class="tier-head"><div class="tier-label">Tier 3</div><div class="tier-name pf">Transformation</div><div class="tier-for">10+ Providers</div><div class="tier-price pf">$10K–$20K<span>/mo</span></div></div>
+      <div class="tier-body">
+        <div class="tier-item"><span class="tier-chk">✓</span>Everything in Tier 2</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Custom AI agents for workflows</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Predictive analytics + planning</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Web apps INCLUDED</div>
+        <div class="tier-item"><span class="tier-chk">✓</span>Dedicated implementation team</div>
       </div>
+      <div class="tier-btn tier-btn-out" onclick="openModal()">Contact Us</div>
     </div>
   </div>
-</section>
+</div></section>
 
-<!-- INDIVIDUAL SERVICES -->
-<section class="sec sec-white" id="individual">
-  <div class="mx">
-    <div class="rv"><p class="stag">Individual Services</p></div>
-    <h2 class="pf stitle rv rv-1">Standalone engagements. <br>No retainer required.</h2>
-    <p class="sdesc rv rv-2">Flat-fee projects for practices that need targeted help. Mix and match. 10% bundle discount when you engage 2+ services.</p>
-    <div class="svc-grid">
-      <div class="svc-card rv"><div class="svc-top"><div class="svc-name">Prompt Engineering</div><div class="svc-price">From $750</div></div><div class="svc-desc">Custom AI prompts designed, tested, and documented for your workflows. Starter Pack (5 prompts) or Growth Pack (15 prompts + full playbook).</div><div class="svc-details">Hourly: $175/hr · Full engagement: $1,800</div></div>
-      <div class="svc-card rv rv-1"><div class="svc-top"><div class="svc-name">AI Basics & Staff Training</div><div class="svc-price">From $1,200</div></div><div class="svc-desc">Hands-on, HIPAA-focused workshops for your staff. Half-day or full-day formats. Includes workbooks, reference cards, and 30-day follow-up Q&A.</div><div class="svc-details">Hourly: $150/hr · Full-day: $2,200 · Follow-Up Q&A: $200</div></div>
-      <div class="svc-card rv"><div class="svc-top"><div class="svc-name">Web App Development</div><div class="svc-price">From $3,000</div></div><div class="svc-desc">Custom web applications — dashboards, patient portals, referral trackers, scheduling tools. Source code owned by you. HIPAA-conscious design.</div><div class="svc-details">Simple: $3K–$6K · Medium: $6K–$12K · Complex: $12K–$25K</div></div>
-      <div class="svc-card rv rv-1"><div class="svc-top"><div class="svc-name">AI Strategy Consultation</div><div class="svc-price">From $600</div></div><div class="svc-desc">AI readiness assessment, highest-ROI automation opportunities, recommended tool stack, and 12-month implementation roadmap.</div><div class="svc-details">Strategy session: $600 · Full assessment + roadmap: $1,500</div></div>
-      <div class="svc-card rv"><div class="svc-top"><div class="svc-name">Document & SOP Creation</div><div class="svc-price">From $250</div></div><div class="svc-desc">SOPs, policy manuals, training guides, and workflow documentation. Professionally formatted, staff-ready, editable Word files.</div><div class="svc-details">Single SOP: $250 · Bundle (5): $1,000 · Full library: $1,800</div></div>
-      <div class="svc-card rv rv-1"><div class="svc-top"><div class="svc-name">Forms, Workbooks & Templates</div><div class="svc-price">From $150</div></div><div class="svc-desc">Practice-branded intake forms, consent documents, Excel workbooks, tracking dashboards, and operational templates.</div><div class="svc-details">Single form: $150 · Bundle (5): $600 · Full package: from $1,500</div></div>
-    </div>
+<div class="gdiv"></div>
+
+<section class="sec sec-alt" id="individual"><div class="mx">
+  <p class="stag rv">Individual Services</p>
+  <h2 class="pf stitle rv rv-1">Standalone engagements.<br>No retainer required.</h2>
+  <p class="sdesc rv rv-2">Flat-fee projects for targeted help. 10% bundle discount when you engage 2+ services.</p>
+  <div class="ind-grid">
+    <div class="ind-card rv"><div class="ind-top"><div class="ind-name">Prompt Engineering</div><div class="ind-price">From $750</div></div><div class="ind-desc">Custom AI prompts designed, tested, and documented for your workflows.</div><div class="ind-detail">Hourly: $175/hr · Growth Pack: $1,800</div></div>
+    <div class="ind-card rv rv-1"><div class="ind-top"><div class="ind-name">AI Staff Training</div><div class="ind-price">From $1,200</div></div><div class="ind-desc">HIPAA-focused workshops. Workbooks, reference cards, 30-day follow-up Q&A included.</div><div class="ind-detail">Half-day: $1,200 · Full-day: $2,200</div></div>
+    <div class="ind-card rv"><div class="ind-top"><div class="ind-name">Web App Development</div><div class="ind-price">From $3,000</div></div><div class="ind-desc">Custom dashboards, portals, and tools. Source code owned by you.</div><div class="ind-detail">Simple: $3K–$6K · Medium: $6K–$12K · Complex: $12K–$25K</div></div>
+    <div class="ind-card rv rv-1"><div class="ind-top"><div class="ind-name">AI Strategy Consultation</div><div class="ind-price">From $600</div></div><div class="ind-desc">Readiness assessment, ROI analysis, and 12-month implementation roadmap.</div><div class="ind-detail">Session: $600 · Full assessment: $1,500</div></div>
+    <div class="ind-card rv"><div class="ind-top"><div class="ind-name">Document & SOP Creation</div><div class="ind-price">From $250</div></div><div class="ind-desc">SOPs, policy manuals, training guides. Staff-ready, editable Word files.</div><div class="ind-detail">Single: $250 · Bundle (5): $1,000 · Library: $1,800</div></div>
+    <div class="ind-card rv rv-1"><div class="ind-top"><div class="ind-name">Forms & Templates</div><div class="ind-price">From $150</div></div><div class="ind-desc">Practice-branded intake forms, Excel workbooks, and operational templates.</div><div class="ind-detail">Single: $150 · Bundle (5): $600 · Package: from $1,500</div></div>
   </div>
-</section>
+</div></section>
 
-<!-- PROCESS -->
-<section class="sec sec-gray" id="process">
-  <div class="mx-md">
-    <div style="text-align:center" class="rv"><p class="stag">How It Works</p></div>
-    <h2 class="pf stitle rv rv-1" style="text-align:center">From assessment to automation <br>in 6–8 weeks</h2>
-    <div class="process-steps">
-      <div class="step rv"><div class="step-num">1</div><div class="step-title">Free Assessment</div><div class="step-desc">20-minute call. We learn your pain points and identify highest-ROI opportunities.</div></div>
-      <div class="step rv rv-1"><div class="step-num">2</div><div class="step-title">Custom Proposal</div><div class="step-desc">Within 48 hours, you receive a tailored proposal with pricing, timeline, and expected ROI.</div></div>
-      <div class="step rv rv-2"><div class="step-num">3</div><div class="step-title">Build & Train</div><div class="step-desc">We implement your automations, train your staff, and test everything before go-live.</div></div>
-      <div class="step rv rv-3"><div class="step-num">4</div><div class="step-title">Go Live & Grow</div><div class="step-desc">Launch with confidence. Ongoing optimization, quarterly reviews, and continuous improvement.</div></div>
-    </div>
+<div class="gdiv"></div>
+
+<section class="sec sec-alt" id="process"><div class="mx" style="text-align:center">
+  <p class="stag rv">How It Works</p>
+  <h2 class="pf stitle rv rv-1">From assessment to automation<br>in 6–8 weeks</h2>
+  <div class="steps">
+    <div class="step rv"><div class="step-num pf">1</div><div class="step-title">Free Assessment</div><div class="step-desc">20-minute call to understand your pain points and identify opportunities.</div></div>
+    <div class="step rv rv-1"><div class="step-num pf">2</div><div class="step-title">Custom Proposal</div><div class="step-desc">Tailored plan with pricing, timeline, and projected ROI within 48 hours.</div></div>
+    <div class="step rv rv-2"><div class="step-num pf">3</div><div class="step-title">Build & Train</div><div class="step-desc">We implement automations, train your staff, and test before go-live.</div></div>
+    <div class="step rv rv-3"><div class="step-num pf">4</div><div class="step-title">Go Live & Grow</div><div class="step-desc">Launch with confidence. Ongoing optimization and quarterly reviews.</div></div>
   </div>
-</section>
+</div></section>
 
-<!-- PAYER COVERAGE -->
-<section class="sec sec-white">
-  <div class="mx-md" style="text-align:center">
-    <div class="rv"><p class="stag">All Payers Welcome</p></div>
-    <h2 class="pf stitle rv rv-1">Deep NC Medicaid expertise. <br>Full payer spectrum coverage.</h2>
-    <div class="payer-row rv rv-2">
-      <div class="payer-tag">NC Medicaid (Standard Plans & Tailored Plans)</div>
-      <div class="payer-tag">Medicare & Medicare Advantage</div>
-      <div class="payer-tag">Blue Cross Blue Shield NC</div>
-      <div class="payer-tag">Commercial Insurance</div>
-      <div class="payer-tag">Self-Pay</div>
-    </div>
+<div class="gdiv"></div>
+
+<section class="sec"><div class="mx" style="text-align:center">
+  <p class="stag rv">All Payers Welcome</p>
+  <h2 class="pf stitle rv rv-1">Deep NC Medicaid expertise.<br>Full payer spectrum coverage.</h2>
+  <div class="payer-row rv rv-2">
+    <div class="payer-tag">NC Medicaid (Standard Plans & Tailored Plans)</div>
+    <div class="payer-tag">Medicare & Medicare Advantage</div>
+    <div class="payer-tag">Blue Cross Blue Shield NC</div>
+    <div class="payer-tag">Commercial Insurance</div>
+    <div class="payer-tag">Self-Pay</div>
   </div>
-</section>
+</div></section>
 
-<!-- SECURITY -->
-<section class="sec sec-navy">
-  <div class="mx-md" style="text-align:center">
-    <div class="rv"><p class="stag">Security & Compliance</p></div>
-    <h2 class="pf stitle rv rv-1" style="color:var(--white)">HIPAA compliance is non-negotiable</h2>
-    <div style="display:flex;justify-content:center;gap:48px;margin-top:36px;flex-wrap:wrap">
-      <div class="rv" style="text-align:center"><div style="font-size:32px;margin-bottom:8px">🔒</div><div style="color:var(--white);font-weight:600;font-size:15px">BAAs Provided</div><div style="color:#7A8FA3;font-size:13px;margin-top:4px">For all engagements</div></div>
-      <div class="rv rv-1" style="text-align:center"><div style="font-size:32px;margin-bottom:8px">🔐</div><div style="color:var(--white);font-weight:600;font-size:15px">End-to-End Encryption</div><div style="color:#7A8FA3;font-size:13px;margin-top:4px">All sensitive data</div></div>
-      <div class="rv rv-2" style="text-align:center"><div style="font-size:32px;margin-bottom:8px">✅</div><div style="color:var(--white);font-weight:600;font-size:15px">SOC 2 Compliant</div><div style="color:#7A8FA3;font-size:13px;margin-top:4px">Hosting infrastructure</div></div>
-      <div class="rv rv-3" style="text-align:center"><div style="font-size:32px;margin-bottom:8px">👤</div><div style="color:var(--white);font-weight:600;font-size:15px">Role-Based Access</div><div style="color:#7A8FA3;font-size:13px;margin-top:4px">Regular security audits</div></div>
-    </div>
+<section class="sec sec-navy-band"><div class="mx" style="text-align:center">
+  <p class="stag rv">Security & Compliance</p>
+  <h2 class="pf stitle rv rv-1">HIPAA compliance<br>is non-negotiable</h2>
+  <div class="sec-items">
+    <div class="sec-item rv"><div class="sec-item-icon">🔒</div><div class="sec-item-title">BAAs Provided</div><div class="sec-item-desc">For all engagements</div></div>
+    <div class="sec-item rv rv-1"><div class="sec-item-icon">🔐</div><div class="sec-item-title">End-to-End Encryption</div><div class="sec-item-desc">All sensitive data</div></div>
+    <div class="sec-item rv rv-2"><div class="sec-item-icon">✅</div><div class="sec-item-title">SOC 2 Compliant</div><div class="sec-item-desc">Hosting infrastructure</div></div>
+    <div class="sec-item rv rv-3"><div class="sec-item-icon">👤</div><div class="sec-item-title">Role-Based Access</div><div class="sec-item-desc">Regular security audits</div></div>
   </div>
-</section>
+</div></section>
 
-<!-- CTA -->
-<section class="sec sec-dark cta-sec">
-  <div class="mx-sm rv">
+<section class="cta-sec">
+  <div class="rv">
     <p class="stag">Ready to Reclaim Your Practice's Time?</p>
-    <h2 class="pf stitle" style="color:var(--white)">Start with a free 20-minute <br>operations assessment</h2>
-    <p class="sdesc" style="color:#8899AA;margin:0 auto 36px;text-align:center">No commitment. No pressure. Just clarity on what's possible for your practice.</p>
-    <button class="btn-primary" style="font-size:18px;padding:18px 48px" onclick="openModal()">Schedule Your Free Assessment →</button>
+    <h2 class="pf stitle" style="text-align:center">Start with a free 20-minute<br>operations assessment</h2>
+    <p class="sdesc" style="margin:0 auto 40px;text-align:center">No commitment. No pressure. Just clarity on what's possible.</p>
+    <div style="text-align:center"><button class="btn-glow" style="font-size:17px;padding:20px 52px;background:var(--white);color:var(--navy)" onclick="openModal()">Schedule Your Free Assessment →</button></div>
   </div>
 </section>
 
-<!-- FOOTER -->
-<footer class="footer" style="background:var(--dark)">
-  <div class="links"><a href="#services">Services</a><a href="#packages">Packages</a><a href="#individual">Individual Services</a><a href="#process">How It Works</a></div>
-  <p>© 2026 Immaculate Consulting · AI Operations Studio · AI Operations for NC Medical Practices · All Payers Welcome</p>
+<footer class="footer">
+  <div class="footer-links"><a href="#services">Services</a><a href="#packages">Packages</a><a href="#individual">Individual</a><a href="#process">Process</a></div>
+  <p>© 2026 Immaculate Consulting · AI Operations Consulting · NC Medical Practices · All Payers Welcome</p>
 </footer>
 
-<!-- MODAL -->
-<div class="modal-overlay" id="mo" onclick="if(event.target===this)closeModal()">
+<!-- Modal -->
+<div class="mo" id="mo" onclick="if(event.target===this)closeModal()">
   <div class="modal">
-    <button class="modal-x" onclick="closeModal()">&times;</button>
-    <div class="modal-head"><h3 class="pf">Schedule Your Free Assessment</h3><p>20 minutes. No obligation. We'll respond within 1 business day.</p></div>
-    <div class="modal-body">
+    <button class="m-x" onclick="closeModal()">✕</button>
+    <div class="m-head"><h3 class="pf">Schedule Your Free Assessment</h3><p>20 minutes · No obligation · Response within 1 business day</p></div>
+    <div class="m-body">
       <div id="fc">
-        <div class="fr"><div class="fg"><label>Your Name *</label><input id="fn" placeholder="Jane Smith" required></div><div class="fg"><label>Your Role</label><input id="fr2" placeholder="Practice Manager"></div></div>
-        <div class="fg"><label>Practice Name *</label><input id="fp" placeholder="ABC Family Medicine" required></div>
-        <div class="fr"><div class="fg"><label>Email *</label><input type="email" id="fe" placeholder="jane@abcfamily.com" required></div><div class="fg"><label>Phone</label><input type="tel" id="fph" placeholder="(555) 123-4567"></div></div>
-        <div class="fr">
-          <div class="fg"><label>Providers</label><select id="fpr"><option value="">Select...</option><option>1-3 (Solo/Small)</option><option>4-10 (Mid-size)</option><option>10+ (Large/Multi-location)</option></select></div>
-          <div class="fg"><label>Interested In</label><select id="fi"><option value="">Select...</option><option>Managed Package (Monthly)</option><option>Individual Service (One-Time)</option><option>Not sure yet — help me decide</option></select></div>
-        </div>
-        <div class="fg"><label>What's your biggest operational challenge?</label><textarea id="fno" placeholder="No-shows, staff time on admin tasks, manual reminder calls, claims denials, etc."></textarea></div>
-        <button class="f-submit" id="sb" onclick="submitForm()">Submit Request</button>
+        <div class="fr"><div class="fg"><label>Your Name *</label><input id="fn" placeholder="Jane Smith"></div><div class="fg"><label>Your Role</label><input id="fr2" placeholder="Practice Manager"></div></div>
+        <div class="fg"><label>Practice Name *</label><input id="fp" placeholder="ABC Family Medicine"></div>
+        <div class="fr"><div class="fg"><label>Email *</label><input type="email" id="fe" placeholder="jane@abcfamily.com"></div><div class="fg"><label>Phone</label><input type="tel" id="fph" placeholder="(555) 123-4567"></div></div>
+        <div class="fr"><div class="fg"><label>Providers</label><select id="fpr"><option value="">Select...</option><option>1-3 (Solo/Small)</option><option>4-10 (Mid-size)</option><option>10+ (Large/Multi)</option></select></div><div class="fg"><label>Interested In</label><select id="fi"><option value="">Select...</option><option>Managed Package</option><option>Individual Service</option><option>Not sure yet</option></select></div></div>
+        <div class="fg"><label>Biggest Operational Challenge</label><textarea id="fno" placeholder="No-shows, staff time, manual calls, claims denials..."></textarea></div>
+        <button class="f-sub" id="sb" onclick="submitForm()">Submit Request</button>
       </div>
-      <div id="sm" style="display:none"><div class="f-success"><div class="chk">✓</div><h3 class="pf">We'll Be In Touch!</h3><p>Thank you for your interest. We'll review your information and reach out within 1 business day to schedule your free assessment.</p><button class="btn-primary" style="margin-top:24px" onclick="closeModal()">Close</button></div></div>
+      <div id="sm" style="display:none"><div class="f-ok"><div class="chk">✓</div><h3 class="pf">We'll Be In Touch!</h3><p>Thank you for your interest. We'll reach out within 1 business day to schedule your free assessment.</p><button class="btn-glow" style="margin-top:24px" onclick="closeModal()">Close</button></div></div>
     </div>
   </div>
 </div>
 
 <script>
-// Nav scroll
 window.addEventListener('scroll',function(){document.getElementById('nav').classList.toggle('scrolled',window.scrollY>60)});
-
-// Scroll reveal
-var obs=new IntersectionObserver(function(entries){entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('vis');obs.unobserve(e.target)}})},{threshold:.1});
-document.querySelectorAll('.rv').forEach(function(el){obs.observe(el)});
-
-// Smooth scroll
-document.querySelectorAll('a[href^="#"]').forEach(function(a){a.addEventListener('click',function(e){e.preventDefault();var t=document.querySelector(this.getAttribute('href'));if(t)t.scrollIntoView({behavior:'smooth',block:'start'})})});
-
-// Modal
+var obs=new IntersectionObserver(function(e){e.forEach(function(x){if(x.isIntersecting){x.target.classList.add('vis');obs.unobserve(x.target)}})},{threshold:.08,rootMargin:'0px 0px -40px 0px'});
+document.querySelectorAll('.rv,.rv-scale').forEach(function(el){obs.observe(el)});
 function openModal(){document.getElementById('mo').classList.add('active');document.body.style.overflow='hidden'}
 function closeModal(){document.getElementById('mo').classList.remove('active');document.body.style.overflow='';setTimeout(function(){document.getElementById('fc').style.display='';document.getElementById('sm').style.display='none'},300)}
-
-// Form — Replace YOUR_FORM_ID with your Formspree form ID (see Deployment Guide)
-async function submitForm(){
-  var b=document.getElementById('sb'),n=document.getElementById('fn').value.trim(),e=document.getElementById('fe').value.trim(),p=document.getElementById('fp').value.trim();
-  if(!n||!e||!p){alert('Please fill in your name, email, and practice name.');return}
-  b.disabled=true;b.textContent='Submitting...';
-  var d={name:n,role:document.getElementById('fr2').value.trim(),practice:p,email:e,phone:document.getElementById('fph').value.trim(),providers:document.getElementById('fpr').value,interested_in:document.getElementById('fi').value,challenge:document.getElementById('fno').value.trim(),_subject:'Free Assessment Request — '+p};
-  try{var r=await fetch('https://formspree.io/f/mqeyknpr',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(d)});
-    if(r.ok){document.getElementById('fc').style.display='none';document.getElementById('sm').style.display='block'}else{throw new Error('fb')}}
-  catch(x){var body=Object.entries(d).filter(function(x){return x[1]&&!x[0].startsWith('_')}).map(function(x){return x[0]+': '+x[1]}).join('%0A');
-    window.location.href='mailto:leonard.croom@immaculate-consulting.org?subject='+encodeURIComponent(d._subject)+'&body='+body;
-    document.getElementById('fc').style.display='none';document.getElementById('sm').style.display='block'}
-  b.disabled=false;b.textContent='Submit Request';
-}
+async function submitForm(){var b=document.getElementById('sb'),n=document.getElementById('fn').value.trim(),e=document.getElementById('fe').value.trim(),p=document.getElementById('fp').value.trim();if(!n||!e||!p){alert('Please fill in name, email, and practice name.');return}b.disabled=true;b.textContent='Submitting...';var d={name:n,role:document.getElementById('fr2').value.trim(),practice:p,email:e,phone:document.getElementById('fph').value.trim(),providers:document.getElementById('fpr').value,interested_in:document.getElementById('fi').value,challenge:document.getElementById('fno').value.trim(),_subject:'Free Assessment — '+p};try{var r=await fetch('https://formspree.io/f/mqeyknpr',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(d)});if(r.ok){document.getElementById('fc').style.display='none';document.getElementById('sm').style.display='block'}else throw'fb'}catch(x){var body=Object.entries(d).filter(function(x){return x[1]&&!x[0].startsWith('_')}).map(function(x){return x[0]+': '+x[1]}).join('%0A');window.location.href='mailto:leonard.croom@immaculate-consulting.org?subject='+encodeURIComponent(d._subject)+'&body='+body;document.getElementById('fc').style.display='none';document.getElementById('sm').style.display='block'}b.disabled=false;b.textContent='Submit Request'}
 </script>
 </body>
 </html>
