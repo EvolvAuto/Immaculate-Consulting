@@ -490,7 +490,7 @@ function InvoicingTab() {
           client_name: inv.client,
           invoice_id: inv.id,
           amount: inv.total,
-          due_date: inv.due,
+          due_date: inv.due + " 2026",
           invoice_type: inv.type,
           triggered_by: "manual_button"
         })
