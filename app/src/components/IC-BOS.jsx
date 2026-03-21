@@ -1127,14 +1127,13 @@ export default function ICBOS() {
   const [dismissedNotifs, setDismissedNotifs] = useState([]);
   useEffect(()=>{const h=(e)=>setShowForm(e.detail);document.addEventListener("ic-show-form",h);return()=>document.removeEventListener("ic-show-form",h);},[]);
   const tabs = [
-   { id:"overview", l:"Overview" }, { id:"agents", l:"Agents" }, { id:"pipeline", l:"Pipeline" },
-    { id:"roi", l:"ROI" }, { id:"financials", l:"Financials" }, { id:"invoicing", l:"Invoicing" },
-    { id:"automations", l:"Automations" }, { id:"onboarding", l:"Onboarding" },
-    { id:"capacity", l:"Capacity" }, { id:"profitability", l:"Profitability" },
-    { id:"renewals", l:"Renewals" }, { id:"proposal", l:"Proposals" },
-    { id:"salesprep", l:"Sales Prep" }, { id:"tasks", l:"Tasks" },
-    { id:"comms", l:"Comms" }, { id:"report", l:"Report" },
-  ];
+  { id:"overview", l:"Overview" }, { id:"agents", l:"Agents" }, { id:"pipeline", l:"Pipeline" },
+  { id:"clients", l:"Clients" }, { id:"tasks", l:"Tasks" }, { id:"comms", l:"Comms" },
+  { id:"onboarding", l:"Onboarding" }, { id:"automations", l:"Automations" },
+  { id:"proposal", l:"Proposals" }, { id:"invoicing", l:"Invoicing" }, { id:"renewals", l:"Renewals" },
+  { id:"roi", l:"ROI" }, { id:"financials", l:"Financials" }, { id:"capacity", l:"Capacity" },
+  { id:"profitability", l:"Profitability" }, { id:"salesprep", l:"Sales Prep" }, { id:"report", l:"Report" },
+];
 
   const totalROI = useMemo(()=>CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0),[]);
   const critCount = AUTOMATIONS.filter(a=>a.status==="critical").length;
