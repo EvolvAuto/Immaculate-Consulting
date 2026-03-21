@@ -465,47 +465,127 @@ function ClientsTab({ onShowForm }) {
     </div>
   );
 }
-// INVOICING (Feature 8)
+// INVOICING (Feature 8) — with Agent 8 collections inline UI
 function InvoicingTab() {
+  const [followUpStates, setFollowUpStates] = useState({});
+  const [followUpResults, setFollowUpResults] = useState({});
+  const [expandedEmail, setExpandedEmail] = useState({});
+
   const marchInvs = INVOICES.filter(i=>i.issued.startsWith("Mar"));
   const totalBilled = marchInvs.reduce((s,i)=>s+i.total,0);
   const collected = marchInvs.filter(i=>i.status==="paid").reduce((s,i)=>s+i.total,0);
   const overdue = INVOICES.filter(i=>i.status==="overdue");
   const pending = INVOICES.filter(i=>i.status==="pending");
+  const totalAR = INVOICES.filter(i=>i.status!=="paid").reduce((s,i)=>s+i.total,0);
+  const oldestOverdue = overdue.length>0 ? overdue.reduce((oldest,inv)=>new Date(inv.due)<new Date(oldest.due)?inv:oldest) : null;
   const stColors = { paid:"#4ade80", pending:"#fbbf24", overdue:"#f87171" };
+
+  const handleDraftFollowUp = async (inv) => {
+    setFollowUpStates(prev=>({...prev,[inv.id]:"loading"}));
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          transcript: `Collections follow-up needed for ${inv.client}. Invoice: ${inv.id}. Amount overdue: $${inv.total.toLocaleString()}. Originally due: ${inv.due}. Invoice type: ${inv.type}. This is an overdue payment that needs a professional follow-up email to request payment while maintaining the client relationship.`,
+          meeting_type: "followup",
+          client_name: inv.client
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Draft failed");
+      setFollowUpResults(prev=>({...prev,[inv.id]:data}));
+      setFollowUpStates(prev=>({...prev,[inv.id]:"done"}));
+    } catch (err) {
+      setFollowUpStates(prev=>({...prev,[inv.id]:"error"}));
+    }
+  };
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Invoicing & Billing</h2><button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"invoice"}))} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Invoice</button></div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Invoicing & Billing</h2>
+        <button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"invoice"}))} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Invoice</button>
+      </div>
+
+      {/* Collections summary bar */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, padding:"12px 16px", background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:10 }}>
+        <div>
+          <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Total A/R Outstanding</div>
+          <div style={{ fontSize:18, fontWeight:700, color:"#fbbf24", fontFamily:M }}>${totalAR.toLocaleString()}</div>
+        </div>
+        <div>
+          <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}># Overdue</div>
+          <div style={{ fontSize:18, fontWeight:700, color:overdue.length>0?"#f87171":"#4ade80", fontFamily:M }}>{overdue.length}</div>
+        </div>
+        <div>
+          <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Oldest Outstanding</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#f87171", fontFamily:M }}>{oldestOverdue ? `${oldestOverdue.client} — Due ${oldestOverdue.due}` : "None"}</div>
+        </div>
+      </div>
+
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
         <KPI label="Mar Billed" value={totalBilled} prefix="$" spark={[17500,20000,22000,24000,27500,27635]} sparkColor="#818cf8"/>
         <KPI label="Collected" value={collected} prefix="$" spark={[11000,15000,18000,22000,24500,6548]} sparkColor="#4ade80" delay={60}/>
         <KPI label="Pending" value={pending.reduce((s,i)=>s+i.total,0)} prefix="$" spark={[8000,6000,4000,3000,5000,14532]} sparkColor="#fbbf24" delay={120}/>
         <KPI label="Overdue" value={overdue.reduce((s,i)=>s+i.total,0)} prefix="$" spark={[0,0,2000,0,0,6555]} sparkColor="#f87171" delay={180}/>
       </div>
-      {overdue.length>0&&<div style={{ background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.12)", borderRadius:10, padding:"12px 16px" }}>
-        <div style={{ fontSize:11, fontWeight:700, color:"#f87171", marginBottom:6, fontFamily:M }}>OVERDUE INVOICES</div>
-        {overdue.map(i=><div key={i.id} style={{ fontSize:12, color:"#e5e7eb" }}><strong>{i.client}</strong> — {i.id} · ${i.total.toLocaleString()} · Due {i.due}</div>)}
-      </div>}
+
+      {/* Invoice rows */}
       <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:12, overflow:"hidden" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr", gap:6, padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.06)", fontSize:9.5, fontWeight:600, color:"#6b7280", textTransform:"uppercase", fontFamily:M }}>
-          <span>Invoice</span><span>Client</span><span>Type</span><span>Amount</span><span>Usage</span><span>Total</span><span>Status</span>
+        <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.06)", fontSize:9.5, fontWeight:600, color:"#6b7280", textTransform:"uppercase", fontFamily:M }}>
+          <span>Invoice</span><span>Client</span><span>Type</span><span>Amount</span><span>Usage</span><span>Total</span><span>Status</span><span>Action</span>
         </div>
-        {INVOICES.map((inv,i)=>(
-          <div key={inv.id} style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr", gap:6, alignItems:"center", padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.03)", fontSize:12, animation:`fu 0.3s ease ${i*30}ms both` }}>
-            <span style={{ fontFamily:M, color:"#9ca3af", fontSize:11 }}>{inv.id}</span>
-            <span style={{ fontWeight:600, color:"#e5e7eb" }}>{inv.client}</span>
-            <span style={{ fontSize:11, color:"#9ca3af" }}>{inv.type}</span>
-            <span style={{ fontFamily:M, color:"#f0f0f0" }}>${inv.amount.toLocaleString()}</span>
-            <span style={{ fontFamily:M, color:"#6b7280" }}>${inv.usageCost}</span>
-            <span style={{ fontFamily:M, color:"#f0f0f0", fontWeight:600 }}>${inv.total.toLocaleString()}</span>
-            <span style={{ fontSize:10, fontWeight:600, color:stColors[inv.status], textTransform:"uppercase" }}>{inv.status}</span>
-          </div>
-        ))}
+        {INVOICES.map((inv,i)=>{
+          const fs = followUpStates[inv.id];
+          const fr = followUpResults[inv.id];
+          const isOverdue = inv.status==="overdue";
+          const daysOverdue = isOverdue ? Math.round((Date.now()-new Date(inv.due))/864e5) : 0;
+          return (
+            <div key={inv.id}>
+              <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, alignItems:"center", padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.03)", fontSize:12, animation:`fu 0.3s ease ${i*30}ms both`, background:isOverdue?"rgba(248,113,113,0.03)":"transparent" }}>
+                <span style={{ fontFamily:M, color:"#9ca3af", fontSize:11 }}>{inv.id}</span>
+                <span style={{ fontWeight:600, color:"#e5e7eb" }}>{inv.client}</span>
+                <span style={{ fontSize:11, color:"#9ca3af" }}>{inv.type}</span>
+                <span style={{ fontFamily:M, color:"#f0f0f0" }}>${inv.amount.toLocaleString()}</span>
+                <span style={{ fontFamily:M, color:"#6b7280" }}>${inv.usageCost}</span>
+                <span style={{ fontFamily:M, color:"#f0f0f0", fontWeight:600 }}>${inv.total.toLocaleString()}</span>
+                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <span style={{ fontSize:10, fontWeight:600, color:stColors[inv.status], textTransform:"uppercase" }}>{inv.status}</span>
+                  {isOverdue&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.15)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>{daysOverdue}d</span>}
+                </div>
+                <div>
+                  {isOverdue&&(!fs||fs===null)&&<button onClick={()=>handleDraftFollowUp(inv)} style={{ fontSize:9, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Draft Follow-up</button>}
+                  {fs==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:3 }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Drafting...</span>}
+                  {fs==="done"&&<button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:!prev[inv.id]}))} style={{ fontSize:9, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer" }}>{expandedEmail[inv.id]?"Hide":"View Email"}</button>}
+                  {fs==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+                </div>
+              </div>
+              {/* Agent-drafted email panel */}
+              {fs==="done"&&fr&&expandedEmail[inv.id]&&(
+                <div style={{ padding:"12px 16px", background:"rgba(99,102,241,0.04)", borderBottom:"1px solid rgba(255,255,255,0.03)", animation:"fu 0.3s ease both" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <span style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M }}>🤖 AGENT-DRAFTED FOLLOW-UP EMAIL</span>
+                    <button onClick={()=>{navigator.clipboard?.writeText(fr.qualification_summary||"");}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
+                  </div>
+                  <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.6, padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
+                    {fr.qualification_summary}
+                  </div>
+                  {fr.next_steps?.length>0&&(
+                    <div style={{ marginTop:8 }}>
+                      <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Recommended Actions</div>
+                      {fr.next_steps.map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
-
 // ONBOARDING TRACKER (Feature 9)
 function OnboardingTab() {
   const phaseColors = { complete:"#4ade80", "in-progress":"#fbbf24", upcoming:"#4b5563" };
