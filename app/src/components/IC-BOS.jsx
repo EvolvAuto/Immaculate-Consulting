@@ -347,7 +347,124 @@ function PipelineBoard() {
 // ═══════════════════════════════════════════════════════════════════════
 // FEATURE TABS
 // ═══════════════════════════════════════════════════════════════════════
+// CLIENTS TAB (with Agent 5 inline UI)
+function ClientsTab({ onShowForm }) {
+  const [analyzeStates, setAnalyzeStates] = useState({});
+  const [analyzeResults, setAnalyzeResults] = useState({});
 
+  const handleAnalyze = async (client) => {
+    setAnalyzeStates(prev => ({ ...prev, [client.id]: "loading" }));
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          transcript: `Client health analysis for ${client.name}. Health score: ${client.healthScore}. No-show rate: ${client.noShowCurrent}% (was ${client.noShowBefore}%). Active automations: ${client.automations.join(", ")}. Weekly hours saved: ${client.weeklyHoursSaved}. Next milestone: ${client.nextMilestone}. EHR: ${client.ehr}. Renewal date: ${client.renewalDate}.`,
+          meeting_type: "checkin",
+          client_name: client.name
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      setAnalyzeResults(prev => ({ ...prev, [client.id]: data }));
+      setAnalyzeStates(prev => ({ ...prev, [client.id]: "done" }));
+    } catch (err) {
+      setAnalyzeStates(prev => ({ ...prev, [client.id]: "error" }));
+    }
+  };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div>
+          <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Client Health</h2>
+          <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>{CLIENTS.length} clients · Agent 5 analysis available</p>
+        </div>
+        <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Client</button>
+      </div>
+
+      {/* At-risk banner */}
+      {CLIENTS.filter(c=>c.healthScore<70).length>0&&(
+        <div style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"10px 14px", display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:11, color:"#fca5a5" }}>⚠️ {CLIENTS.filter(c=>c.healthScore<70).length} client{CLIENTS.filter(c=>c.healthScore<70).length>1?"s":""} at risk — health score below 70</span>
+        </div>
+      )}
+
+      <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+        {CLIENTS.map((c,i)=>{
+          const sc = c.healthScore>=90?"#4ade80":c.healthScore>=70?"#fbbf24":"#f87171";
+          const stc = { active:"#4ade80", onboarding:"#38bdf8" };
+          const isAtRisk = c.healthScore < 70;
+          const noShowImprovement = c.noShowBefore - c.noShowCurrent;
+          const trend = noShowImprovement > 5 ? "up" : noShowImprovement > 0 ? "flat" : "down";
+          const trendIcon = trend==="up"?"↑":trend==="flat"?"→":"↓";
+          const trendColor = trend==="up"?"#4ade80":trend==="flat"?"#fbbf24":"#f87171";
+          const as = analyzeStates[c.id];
+          const ar = analyzeResults[c.id];
+
+          return (
+            <div key={c.id} style={{ background: isAtRisk?"rgba(248,113,113,0.04)":"rgba(255,255,255,0.02)", border:`1px solid ${isAtRisk?"rgba(248,113,113,0.12)":"rgba(255,255,255,0.05)"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both` }}>
+              {/* Top row */}
+              <div style={{ display:"grid", gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1fr auto", gap:8, alignItems:"center", fontSize:12 }}>
+                <div>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontWeight:600, color:"#e5e7eb" }}>{c.name}</span>
+                    {isAtRisk&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M }}>AT RISK</span>}
+                  </div>
+                  <div style={{ fontSize:10, color:"#6b7280", marginTop:1 }}>T{c.tier} · {c.ehr}</div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                  <span style={{ width:5, height:5, borderRadius:"50%", background:stc[c.status]||"#6b7280" }}/>
+                  <span style={{ color:stc[c.status]||"#6b7280", fontSize:10, textTransform:"capitalize" }}>{c.status}</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                  <span style={{ fontWeight:700, color:sc, fontFamily:M }}>{c.healthScore}</span>
+                  <span style={{ fontSize:11, color:trendColor }}>{trendIcon}</span>
+                </div>
+                <div style={{ fontFamily:M }}>
+                  <span style={{ color:"#f0f0f0" }}>{c.noShowCurrent}%</span>
+                  {noShowImprovement>0&&<span style={{ color:"#4ade80", fontSize:9, marginLeft:3 }}>↓{noShowImprovement.toFixed(1)}</span>}
+                </div>
+                <span style={{ fontFamily:M, color:"#f0f0f0" }}>${c.monthlyFee.toLocaleString()}</span>
+                <span style={{ fontSize:10.5, color:"#9ca3af" }}>{c.nextMilestone}</span>
+                {/* Analyze button */}
+                <div>
+                  {(!as||as===null)&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
+                  {as==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Running...</span>}
+                  {as==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
+                  {as==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+                </div>
+              </div>
+
+              {/* Analysis result panel */}
+              {as==="done"&&ar&&(
+                <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.05)", display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, animation:"fu 0.3s ease both" }}>
+                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
+                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Health Score</div>
+                    <div style={{ fontSize:20, fontWeight:800, color:ar.bant_score>=70?"#4ade80":ar.bant_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{ar.bant_score}</div>
+                    <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
+                  </div>
+                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
+                    <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Risk Factors</div>
+                    {ar.pain_points?.slice(0,2).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
+                  </div>
+                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
+                    <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Next Steps</div>
+                    {ar.next_steps?.slice(0,2).map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
+                  </div>
+                  <div style={{ gridColumn:"1/-1", padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
+                    <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+                    <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{ar.qualification_summary}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 // INVOICING (Feature 8)
 function InvoicingTab() {
   const marchInvs = INVOICES.filter(i=>i.issued.startsWith("Mar"));
@@ -1481,21 +1598,7 @@ export default function ICBOS() {
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Sales Pipeline</h2><button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button></div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard/></>}
-        {tab==="clients"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Client Health</h2><button onClick={()=>setShowForm("client")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Client</button></div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{CLIENTS.length} clients</p>
-          <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,overflow:"hidden"}}>
-            <div style={{display:"grid",gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1.3fr",gap:6,padding:"8px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",fontSize:9,fontWeight:600,color:"#6b7280",textTransform:"uppercase",fontFamily:M}}><span>Client</span><span>Status</span><span>Health</span><span>No-Show</span><span>MRR</span><span>Next</span></div>
-            {CLIENTS.map((c,i)=>{const sc=c.healthScore>=90?"#4ade80":c.healthScore>=70?"#fbbf24":"#fb923c";const stc={active:"#4ade80",onboarding:"#38bdf8"};return(
-              <div key={c.id} style={{display:"grid",gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1.3fr",gap:6,alignItems:"center",padding:"10px 16px",borderBottom:"1px solid rgba(255,255,255,0.03)",fontSize:12,animation:`fu 0.4s ease ${i*50}ms both`}}>
-                <div><div style={{fontWeight:600,color:"#e5e7eb"}}>{c.name}</div><div style={{fontSize:10,color:"#6b7280"}}>T{c.tier} · {c.ehr}</div></div>
-                <div style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:5,height:5,borderRadius:"50%",background:stc[c.status]}}/><span style={{color:stc[c.status],fontSize:10,textTransform:"capitalize"}}>{c.status}</span></div>
-                <span style={{fontWeight:700,color:sc,fontFamily:M}}>{c.healthScore}</span>
-                <div style={{fontFamily:M}}><span style={{color:"#f0f0f0"}}>{c.noShowCurrent}%</span>{c.noShowBefore-c.noShowCurrent>0&&<span style={{color:"#4ade80",fontSize:9,marginLeft:3}}>↓{(c.noShowBefore-c.noShowCurrent).toFixed(1)}</span>}</div>
-                <span style={{fontFamily:M,color:"#f0f0f0"}}>${c.monthlyFee.toLocaleString()}</span>
-                <span style={{fontSize:10.5,color:"#9ca3af"}}>{c.nextMilestone}</span>
-              </div>
-            );})}
-          </div>
-        </>}
+       {tab==="clients"&&<ClientsTab onShowForm={()=>setShowForm("client")}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
