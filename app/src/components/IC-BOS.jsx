@@ -937,7 +937,7 @@ function WeeklyReportTab() {
   const handleGenerateDigest = async () => {
     setDigestState("loading");
     try {
-      cconst res = await fetch("https://api.immaculate-consulting.org/api/agents/generate-weekly-digest", {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/generate-weekly-digest", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
         body: JSON.stringify({
