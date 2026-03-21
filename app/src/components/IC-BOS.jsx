@@ -669,7 +669,7 @@ function OnboardingTab() {
 
                 {/* Summary */}
                 <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderLeft:"3px solid #6366f1", borderRadius:7 }}>
-                  <div style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.5 }}>{pr.qualification_summary}</div>
+                  <div style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.5 }}>{pr.summary || pr.qualification_summary}</div>
                 </div>
 
                 {/* Task list */}
@@ -685,7 +685,7 @@ function OnboardingTab() {
                   </div>
                 )}
                 {/* Kickoff email */}
-                {pr.pain_points?.length>0&&(
+                {(pr.kickoff_email||pr.pain_points)&&(
                   <div>
                     <button
                       onClick={()=>setExpandedKickoff(prev=>({...prev,[proj.id]:!prev[proj.id]}))}
@@ -699,7 +699,7 @@ function OnboardingTab() {
                           <span style={{ fontSize:10, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>Kickoff Email Draft</span>
                           <button onClick={()=>navigator.clipboard?.writeText(pr.pain_points.join("\n"))} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
                         </div>
-                        {pr.pain_points.map((p,pi)=><div key={pi} style={{ fontSize:11, color:"#d1d5db", lineHeight:1.6, marginBottom:4 }}>{p}</div>)}
+                     <div style={{ fontSize:11, color:"#d1d5db", lineHeight:1.6 }}>{pr.kickoff_email?.body || (Array.isArray(pr.pain_points) ? pr.pain_points.join("\n") : pr.pain_points)}</div>
                       </div>
                     )}
                   </div>
