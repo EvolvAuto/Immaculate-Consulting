@@ -272,6 +272,9 @@ function RevChart({ data }) {
 
 function PipelineBoard() {
   const [proposalStates, setProposalStates] = useState({});
+  const [outreachStates, setOutreachStates] = useState({});
+  const [outreachResults, setOutreachResults] = useState({});
+  const [expandedOutreach, setExpandedOutreach] = useState({});
 
   const handleGenerateProposal = async (deal) => {
     // Mock deals don't have real Supabase UUIDs — button is wired and ready for Task 17
@@ -296,7 +299,35 @@ function PipelineBoard() {
       setTimeout(() => setProposalStates(prev => ({ ...prev, [deal.id]: null })), 4000);
     }
   };
-
+const handleGenerateOutreach = async (deal) => {
+    setOutreachStates(prev => ({ ...prev, [deal.id]: "loading" }));
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/outreach-personalizer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          practice_name: deal.practice,
+          specialty: deal.specialty,
+          ehr: deal.ehr,
+          tier: deal.tier,
+          providers: deal.providers,
+          payer_mix: deal.payer,
+          no_show_baseline: deal.noShowBaseline,
+          value: deal.value,
+          contact_name: deal.contact,
+          ehr_difficulty: deal.ehrDifficulty,
+          ehr_notes: deal.ehrNotes,
+          triggered_by: "manual_button"
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Outreach failed");
+      setOutreachResults(prev => ({ ...prev, [deal.id]: data }));
+      setOutreachStates(prev => ({ ...prev, [deal.id]: "done" }));
+    } catch (err) {
+      setOutreachStates(prev => ({ ...prev, [deal.id]: "error" }));
+    }
+  };
   return (
     <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:8 }}>
       {STAGES.map(stg=>{
@@ -317,8 +348,38 @@ function PipelineBoard() {
               </div>
               <div style={{ fontSize:10, color:"#6b7280", marginTop:5 }}>→ {d.nextAction}</div>
               {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
+             {/* Agent 7 — Generate Outreach button (Cold stage only) */}
+              {d.stage === "cold" && (
+                <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+                  {outreachStates[d.id] === "loading" && <div style={{ fontSize:9, color:"#38bdf8", fontFamily:M, textAlign:"center", padding:"4px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", display:"inline-block", animation:"pr 1.2s ease-out infinite" }}/>Writing outreach...</div>}
+                  {outreachStates[d.id] === "error" && <div style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error — try again</div>}
+                  {outreachStates[d.id] === "done" && outreachResults[d.id] && (
+                    <div>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                        <span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Outreach ready</span>
+                        <button onClick={() => setExpandedOutreach(prev => ({...prev, [d.id]: !prev[d.id]}))} style={{ fontSize:9, color:"#a5b4fc", background:"transparent", border:"1px solid rgba(99,102,241,0.2)", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>{expandedOutreach[d.id] ? "Hide" : "View"}</button>
+                      </div>
+                      {expandedOutreach[d.id] && (
+                        <div style={{ background:"rgba(0,0,0,0.2)", borderRadius:6, padding:"8px 10px" }}>
+                          <div style={{ fontSize:9, fontWeight:600, color:"#e5e7eb", marginBottom:4 }}>Subj: {outreachResults[d.id].subject}</div>
+                          <div style={{ fontSize:10, color:"#9ca3af", lineHeight:1.5, marginBottom:6, whiteSpace:"pre-wrap" }}>{outreachResults[d.id].body}</div>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                            <span style={{ fontSize:9, color:"#6b7280" }}>Follow up in {outreachResults[d.id].follow_up_timing}d</span>
+                            <button onClick={() => navigator.clipboard?.writeText(`Subject: ${outreachResults[d.id].subject}\n\n${outreachResults[d.id].body}`)} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>Copy</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(!outreachStates[d.id] || outreachStates[d.id] === null) && (
+                    <button onClick={() => handleGenerateOutreach(d)} style={{ width:"100%", padding:"5px 0", borderRadius:6, border:"1px solid rgba(99,102,241,0.2)", background:"rgba(99,102,241,0.08)", color:"#a5b4fc", cursor:"pointer", fontSize:9.5, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                      🤖 Generate Outreach
+                    </button>
+                  )}
+                </div>
+              )}
               {/* Agent 1 — Generate Proposal button */}
-              <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+              <div style={{ marginTop:d.stage==="cold"?4:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.05)" }}>
                 {ps === 'done' && <div style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
                 {ps === 'error' && <div style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error — check agent logs</div>}
                 {ps === 'nomock' && <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M }}>⚡ Live data needed (Task 17)</div>}
