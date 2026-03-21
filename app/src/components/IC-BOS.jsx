@@ -1174,7 +1174,9 @@ export default function ICBOS() {
       };
     }),
   ].filter(n => !dismissedNotifs.includes(n.id));
-
+  const unreadCount = allNotifs.length;
+  const isAnyAgentRunning = runningAgents.length > 0;
+  
   return (
     <div style={{ minHeight:"100vh", background:"#0a0a0f", color:"#e5e7eb", fontFamily:"'Inter',-apple-system,sans-serif", "--mono":"'JetBrains Mono',monospace" }}>
       <style>{`
