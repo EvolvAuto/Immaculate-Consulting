@@ -1121,9 +1121,6 @@ function CommsTab() {
 // ═══════════════════════════════════════════════════════════════════════
 export default function ICBOS() {
   const [tab, setTab] = useState("overview");
-  const [showPulsePopover, setShowPulsePopover] = useState(false);
-  const [showNotifs, setShowNotifs] = useState(false);
-  const [dismissedNotifs, setDismissedNotifs] = useState([]);
   const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoice'|'comm'
   const [showPulsePopover, setShowPulsePopover] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
@@ -1178,8 +1175,6 @@ export default function ICBOS() {
     }),
   ].filter(n => !dismissedNotifs.includes(n.id));
 
-  const unreadCount = allNotifs.length;
-  const isAnyAgentRunning = runningAgents.length > 0;
   const runningAgents = [];
   const allNotifs = [
     ...PIPELINE.filter(d=>d.daysInStage>=7).map(d=>({ id:`stale-${d.id}`, icon:"⏳", tab:"pipeline", color:"#fbbf24", text:`${d.practice} stale — ${d.daysInStage} days in ${STAGE_LABELS[d.stage]}` })),
