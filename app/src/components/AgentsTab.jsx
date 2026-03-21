@@ -470,6 +470,7 @@ function RecordingUploadPanel() {
   const [meetingType, setMeetingType] = useState("discovery");
   const [clientName, setClientName] = useState("");
   const [uploadState, setUploadState] = useState("idle"); // idle | uploading | transcribing | analyzing | done | error
+  const [transcriptResult, setTranscriptResult] = useState(null);
   const [costEstimate, setCostEstimate] = useState(null);
   const [recentUploads] = useState([
     { name: "chapel-hill-checkin-mar10.mp3", type: "Client Check-in", client: "Chapel Hill Family Med", duration: "28 min", status: "done", transcript: true, analysis: true, date: "Mar 10" },
@@ -502,21 +503,46 @@ function RecordingUploadPanel() {
     if (f) handleFile(f);
   }, [handleFile]);
 
-  // Simulate upload progress through states
-  const handleUpload = useCallback(() => {
+ // Real upload — sends audio to DigitalOcean transcribe endpoint
+  const handleUpload = useCallback(async () => {
     if (!file || !clientName.trim()) return;
-    const states = ["uploading", "transcribing", "analyzing", "done"];
-    let idx = 0;
-    setUploadState(states[idx]);
-    const advance = () => {
-      idx++;
-      if (idx < states.length) {
-        setUploadState(states[idx]);
-        setTimeout(advance, idx === 1 ? 2200 : 1400);
+    setUploadState("uploading");
+    try {
+      // Read file as array buffer
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = new Uint8Array(arrayBuffer);
+
+      setUploadState("transcribing");
+
+      const response = await fetch("https://api.immaculate-consulting.org/api/recordings/transcribe", {
+        method: "POST",
+        headers: {
+          "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET,
+          "x-meeting-type": meetingType,
+          "x-client-name": clientName,
+          "x-file-name": file.name,
+          "Content-Type": "application/octet-stream",
+        },
+        body: buffer,
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Transcription failed");
       }
-    };
-    setTimeout(advance, 1200);
-  }, [file, clientName]);
+
+      const data = await response.json();
+      setTranscriptResult(data);
+      setUploadState("analyzing");
+
+      // Brief pause then done — Agent 2 analysis will be wired in Task 13
+      setTimeout(() => setUploadState("done"), 1500);
+
+    } catch (err) {
+      console.error("Upload error:", err);
+      setUploadState("error");
+    }
+  }, [file, clientName, meetingType]);
 
   const handleReset = () => {
     setFile(null); setClientName(""); setUploadState("idle"); setCostEstimate(null);
@@ -591,7 +617,16 @@ function RecordingUploadPanel() {
           </div>
         )}
       </div>
+{uploadState === "error" && (
+        <div style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)", borderRadius: 10, padding: "12px 16px", marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#f87171", marginBottom: 4 }}>❌ Upload failed</div>
+          <div style={{ fontSize: 11, color: "#9ca3af" }}>Check your connection and try again. Make sure the file is MP3, M4A, or WAV.</div>
+          <button onClick={handleReset} style={{ marginTop: 8, fontSize: 10.5, color: "#818cf8", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>Try Again</button>
+        </div>
+      )}
 
+      {/* Configuration: meeting type + client */}
+      {file && uploadState === "idle" && (
       {/* Configuration: meeting type + client */}
       {file && uploadState === "idle" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, animation: "fu 0.3s ease both" }}>
@@ -676,15 +711,21 @@ function RecordingUploadPanel() {
           </div>
 
           {uploadState === "done" ? (
-            <div style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)", borderRadius: 10, padding: "12px 16px" }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "#4ade80", marginBottom: 4 }}>✅ Analysis complete</div>
-              <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.5 }}>
-                Transcript saved. {selectedMeeting?.agent} has analyzed this recording and written results to {clientName}.
+        <div style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)", borderRadius: 10, padding: "12px 16px" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#4ade80", marginBottom: 4 }}>✅ Transcription complete</div>
+          {transcriptResult && (
+            <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6, marginBottom: 8 }}>
+              <div>Duration: ~{transcriptResult.duration_mins} min · Cost: ${transcriptResult.estimated_cost}</div>
+              <div style={{ marginTop: 6, padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, fontSize: 10.5, color: "#d1d5db", maxHeight: 80, overflowY: "auto" }}>
+                {transcriptResult.transcript?.slice(0, 300)}{transcriptResult.transcript?.length > 300 ? "..." : ""}
               </div>
-              <button onClick={handleReset} style={{ marginTop: 10, fontSize: 10.5, color: "#818cf8", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
-                Upload Another
-              </button>
             </div>
+          )}
+          <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>Agent 2 (Discovery Analyzer) will be wired in Task 13.</div>
+          <button onClick={handleReset} style={{ fontSize: 10.5, color: "#818cf8", background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+            Upload Another
+          </button>
+        </div>
           ) : (
             <div style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.1)", borderRadius: 10, padding: "12px 16px" }}>
               <div style={{ fontSize: 11, color: "#9ca3af" }}>
