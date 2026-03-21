@@ -484,21 +484,23 @@ function InvoicingTab() {
     setFollowUpStates(prev=>({...prev,[inv.id]:"loading"}));
     try {
       const res = await fetch("https://api.immaculate-consulting.org/api/agents/collections-assistant", {
-  method: "POST",
-  headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
-  body: JSON.stringify({
-    client_name: inv.client,
-    invoice_id: inv.id,
-    amount: inv.total,
-    due_date: inv.due,
-    invoice_type: inv.type,
-    triggered_by: "manual_button"
-  })
-});
-const data = await res.json();
-if (!res.ok) throw new Error(data.error || "Draft failed");
-setFollowUpResults(prev=>({...prev,[inv.id]:data}));
-setFollowUpStates(prev=>({...prev,[inv.id]:"done"}));
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          client_name: inv.client,
+          invoice_id: inv.id,
+          amount: inv.total,
+          due_date: inv.due,
+          invoice_type: inv.type,
+          triggered_by: "manual_button"
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Draft failed");
+      setFollowUpResults(prev=>({...prev,[inv.id]:data}));
+      setFollowUpStates(prev=>({...prev,[inv.id]:"done"}));
+    } catch (err) {
+      setFollowUpStates(prev=>({...prev,[inv.id]:"error"}));
     }
   };
 
