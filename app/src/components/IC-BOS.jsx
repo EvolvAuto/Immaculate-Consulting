@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import VapiAssistant from "./VapiAssistant";
 import { AddClientPanel, AddDealPanel, AddTaskPanel, AddInvoicePanel, AddCommPanel } from "./ICBOSForms";
+import AgentsTab from "./AgentsTab";
 import { supabase } from "../lib/supabaseClient";
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1123,7 +1124,7 @@ export default function ICBOS() {
 const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoice'|'comm'
   useEffect(()=>{const h=(e)=>setShowForm(e.detail);document.addEventListener("ic-show-form",h);return()=>document.removeEventListener("ic-show-form",h);},[]);
   const tabs = [
-    { id:"overview", l:"Overview" }, { id:"pipeline", l:"Pipeline" }, { id:"clients", l:"Clients" },
+   { id:"overview", l:"Overview" }, { id:"agents", l:"Agents" }, { id:"pipeline", l:"Pipeline" },
     { id:"roi", l:"ROI" }, { id:"financials", l:"Financials" }, { id:"invoicing", l:"Invoicing" },
     { id:"automations", l:"Automations" }, { id:"onboarding", l:"Onboarding" },
     { id:"capacity", l:"Capacity" }, { id:"profitability", l:"Profitability" },
@@ -1206,7 +1207,8 @@ const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoi
             <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#818cf8", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard/></Panel>
           </div>
         )}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Sales Pipeline</h2><button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button></div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard/></>}
+       {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
+        {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Sales Pipeline</h2><button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button></div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard/></>}
         {tab==="clients"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Client Health</h2><button onClick={()=>setShowForm("client")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Client</button></div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{CLIENTS.length} clients</p>
           <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,overflow:"hidden"}}>
             <div style={{display:"grid",gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1.3fr",gap:6,padding:"8px 16px",borderBottom:"1px solid rgba(255,255,255,0.06)",fontSize:9,fontWeight:600,color:"#6b7280",textTransform:"uppercase",fontFamily:M}}><span>Client</span><span>Status</span><span>Health</span><span>No-Show</span><span>MRR</span><span>Next</span></div>
