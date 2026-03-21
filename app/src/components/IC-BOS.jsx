@@ -842,30 +842,128 @@ function ROITab() {
   );
 }
 
-// Renewals Tab (Feature 2)
+// Renewals Tab (Feature 2) — with Agent 6 inline UI
 function RenewalsTab() {
+  const [predictStates, setPredictStates] = useState({});
+  const [predictResults, setPredictResults] = useState({});
+
+  const handlePredictRisk = async (client) => {
+    setPredictStates(prev => ({ ...prev, [client.id]: "loading" }));
+    try {
+      const daysToRenewal = Math.round((new Date(client.renewalDate) - Date.now()) / 864e5);
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          transcript: `Renewal risk assessment for ${client.name}. Health score: ${client.healthScore}/100. Days to renewal: ${daysToRenewal}. Monthly fee: $${client.monthlyFee}. No-show improvement: ${client.noShowBefore}% down to ${client.noShowCurrent}%. Weekly hours saved: ${client.weeklyHoursSaved}. Active automations: ${client.automations.join(", ")}. EHR: ${client.ehr}. Tier: ${client.tier}. Next milestone: ${client.nextMilestone}.`,
+          meeting_type: "renewal",
+          client_name: client.name
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Prediction failed");
+      setPredictResults(prev => ({ ...prev, [client.id]: data }));
+      setPredictStates(prev => ({ ...prev, [client.id]: "done" }));
+    } catch (err) {
+      setPredictStates(prev => ({ ...prev, [client.id]: "error" }));
+    }
+  };
+
   const sorted = [...CLIENTS].sort((a,b)=>new Date(a.renewalDate)-new Date(b.renewalDate));
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Renewal Radar</h2>
+      <div>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Renewal Radar</h2>
+        <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>Agent 6 — Renewal Risk Predictor available per client</p>
+      </div>
+
       {sorted.map((c,i)=>{
-        const d=Math.round((new Date(c.renewalDate)-Date.now())/864e5); const risk=c.healthScore<70&&d<60; const soon=d<=90;
-        const bc=risk?"#f87171":soon?"#fbbf24":"#4ade80"; const bw=Math.max(5,Math.min(100,(1-d/365)*100));
-        return (<div key={c.id} style={{ background:risk?"rgba(248,113,113,0.05)":"rgba(255,255,255,0.02)", border:`1px solid ${risk?"rgba(248,113,113,0.12)":"rgba(255,255,255,0.05)"}`, borderRadius:10, padding:"14px 18px", animation:`fu 0.4s ease ${i*60}ms both` }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-            <div><span style={{ fontSize:13, fontWeight:600, color:"#e5e7eb" }}>{c.name}</span><span style={{ fontSize:10.5, color:"#6b7280", marginLeft:8 }}>Tier {c.tier} · ${c.monthlyFee.toLocaleString()}/mo</span></div>
-            <div style={{ display:"flex", alignItems:"center", gap:6 }}>{risk&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.12)", padding:"2px 8px", borderRadius:5, fontFamily:M }}>AT RISK</span>}<span style={{ fontSize:11, fontWeight:600, color:bc, fontFamily:M }}>{d}d</span></div>
+        const d = Math.round((new Date(c.renewalDate)-Date.now())/864e5);
+        const risk = c.healthScore<70&&d<60;
+        const soon = d<=90;
+        const bc = risk?"#f87171":soon?"#fbbf24":"#4ade80";
+        const bw = Math.max(5,Math.min(100,(1-d/365)*100));
+        const churnRisk = c.healthScore<65?"High":c.healthScore<80?"Medium":"Low";
+        const churnColor = churnRisk==="High"?"#f87171":churnRisk==="Medium"?"#fbbf24":"#4ade80";
+        const churnBg = churnRisk==="High"?"rgba(248,113,113,0.12)":churnRisk==="Medium"?"rgba(251,191,36,0.12)":"rgba(74,222,128,0.12)";
+        const ps = predictStates[c.id];
+        const pr = predictResults[c.id];
+
+        return (
+          <div key={c.id} style={{ background:risk?"rgba(248,113,113,0.05)":"rgba(255,255,255,0.02)", border:`1px solid ${risk?"rgba(248,113,113,0.12)":"rgba(255,255,255,0.05)"}`, borderRadius:10, padding:"14px 18px", animation:`fu 0.4s ease ${i*60}ms both` }}>
+
+            {/* Header row */}
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:13, fontWeight:600, color:"#e5e7eb" }}>{c.name}</span>
+                <span style={{ fontSize:10.5, color:"#6b7280" }}>Tier {c.tier} · ${c.monthlyFee.toLocaleString()}/mo</span>
+                {/* Churn risk badge */}
+                <span style={{ fontSize:9, fontWeight:700, color:churnColor, background:churnBg, padding:"2px 8px", borderRadius:5, fontFamily:M }}>{churnRisk} Risk</span>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                {risk&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.12)", padding:"2px 8px", borderRadius:5, fontFamily:M }}>AT RISK</span>}
+                <span style={{ fontSize:11, fontWeight:600, color:bc, fontFamily:M }}>{d}d</span>
+                {/* Predict Risk button */}
+                {(!ps||ps===null)&&<button onClick={()=>handlePredictRisk(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Predict Risk</button>}
+                {ps==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Analyzing...</span>}
+                {ps==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
+                {ps==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+              <div style={{ flex:1, height:5, borderRadius:3, background:"rgba(255,255,255,0.04)" }}>
+                <div style={{ height:"100%", borderRadius:3, background:bc, width:`${bw}%` }}/>
+              </div>
+              <span style={{ fontSize:10, color:"#9ca3af", fontFamily:M }}>{c.renewalDate}</span>
+            </div>
+
+            {/* Stats row */}
+            <div style={{ display:"flex", gap:14, fontSize:10.5, color:"#9ca3af" }}>
+              <span>Health: <span style={{ color:c.healthScore>=80?"#4ade80":c.healthScore>=70?"#fbbf24":"#f87171", fontWeight:600 }}>{c.healthScore}</span></span>
+              <span>No-Show: <span style={{ fontWeight:600, color:"#f0f0f0" }}>{c.noShowCurrent}%</span></span>
+              <span>ARR: <span style={{ fontWeight:600, color:"#f0f0f0" }}>${(c.monthlyFee*12).toLocaleString()}</span></span>
+              <span>Hours Saved/wk: <span style={{ fontWeight:600, color:"#4ade80" }}>{c.weeklyHoursSaved}h</span></span>
+            </div>
+
+            {/* Agent 6 result panel */}
+            {ps==="done"&&pr&&(
+              <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.05)", display:"flex", flexDirection:"column", gap:8, animation:"fu 0.3s ease both" }}>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
+                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Renewal Score</div>
+                    <div style={{ fontSize:22, fontWeight:800, color:pr.bant_score>=70?"#4ade80":pr.bant_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{pr.bant_score}</div>
+                    <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
+                  </div>
+                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
+                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Follow-up</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:pr.follow_up_urgency==="high"?"#f87171":pr.follow_up_urgency==="medium"?"#fbbf24":"#4ade80", fontFamily:M, textTransform:"uppercase" }}>{pr.follow_up_urgency}</div>
+                  </div>
+                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
+                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Rec. Tier</div>
+                    <div style={{ fontSize:22, fontWeight:800, color:"#818cf8", fontFamily:M }}>{pr.recommended_tier}</div>
+                  </div>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                    <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Risk Factors</div>
+                    {pr.pain_points?.slice(0,3).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
+                  </div>
+                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                    <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Talking Points</div>
+                    {pr.next_steps?.slice(0,3).map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
+                  </div>
+                </div>
+                <div style={{ padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
+                  <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+                  <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{pr.qualification_summary}</div>
+                </div>
+              </div>
+            )}
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
-            <div style={{ flex:1, height:5, borderRadius:3, background:"rgba(255,255,255,0.04)" }}><div style={{ height:"100%", borderRadius:3, background:bc, width:`${bw}%` }}/></div>
-            <span style={{ fontSize:10, color:"#9ca3af", fontFamily:M }}>{c.renewalDate}</span>
-          </div>
-          <div style={{ display:"flex", gap:14, fontSize:10.5, color:"#9ca3af" }}>
-            <span>Health: <span style={{ color:c.healthScore>=80?"#4ade80":c.healthScore>=70?"#fbbf24":"#f87171", fontWeight:600 }}>{c.healthScore}</span></span>
-            <span>No-Show: <span style={{ fontWeight:600, color:"#f0f0f0" }}>{c.noShowCurrent}%</span></span>
-            <span>ARR: <span style={{ fontWeight:600, color:"#f0f0f0" }}>${(c.monthlyFee*12).toLocaleString()}</span></span>
-          </div>
-        </div>);
+        );
       })}
     </div>
   );
