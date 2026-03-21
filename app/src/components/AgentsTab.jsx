@@ -628,7 +628,6 @@ function RecordingUploadPanel() {
       {/* Configuration: meeting type + client */}
       {file && uploadState === "idle" && (
       {/* Configuration: meeting type + client */}
-      {file && uploadState === "idle" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, animation: "fu 0.3s ease both" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div>
