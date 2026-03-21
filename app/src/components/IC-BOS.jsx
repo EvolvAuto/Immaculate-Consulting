@@ -1150,13 +1150,23 @@ function RenewalsTab() {
     setPredictStates(prev => ({ ...prev, [client.id]: "loading" }));
     try {
       const daysToRenewal = Math.round((new Date(client.renewalDate) - Date.now()) / 864e5);
-      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/renewal-predictor", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
         body: JSON.stringify({
-          transcript: `Renewal risk assessment for ${client.name}. Health score: ${client.healthScore}/100. Days to renewal: ${daysToRenewal}. Monthly fee: $${client.monthlyFee}. No-show improvement: ${client.noShowBefore}% down to ${client.noShowCurrent}%. Weekly hours saved: ${client.weeklyHoursSaved}. Active automations: ${client.automations.join(", ")}. EHR: ${client.ehr}. Tier: ${client.tier}. Next milestone: ${client.nextMilestone}.`,
-          meeting_type: "renewal",
-          client_name: client.name
+          client_name: client.name,
+          health_score: client.healthScore,
+          tier: client.tier,
+          ehr: client.ehr,
+          monthly_fee: client.monthlyFee,
+          no_show_before: client.noShowBefore,
+          no_show_current: client.noShowCurrent,
+          weekly_hours_saved: client.weeklyHoursSaved,
+          automations: client.automations.join(", "),
+          renewal_date: client.renewalDate,
+          days_to_renewal: daysToRenewal,
+          next_milestone: client.nextMilestone,
+          triggered_by: "manual_button"
         })
       });
       const data = await res.json();
@@ -1233,31 +1243,37 @@ function RenewalsTab() {
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
                   <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
                     <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Renewal Score</div>
-                    <div style={{ fontSize:22, fontWeight:800, color:pr.bant_score>=70?"#4ade80":pr.bant_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{pr.bant_score}</div>
+                    <div style={{ fontSize:22, fontWeight:800, color:pr.renewal_score>=70?"#4ade80":pr.renewal_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{pr.renewal_score}</div>
                     <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
                   </div>
                   <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
-                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Follow-up</div>
-                    <div style={{ fontSize:14, fontWeight:700, color:pr.follow_up_urgency==="high"?"#f87171":pr.follow_up_urgency==="medium"?"#fbbf24":"#4ade80", fontFamily:M, textTransform:"uppercase" }}>{pr.follow_up_urgency}</div>
+                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Churn Risk</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:pr.churn_probability==="high"?"#f87171":pr.churn_probability==="medium"?"#fbbf24":"#4ade80", fontFamily:M, textTransform:"uppercase" }}>{pr.churn_probability}</div>
                   </div>
                   <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
-                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Rec. Tier</div>
-                    <div style={{ fontSize:22, fontWeight:800, color:"#818cf8", fontFamily:M }}>{pr.recommended_tier}</div>
+                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Urgency</div>
+                    <div style={{ fontSize:14, fontWeight:700, color:pr.urgency==="high"?"#f87171":pr.urgency==="medium"?"#fbbf24":"#4ade80", fontFamily:M, textTransform:"uppercase" }}>{pr.urgency}</div>
                   </div>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                   <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Risk Factors</div>
-                    {pr.pain_points?.slice(0,3).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
+                    <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Churn Signals</div>
+                    {pr.churn_signals?.slice(0,3).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
                   </div>
                   <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Talking Points</div>
-                    {pr.next_steps?.slice(0,3).map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
+                    <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Talking Points</div>
+                    {pr.renewal_talking_points?.slice(0,3).map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
                   </div>
                 </div>
+                {pr.upsell_potential&&(
+                  <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
+                    <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Upsell Potential</div>
+                    <div style={{ fontSize:10, color:"#e5e7eb" }}>{pr.upsell_potential}</div>
+                  </div>
+                )}
                 <div style={{ padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
                   <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
-                  <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{pr.qualification_summary}</div>
+                  <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{pr.agent_summary}</div>
                 </div>
               </div>
             )}
