@@ -821,8 +821,11 @@ function SalesPrepTab() {
   );
 }
 
-// WEEKLY REPORT (Feature 12)
+// WEEKLY REPORT (Feature 12) — with Agent 4 digest + 3 Things to Act On
 function WeeklyReportTab() {
+  const [digestState, setDigestState] = useState(null); // null | loading | done | error
+  const [digestResult, setDigestResult] = useState(null);
+
   const totalROI = CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0);
   const pipeVal = PIPELINE.reduce((s,d)=>s+d.value,0);
   const avgHealth = Math.round(CLIENTS.reduce((s,c)=>s+c.healthScore,0)/CLIENTS.length);
@@ -830,6 +833,37 @@ function WeeklyReportTab() {
   const totalExecs = AUTOMATIONS.reduce((s,a)=>s+a.execsToday,0);
   const overdue = INVOICES.filter(i=>i.status==="overdue");
   const capPct = Math.round((CAPACITY.currentUtilization/CAPACITY.weeklyHoursAvailable)*100);
+  const staleDeals = PIPELINE.filter(p=>p.daysInStage>5);
+
+  const handleGenerateDigest = async () => {
+    setDigestState("loading");
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          transcript: `Weekly business digest for Immaculate Consulting. MRR: $${FINANCIALS.mrr.toLocaleString()}. ARR: $${FINANCIALS.arr.toLocaleString()}. Cash on hand: $${FINANCIALS.cashOnHand.toLocaleString()}. Net margin: ${Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100)}%. Active clients: ${CLIENTS.filter(c=>c.status==="active").length}. Avg health score: ${avgHealth}. Total value recovered: $${Math.round(totalROI).toLocaleString()}. Pipeline: ${PIPELINE.length} deals worth $${pipeVal.toLocaleString()}/mo. Stale deals: ${staleDeals.length}. Overdue invoices: ${overdue.length} totaling $${overdue.reduce((s,i)=>s+i.total,0).toLocaleString()}. Critical automations: ${critAuto}. Capacity: ${capPct}%. Onboarding projects: ${ONBOARDING.length}. High priority tasks: ${TASKS.filter(t=>t.priority==="high").length}.`,
+          meeting_type: "checkin",
+          client_name: "Immaculate Consulting — Weekly Digest"
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Digest failed");
+      setDigestResult(data);
+      setDigestState("done");
+    } catch (err) {
+      setDigestState("error");
+    }
+  };
+
+  // Derived "3 Things to Act On" from live data
+  const threeThings = [
+    overdue.length > 0 && { priority: "high", text: `Follow up ${overdue.length} overdue invoice${overdue.length>1?"s":""} — $${overdue.reduce((s,i)=>s+i.total,0).toLocaleString()} outstanding` },
+    critAuto > 0 && { priority: "high", text: `Fix ${critAuto} critical automation${critAuto>1?"s":""} — service reliability at risk` },
+    staleDeals.length > 0 && { priority: "medium", text: `${staleDeals.length} stale deal${staleDeals.length>1?"s":""} need follow-up — ${staleDeals.map(d=>d.practice).join(", ")}` },
+    CLIENTS.filter(c=>c.healthScore<70).length > 0 && { priority: "medium", text: `${CLIENTS.filter(c=>c.healthScore<70).length} at-risk client${CLIENTS.filter(c=>c.healthScore<70).length>1?"s":""} — schedule check-ins before renewal` },
+    capPct > 80 && { priority: "medium", text: `Capacity at ${capPct}% — review hiring plan before closing next deal` },
+  ].filter(Boolean).slice(0, 3);
 
   const sections = [
     { title: "Revenue & Financial Health", items: [
@@ -837,12 +871,12 @@ function WeeklyReportTab() {
       { l:"Cash on Hand", v:`$${FINANCIALS.cashOnHand.toLocaleString()}`, c:"#4ade80" },
       { l:"A/R Outstanding", v:`$${FINANCIALS.accountsReceivable.toLocaleString()}`, c:"#fbbf24" },
       { l:"Net Margin", v:`${Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100)}%`, c:"#4ade80" },
-      { l:"Overdue Invoices", v:overdue.length > 0 ? `${overdue.length} ($${overdue.reduce((s,i)=>s+i.total,0).toLocaleString()})` : "None", c:overdue.length?"#f87171":"#4ade80" },
+      { l:"Overdue Invoices", v:overdue.length>0?`${overdue.length} ($${overdue.reduce((s,i)=>s+i.total,0).toLocaleString()})`:"None", c:overdue.length?"#f87171":"#4ade80" },
     ]},
     { title: "Pipeline & Sales", items: [
       { l:"Pipeline Deals", v:PIPELINE.length.toString(), c:"#818cf8" },
       { l:"Pipeline Value", v:`$${pipeVal.toLocaleString()}/mo`, c:"#fbbf24" },
-      { l:"Stale Deals (>5d)", v:PIPELINE.filter(p=>p.daysInStage>5).length.toString(), c:PIPELINE.filter(p=>p.daysInStage>5).length?"#f87171":"#4ade80" },
+      { l:"Stale Deals (>5d)", v:staleDeals.length.toString(), c:staleDeals.length?"#f87171":"#4ade80" },
       { l:"Next Actions", v:`${TASKS.filter(t=>t.category==="sales").length} sales tasks`, c:"#38bdf8" },
     ]},
     { title: "Client Health & Delivery", items: [
@@ -862,9 +896,71 @@ function WeeklyReportTab() {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16, maxWidth:800 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <div><h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Weekly Business Report</h2>
-        <p style={{ fontSize:11, color:"#6b7280", marginTop:2, fontFamily:M }}>Week of March 2–8, 2026 · IC-BOS Weekly Digest</p></div>
+        <div>
+          <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Weekly Business Report</h2>
+          <p style={{ fontSize:11, color:"#6b7280", marginTop:2, fontFamily:M }}>Week of March 17–21, 2026 · IC-BOS Weekly Digest</p>
+        </div>
+        <button
+          onClick={handleGenerateDigest}
+          disabled={digestState==="loading"}
+          style={{ fontSize:11, fontWeight:600, color: digestState==="loading"?"#38bdf8":"#a5b4fc", background: digestState==="loading"?"rgba(56,189,248,0.08)":"rgba(99,102,241,0.1)", border:`1px solid ${digestState==="loading"?"rgba(56,189,248,0.2)":"rgba(99,102,241,0.2)"}`, borderRadius:6, padding:"6px 14px", cursor: digestState==="loading"?"not-allowed":"pointer", display:"flex", alignItems:"center", gap:6 }}
+        >
+          {digestState==="loading" ? (
+            <><span style={{ width:7, height:7, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Generating...</>
+          ) : "🤖 Generate Digest"}
+        </button>
       </div>
+
+      {/* 3 Things to Act On — always visible from live data */}
+      <div style={{ background:"linear-gradient(135deg,rgba(99,102,241,0.06),rgba(139,92,246,0.04))", border:"1px solid rgba(99,102,241,0.15)", borderRadius:12, padding:"14px 18px" }}>
+        <div style={{ fontSize:11, fontWeight:700, color:"#a5b4fc", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+          ⚡ 3 Things to Act On This Week
+        </div>
+        {threeThings.length === 0 ? (
+          <div style={{ fontSize:11, color:"#4ade80" }}>✓ No urgent actions — business is healthy this week</div>
+        ) : (
+          threeThings.map((item,i) => (
+            <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:i<threeThings.length-1?8:0 }}>
+              <span style={{ fontSize:10, fontWeight:700, color:item.priority==="high"?"#f87171":"#fbbf24", background:item.priority==="high"?"rgba(248,113,113,0.12)":"rgba(251,191,36,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M, flexShrink:0, marginTop:1 }}>{item.priority.toUpperCase()}</span>
+              <span style={{ fontSize:12, color:"#e5e7eb", lineHeight:1.4 }}>{item.text}</span>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* AI Digest panel — shows after generation */}
+      {digestState==="loading" && (
+        <div style={{ background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:12, padding:"16px 18px", display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ width:8, height:8, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>
+          <span style={{ fontSize:11, color:"#7dd3fc" }}>Agent 4 (Weekly Digest) is generating your narrative report...</span>
+        </div>
+      )}
+      {digestState==="error" && (
+        <div style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"12px 16px", fontSize:11, color:"#f87171" }}>
+          ✗ Digest generation failed — check agent logs
+        </div>
+      )}
+      {digestState==="done" && digestResult && (
+        <div style={{ background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.12)", borderLeft:"3px solid #6366f1", borderRadius:12, padding:"16px 18px", animation:"fu 0.4s ease both" }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+            🤖 Agent 4 — AI Narrative Digest
+          </div>
+          <div style={{ fontSize:12, color:"#e5e7eb", lineHeight:1.7, marginBottom:12 }}>{digestResult.qualification_summary}</div>
+          {digestResult.next_steps?.length>0 && (
+            <div>
+              <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommended Actions</div>
+              {digestResult.next_steps.map((s,si)=>(
+                <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:5 }}>
+                  <span style={{ fontSize:10, color:"#818cf8", fontFamily:M, flexShrink:0 }}>{String(si+1).padStart(2,"0")}</span>
+                  <span style={{ fontSize:11.5, color:"#d1d5db", lineHeight:1.4 }}>{s}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Data sections */}
       {sections.map((sec,si)=>(
         <Panel key={si} title={sec.title}>
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
@@ -877,21 +973,6 @@ function WeeklyReportTab() {
           </div>
         </Panel>
       ))}
-      <Panel title="Key Actions for Next Week">
-        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-          {[
-            "Follow up Fayetteville overdue invoice ($6,555)",
-            "Asheville Cardiology UAT testing (Mar 15)",
-            "Discovery call — Raleigh Women's Health (Epic integration scoping)",
-            "Send Sunrise Family Medicine Tier 2 proposal",
-            "Fix Fayetteville lab results routing (critical)",
-            "Chapel Hill quarterly metrics + upsell discussion",
-            "Coastal Dermatology kickoff prep (Mar 12)",
-          ].map((a,i)=>(<div key={i} style={{ fontSize:12, color:"#e5e7eb", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.03)", display:"flex", gap:8 }}>
-            <span style={{ color:"#818cf8", fontFamily:M, fontSize:10, flexShrink:0 }}>{String(i+1).padStart(2,"0")}</span>{a}
-          </div>))}
-        </div>
-      </Panel>
     </div>
   );
 }
