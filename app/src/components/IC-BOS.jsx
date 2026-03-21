@@ -355,13 +355,23 @@ function ClientsTab({ onShowForm }) {
   const handleAnalyze = async (client) => {
     setAnalyzeStates(prev => ({ ...prev, [client.id]: "loading" }));
     try {
-      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/client-success", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
         body: JSON.stringify({
-          transcript: `Client health analysis for ${client.name}. Health score: ${client.healthScore}. No-show rate: ${client.noShowCurrent}% (was ${client.noShowBefore}%). Active automations: ${client.automations.join(", ")}. Weekly hours saved: ${client.weeklyHoursSaved}. Next milestone: ${client.nextMilestone}. EHR: ${client.ehr}. Renewal date: ${client.renewalDate}.`,
-          meeting_type: "checkin",
-          client_name: client.name
+          client_name: client.name,
+          health_score: client.healthScore,
+          tier: client.tier,
+          ehr: client.ehr,
+          no_show_before: client.noShowBefore,
+          no_show_current: client.noShowCurrent,
+          weekly_hours_saved: client.weeklyHoursSaved,
+          weekly_hours_spent: client.weeklyHoursSpent,
+          monthly_fee: client.monthlyFee,
+          automations: client.automations.join(", "),
+          renewal_date: client.renewalDate,
+          next_milestone: client.nextMilestone,
+          triggered_by: "manual_button"
         })
       });
       const data = await res.json();
@@ -438,26 +448,38 @@ function ClientsTab({ onShowForm }) {
 
               {/* Analysis result panel */}
               {as==="done"&&ar&&(
-                <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.05)", display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, animation:"fu 0.3s ease both" }}>
-                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
-                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Health Score</div>
-                    <div style={{ fontSize:20, fontWeight:800, color:ar.bant_score>=70?"#4ade80":ar.bant_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{ar.bant_score}</div>
-                    <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
-                  </div>
-                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Risk Factors</div>
-                    {ar.pain_points?.slice(0,2).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
-                  </div>
-                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Next Steps</div>
-                    {ar.next_steps?.slice(0,2).map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
-                  </div>
-                  <div style={{ gridColumn:"1/-1", padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
-                    <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{ar.qualification_summary}</div>
-                  </div>
-                </div>
-              )}
+  <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.05)", display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, animation:"fu 0.3s ease both" }}>
+    <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
+      <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Health Score</div>
+      <div style={{ fontSize:20, fontWeight:800, color:ar.health_score>=70?"#4ade80":ar.health_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{ar.health_score}</div>
+      <div style={{ fontSize:9, color: ar.risk_level==="high"?"#f87171":ar.risk_level==="medium"?"#fbbf24":"#4ade80", fontWeight:600, textTransform:"uppercase", marginTop:2 }}>{ar.risk_level} risk</div>
+    </div>
+    <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
+      <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Risk Factors</div>
+      {ar.risk_factors?.slice(0,2).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
+    </div>
+    <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
+      <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Interventions</div>
+      {ar.recommended_interventions?.slice(0,2).map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
+    </div>
+    {ar.renewal_talking_points?.length>0&&(
+      <div style={{ padding:"8px 10px", background:"rgba(251,191,36,0.04)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:7 }}>
+        <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Outlook: {ar.renewal_outlook}</div>
+        {ar.renewal_talking_points.slice(0,2).map((t,ti)=><div key={ti} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {t}</div>)}
+      </div>
+    )}
+    {ar.upsell_opportunity&&(
+      <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
+        <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Upsell Opportunity</div>
+        <div style={{ fontSize:10, color:"#e5e7eb" }}>{ar.upsell_opportunity}</div>
+      </div>
+    )}
+    <div style={{ gridColumn:"1/-1", padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
+      <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+      <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{ar.agent_summary}</div>
+    </div>
+  </div>
+)}
             </div>
           );
         })}
