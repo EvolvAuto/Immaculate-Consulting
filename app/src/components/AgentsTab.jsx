@@ -471,6 +471,7 @@ function RecordingUploadPanel() {
   const [clientName, setClientName] = useState("");
   const [uploadState, setUploadState] = useState("idle"); // idle | uploading | transcribing | analyzing | done | error
   const [transcriptResult, setTranscriptResult] = useState(null);
+  const [showFullTranscript, setShowFullTranscript] = useState(false);
   const [costEstimate, setCostEstimate] = useState(null);
   const [recentUploads] = useState([
     { name: "chapel-hill-checkin-mar10.mp3", type: "Client Check-in", client: "Chapel Hill Family Med", duration: "28 min", status: "done", transcript: true, analysis: true, date: "Mar 10" },
@@ -545,7 +546,7 @@ function RecordingUploadPanel() {
   }, [file, clientName, meetingType]);
 
   const handleReset = () => {
-    setFile(null); setClientName(""); setUploadState("idle"); setCostEstimate(null);
+    setFile(null); setClientName(""); setUploadState("idle"); setCostEstimate(null); setTranscriptResult(null); setShowFullTranscript(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -716,9 +717,17 @@ function RecordingUploadPanel() {
           {transcriptResult && (
             <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.6, marginBottom: 8 }}>
               <div>Duration: ~{transcriptResult.duration_mins} min · Cost: ${transcriptResult.estimated_cost}</div>
-              <div style={{ marginTop: 6, padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, fontSize: 10.5, color: "#d1d5db", maxHeight: 80, overflowY: "auto" }}>
-                {transcriptResult.transcript?.slice(0, 300)}{transcriptResult.transcript?.length > 300 ? "..." : ""}
+              <div style={{ marginTop: 6, padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, fontSize: 10.5, color: "#d1d5db", maxHeight: showFullTranscript ? 320 : 80, overflowY: "auto", transition: "max-height 0.3s ease" }}>
+                {showFullTranscript ? transcriptResult.transcript : `${transcriptResult.transcript?.slice(0, 300)}${transcriptResult.transcript?.length > 300 ? "..." : ""}`}
               </div>
+              {transcriptResult.transcript?.length > 300 && (
+                <button
+                  onClick={() => setShowFullTranscript(p => !p)}
+                  style={{ marginTop: 4, fontSize: 10, color: "#818cf8", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  {showFullTranscript ? "▲ Show less" : "▼ View full transcript"}
+                </button>
+              )}
             </div>
           )}
           <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8 }}>Agent 2 (Discovery Analyzer) will be wired in Task 13.</div>
