@@ -270,7 +270,7 @@ function RevChart({ data }) {
   );
 }
 
-function PipelineBoard() {
+function PipelineBoard({ canEdit = true }) {
   const [proposalStates, setProposalStates] = useState({});
   const [outreachStates, setOutreachStates] = useState({});
   const [outreachResults, setOutreachResults] = useState({});
@@ -371,7 +371,7 @@ const handleGenerateOutreach = async (deal) => {
                       )}
                     </div>
                   )}
-                  {(!outreachStates[d.id] || outreachStates[d.id] === null) && (
+                  {(!outreachStates[d.id] || outreachStates[d.id] === null) && canEdit && (
                     <button onClick={() => handleGenerateOutreach(d)} style={{ width:"100%", padding:"5px 0", borderRadius:6, border:"1px solid rgba(99,102,241,0.2)", background:"rgba(99,102,241,0.08)", color:"#a5b4fc", cursor:"pointer", fontSize:9.5, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
                       🤖 Generate Outreach
                     </button>
@@ -383,7 +383,7 @@ const handleGenerateOutreach = async (deal) => {
                 {ps === 'done' && <div style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
                 {ps === 'error' && <div style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error — check agent logs</div>}
                 {ps === 'nomock' && <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M }}>⚡ Live data needed (Task 17)</div>}
-                {(!ps || ps === null) && (
+               {(!ps || ps === null) && canEdit && (
                   <button
                     onClick={() => handleGenerateProposal(d)}
                     style={{ width:"100%", padding:"5px 0", borderRadius:6, border:"1px solid rgba(99,102,241,0.2)", background:"rgba(99,102,241,0.08)", color:"#a5b4fc", cursor:"pointer", fontSize:9.5, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}
@@ -409,7 +409,7 @@ const handleGenerateOutreach = async (deal) => {
 // FEATURE TABS
 // ═══════════════════════════════════════════════════════════════════════
 // CLIENTS TAB (with Agent 5 inline UI)
-function ClientsTab({ onShowForm }) {
+function ClientsTab({ onShowForm, canEdit = true }) {
   const [analyzeStates, setAnalyzeStates] = useState({});
   const [analyzeResults, setAnalyzeResults] = useState({});
 
@@ -451,7 +451,7 @@ function ClientsTab({ onShowForm }) {
           <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Client Health</h2>
           <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>{CLIENTS.length} clients · Agent 5 analysis available</p>
         </div>
-        <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Client</button>
+        {onShowForm && <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Client</button>}
       </div>
 
       {/* At-risk banner */}
@@ -500,7 +500,7 @@ function ClientsTab({ onShowForm }) {
                 <span style={{ fontSize:10.5, color:"#9ca3af" }}>{c.nextMilestone}</span>
                 {/* Analyze button */}
                 <div>
-                  {(!as||as===null)&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
+                 {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
                   {as==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Running...</span>}
                   {as==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
                   {as==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
@@ -2012,15 +2012,40 @@ export default function ICBOS() {
   const [showPulsePopover, setShowPulsePopover] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [dismissedNotifs, setDismissedNotifs] = useState([]);
+  const [userRole, setUserRole] = useState("principal"); // principal | consultant | viewer
+
+  // Load user role from Supabase session app_metadata
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.app_metadata?.role) {
+        setUserRole(session.user.app_metadata.role);
+      }
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.app_metadata?.role) {
+        setUserRole(session.user.app_metadata.role);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const isPrincipal = userRole === "principal";
+  const isConsultant = userRole === "consultant";
+  const canEdit = isPrincipal || isConsultant; // can use agent buttons and add buttons
+  const canViewFinancials = isPrincipal; // financials, profitability, capacity
+
   useEffect(()=>{const h=(e)=>setShowForm(e.detail);document.addEventListener("ic-show-form",h);return()=>document.removeEventListener("ic-show-form",h);},[]);
-  const tabs = [
-  { id:"overview", l:"Overview" }, { id:"agents", l:"Agents" }, { id:"pipeline", l:"Pipeline" },
-  { id:"clients", l:"Clients" }, { id:"tasks", l:"Tasks" }, { id:"comms", l:"Comms" },
-  { id:"onboarding", l:"Onboarding" }, { id:"automations", l:"Automations" },
-  { id:"proposal", l:"Proposals" }, { id:"invoicing", l:"Invoicing" }, { id:"renewals", l:"Renewals" },
-  { id:"roi", l:"ROI" }, { id:"financials", l:"Financials" }, { id:"capacity", l:"Capacity" },
-  { id:"profitability", l:"Profitability" }, { id:"salesprep", l:"Sales Prep" }, { id:"report", l:"Report" },
-];
+  const allTabs = [
+    { id:"overview", l:"Overview" }, { id:"agents", l:"Agents" }, { id:"pipeline", l:"Pipeline" },
+    { id:"clients", l:"Clients" }, { id:"tasks", l:"Tasks" }, { id:"comms", l:"Comms" },
+    { id:"onboarding", l:"Onboarding" }, { id:"automations", l:"Automations" },
+    { id:"proposal", l:"Proposals" }, { id:"invoicing", l:"Invoicing" }, { id:"renewals", l:"Renewals" },
+    { id:"roi", l:"ROI" }, { id:"financials", l:"Financials", principalOnly: true },
+    { id:"capacity", l:"Capacity", principalOnly: true },
+    { id:"profitability", l:"Profitability", principalOnly: true },
+    { id:"salesprep", l:"Sales Prep" }, { id:"report", l:"Report" },
+  ];
+  const tabs = allTabs.filter(t => !t.principalOnly || canViewFinancials);
 
   const totalROI = useMemo(()=>CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0),[]);
   const critCount = AUTOMATIONS.filter(a=>a.status==="critical").length;
@@ -2176,6 +2201,7 @@ export default function ICBOS() {
           </div>
 
           {/* Sign Out */}
+         <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color: isPrincipal?"#a5b4fc":isConsultant?"#4ade80":"#9ca3af", background: isPrincipal?"rgba(99,102,241,0.1)":isConsultant?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.04)", border:`1px solid ${isPrincipal?"rgba(99,102,241,0.2)":isConsultant?"rgba(74,222,128,0.2)":"rgba(255,255,255,0.08)"}`, borderRadius:5, padding:"3px 8px", fontFamily:M }}>{userRole}</span>
           <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} style={{ fontSize:10, color:"#9ca3af", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>Sign Out</button>
 
         </div>
@@ -2218,8 +2244,8 @@ export default function ICBOS() {
           </div>
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-        {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Sales Pipeline</h2><button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button></div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard/></>}
-       {tab==="clients"&&<ClientsTab onShowForm={()=>setShowForm("client")}/>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit}/></>}
+      {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
