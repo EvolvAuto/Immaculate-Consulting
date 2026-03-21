@@ -1051,10 +1051,7 @@ function WeeklyReportTab() {
             🤖 Agent 4 — AI Narrative Digest
           </div>
          <div style={{ fontSize:12, color:"#e5e7eb", lineHeight:1.7, marginBottom:12 }}>{digestResult.narrative || digestResult.qualification_summary}</div>
-          {digestResult.next_steps?.length>0 && (
-            <div>
-              <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommended Actions</div>
-              {(digestResult.top_priorities||digestResult.next_steps)?.length>0 && (
+          {(digestResult.top_priorities||digestResult.next_steps)?.length>0 && (
             <div>
               <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Top Priorities</div>
               {(digestResult.top_priorities||digestResult.next_steps).map((s,si)=>(
@@ -1068,6 +1065,8 @@ function WeeklyReportTab() {
               ))}
             </div>
           )}
+        </div>
+      )}
 
       {/* Data sections */}
       {sections.map((sec,si)=>(
