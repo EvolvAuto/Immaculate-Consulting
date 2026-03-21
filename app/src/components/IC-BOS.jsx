@@ -586,30 +586,126 @@ function InvoicingTab() {
     </div>
   );
 }
-// ONBOARDING TRACKER (Feature 9)
+// ONBOARDING TRACKER (Feature 9) — with Agent 3 inline UI
 function OnboardingTab() {
+  const [planStates, setPlanStates] = useState({});
+  const [planResults, setPlanResults] = useState({});
+  const [expandedKickoff, setExpandedKickoff] = useState({});
   const phaseColors = { complete:"#4ade80", "in-progress":"#fbbf24", upcoming:"#4b5563" };
+
+  const handleGeneratePlan = async (proj) => {
+    setPlanStates(prev => ({ ...prev, [proj.id]: "loading" }));
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          transcript: `Onboarding plan request for ${proj.client}. Tier ${proj.tier} client. EHR system: ${proj.ehr}. Kickoff date: ${proj.kickoff}. Target go-live: ${proj.targetGoLive} (${proj.daysToGoLive} days away). Current phase: ${proj.phases.find(p=>p.status==="in-progress")?.name || proj.phases[0].name}. Known risks: ${proj.risks.join(", ")}. Please generate a detailed onboarding task list with phases, a kickoff email draft, and key success criteria.`,
+          meeting_type: "discovery",
+          client_name: proj.client
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Plan generation failed");
+      setPlanResults(prev => ({ ...prev, [proj.id]: data }));
+      setPlanStates(prev => ({ ...prev, [proj.id]: "done" }));
+    } catch (err) {
+      setPlanStates(prev => ({ ...prev, [proj.id]: "error" }));
+    }
+  };
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-      <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Onboarding Tracker</h2>
-      {ONBOARDING.map((proj,pi)=>(
-        <Panel key={proj.id} title={proj.client} subtitle={`Tier ${proj.tier} · ${proj.ehr} · Go-live: ${proj.targetGoLive} (${proj.daysToGoLive}d)`}>
-          <div style={{ display:"flex", gap:4, marginBottom:16 }}>
-            {proj.phases.map((ph,i)=>(
-              <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
-                <div style={{ height:6, borderRadius:3, background:ph.status==="complete"?"#4ade80":ph.status==="in-progress"?"linear-gradient(90deg,#fbbf24 60%,rgba(255,255,255,0.06) 60%)":"rgba(255,255,255,0.04)" }}/>
-                <span style={{ fontSize:9, fontWeight:600, color:phaseColors[ph.status], fontFamily:M, textTransform:"uppercase" }}>{ph.name}</span>
-                <span style={{ fontSize:9, color:"#6b7280" }}>{ph.start} – {ph.end}</span>
-                {ph.notes&&<span style={{ fontSize:10, color:"#9ca3af", lineHeight:1.3 }}>{ph.notes}</span>}
+      <div>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Onboarding Tracker</h2>
+        <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>Agent 3 — Onboarding Orchestrator available per project</p>
+      </div>
+
+      {ONBOARDING.map((proj,pi)=>{
+        const ps = planStates[proj.id];
+        const pr = planResults[proj.id];
+
+        return (
+          <Panel key={proj.id} title={proj.client} subtitle={`Tier ${proj.tier} · ${proj.ehr} · Go-live: ${proj.targetGoLive} (${proj.daysToGoLive}d)`}
+            action={
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                {(!ps||ps===null)&&<button onClick={()=>handleGeneratePlan(proj)} style={{ fontSize:10, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Generate Plan</button>}
+                {ps==="loading"&&<span style={{ fontSize:10, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:5 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Generating...</span>}
+                {ps==="done"&&<span style={{ fontSize:10, color:"#4ade80", fontFamily:M }}>✓ Plan ready</span>}
+                {ps==="error"&&<span style={{ fontSize:10, color:"#f87171", fontFamily:M }}>✗ Error</span>}
               </div>
-            ))}
-          </div>
-          {proj.risks.length>0&&<div style={{ padding:"10px 14px", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:8, marginBottom:8 }}>
-            <div style={{ fontSize:10, fontWeight:600, color:"#fbbf24", fontFamily:M, marginBottom:4 }}>RISKS</div>
-            {proj.risks.map((r,i)=><div key={i} style={{ fontSize:11, color:"#e5e7eb", marginBottom:2 }}>• {r}</div>)}
-          </div>}
-        </Panel>
-      ))}
+            }
+          >
+            {/* Phase progress bar */}
+            <div style={{ display:"flex", gap:4, marginBottom:16 }}>
+              {proj.phases.map((ph,i)=>(
+                <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
+                  <div style={{ height:6, borderRadius:3, background:ph.status==="complete"?"#4ade80":ph.status==="in-progress"?"linear-gradient(90deg,#fbbf24 60%,rgba(255,255,255,0.06) 60%)":"rgba(255,255,255,0.04)" }}/>
+                  <span style={{ fontSize:9, fontWeight:600, color:phaseColors[ph.status], fontFamily:M, textTransform:"uppercase" }}>{ph.name}</span>
+                  <span style={{ fontSize:9, color:"#6b7280" }}>{ph.start} – {ph.end}</span>
+                  {ph.notes&&<span style={{ fontSize:10, color:"#9ca3af", lineHeight:1.3 }}>{ph.notes}</span>}
+                </div>
+              ))}
+            </div>
+
+            {/* Risks */}
+            {proj.risks.length>0&&(
+              <div style={{ padding:"10px 14px", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:8, marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:600, color:"#fbbf24", fontFamily:M, marginBottom:4 }}>RISKS</div>
+                {proj.risks.map((r,i)=><div key={i} style={{ fontSize:11, color:"#e5e7eb", marginBottom:2 }}>• {r}</div>)}
+              </div>
+            )}
+
+            {/* Agent 3 result panel */}
+            {ps==="done"&&pr&&(
+              <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", paddingTop:12, display:"flex", flexDirection:"column", gap:10, animation:"fu 0.3s ease both" }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
+                  🤖 Agent 3 — Onboarding Orchestrator
+                </div>
+
+                {/* Summary */}
+                <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderLeft:"3px solid #6366f1", borderRadius:7 }}>
+                  <div style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.5 }}>{pr.qualification_summary}</div>
+                </div>
+
+                {/* Task list */}
+                {pr.next_steps?.length>0&&(
+                  <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                    <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Generated Task List</div>
+                    {pr.next_steps.map((s,si)=>(
+                      <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:5 }}>
+                        <span style={{ width:16, height:16, borderRadius:4, border:"1.5px solid rgba(99,102,241,0.3)", flexShrink:0, marginTop:1 }}/>
+                        <span style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.4 }}>{s}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Kickoff email */}
+                {pr.pain_points?.length>0&&(
+                  <div>
+                    <button
+                      onClick={()=>setExpandedKickoff(prev=>({...prev,[proj.id]:!prev[proj.id]}))}
+                      style={{ fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer", marginBottom:6 }}
+                    >
+                      {expandedKickoff[proj.id] ? "Hide Kickoff Email" : "📧 View Kickoff Email Draft"}
+                    </button>
+                    {expandedKickoff[proj.id]&&(
+                      <div style={{ padding:"12px 14px", background:"rgba(0,0,0,0.2)", borderRadius:8, animation:"fu 0.2s ease both" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                          <span style={{ fontSize:10, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>Kickoff Email Draft</span>
+                          <button onClick={()=>navigator.clipboard?.writeText(pr.pain_points.join("\n"))} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
+                        </div>
+                        {pr.pain_points.map((p,pi)=><div key={pi} style={{ fontSize:11, color:"#d1d5db", lineHeight:1.6, marginBottom:4 }}>{p}</div>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </Panel>
+        );
+      })}
     </div>
   );
 }
