@@ -596,13 +596,13 @@ function OnboardingTab() {
   const handleGeneratePlan = async (proj) => {
     setPlanStates(prev => ({ ...prev, [proj.id]: "loading" }));
     try {
-      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
-        body: JSON.stringify({
-          transcript: `Onboarding plan request for ${proj.client}. Tier ${proj.tier} client. EHR system: ${proj.ehr}. Kickoff date: ${proj.kickoff}. Target go-live: ${proj.targetGoLive} (${proj.daysToGoLive} days away). Current phase: ${proj.phases.find(p=>p.status==="in-progress")?.name || proj.phases[0].name}. Known risks: ${proj.risks.join(", ")}. Please generate a detailed onboarding task list with phases, a kickoff email draft, and key success criteria.`,
-          meeting_type: "discovery",
-          client_name: proj.client
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/generate-onboarding-plan", {
+          tier: proj.tier,
+          ehr: proj.ehr,
+          kickoff_date: proj.kickoff,
+          target_go_live: proj.targetGoLive,
+          risks: proj.risks.join(", "),
+          providers: proj.phases.length
         })
       });
       const data = await res.json();
@@ -669,18 +669,17 @@ function OnboardingTab() {
                 </div>
 
                 {/* Task list */}
-                {pr.next_steps?.length>0&&(
+               {(pr.task_list||pr.next_steps)?.length>0&&(
                   <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
-                    <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Generated Task List</div>
-                    {pr.next_steps.map((s,si)=>(
+                    <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Generated Task List ({(pr.task_list||pr.next_steps).length} tasks)</div>
+                    {(pr.task_list||pr.next_steps).map((s,si)=>(
                       <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:5 }}>
                         <span style={{ width:16, height:16, borderRadius:4, border:"1.5px solid rgba(99,102,241,0.3)", flexShrink:0, marginTop:1 }}/>
-                        <span style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.4 }}>{s}</span>
+                        <span style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.4 }}>{typeof s === 'object' ? `[${s.phase}] ${s.task} — ${s.owner} (${s.duration})` : s}</span>
                       </div>
                     ))}
                   </div>
                 )}
-
                 {/* Kickoff email */}
                 {pr.pain_points?.length>0&&(
                   <div>
@@ -934,13 +933,19 @@ function WeeklyReportTab() {
   const handleGenerateDigest = async () => {
     setDigestState("loading");
     try {
-      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+      cconst res = await fetch("https://api.immaculate-consulting.org/api/agents/generate-weekly-digest", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
         body: JSON.stringify({
-          transcript: `Weekly business digest for Immaculate Consulting. MRR: $${FINANCIALS.mrr.toLocaleString()}. ARR: $${FINANCIALS.arr.toLocaleString()}. Cash on hand: $${FINANCIALS.cashOnHand.toLocaleString()}. Net margin: ${Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100)}%. Active clients: ${CLIENTS.filter(c=>c.status==="active").length}. Avg health score: ${avgHealth}. Total value recovered: $${Math.round(totalROI).toLocaleString()}. Pipeline: ${PIPELINE.length} deals worth $${pipeVal.toLocaleString()}/mo. Stale deals: ${staleDeals.length}. Overdue invoices: ${overdue.length} totaling $${overdue.reduce((s,i)=>s+i.total,0).toLocaleString()}. Critical automations: ${critAuto}. Capacity: ${capPct}%. Onboarding projects: ${ONBOARDING.length}. High priority tasks: ${TASKS.filter(t=>t.priority==="high").length}.`,
-          meeting_type: "checkin",
-          client_name: "Immaculate Consulting — Weekly Digest"
+          mrr: FINANCIALS.mrr, arr: FINANCIALS.arr, cash: FINANCIALS.cashOnHand,
+          margin: Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100),
+          active_clients: CLIENTS.filter(c=>c.status==="active").length,
+          avg_health: avgHealth, pipeline_value: pipeVal, pipeline_deals: PIPELINE.length,
+          stale_deals: staleDeals.length, overdue_invoices: overdue.length,
+          overdue_amount: overdue.reduce((s,i)=>s+i.total,0),
+          critical_automations: critAuto, capacity_pct: capPct,
+          total_roi: Math.round(totalROI),
+          high_priority_tasks: TASKS.filter(t=>t.priority==="high").length
         })
       });
       const data = await res.json();
@@ -1041,20 +1046,24 @@ function WeeklyReportTab() {
           <div style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
             🤖 Agent 4 — AI Narrative Digest
           </div>
-          <div style={{ fontSize:12, color:"#e5e7eb", lineHeight:1.7, marginBottom:12 }}>{digestResult.qualification_summary}</div>
+         <div style={{ fontSize:12, color:"#e5e7eb", lineHeight:1.7, marginBottom:12 }}>{digestResult.narrative || digestResult.qualification_summary}</div>
           {digestResult.next_steps?.length>0 && (
             <div>
               <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommended Actions</div>
-              {digestResult.next_steps.map((s,si)=>(
-                <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:5 }}>
-                  <span style={{ fontSize:10, color:"#818cf8", fontFamily:M, flexShrink:0 }}>{String(si+1).padStart(2,"0")}</span>
-                  <span style={{ fontSize:11.5, color:"#d1d5db", lineHeight:1.4 }}>{s}</span>
+              {(digestResult.top_priorities||digestResult.next_steps)?.length>0 && (
+            <div>
+              <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Top Priorities</div>
+              {(digestResult.top_priorities||digestResult.next_steps).map((s,si)=>(
+                <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:6 }}>
+                  <span style={{ fontSize:9, fontWeight:700, color:typeof s==="object"&&s.priority==="high"?"#f87171":"#fbbf24", background:typeof s==="object"&&s.priority==="high"?"rgba(248,113,113,0.12)":"rgba(251,191,36,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M, flexShrink:0, marginTop:1 }}>{typeof s==="object"?s.priority?.toUpperCase():String(si+1).padStart(2,"0")}</span>
+                  <div>
+                    <div style={{ fontSize:11.5, color:"#d1d5db", lineHeight:1.4 }}>{typeof s==="object"?s.action:s}</div>
+                    {typeof s==="object"&&s.reason&&<div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>{s.reason}</div>}
+                  </div>
                 </div>
               ))}
             </div>
           )}
-        </div>
-      )}
 
       {/* Data sections */}
       {sections.map((sec,si)=>(
