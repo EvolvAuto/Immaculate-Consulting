@@ -483,21 +483,22 @@ function InvoicingTab() {
   const handleDraftFollowUp = async (inv) => {
     setFollowUpStates(prev=>({...prev,[inv.id]:"loading"}));
     try {
-      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
-        body: JSON.stringify({
-          transcript: `Collections follow-up needed for ${inv.client}. Invoice: ${inv.id}. Amount overdue: $${inv.total.toLocaleString()}. Originally due: ${inv.due}. Invoice type: ${inv.type}. This is an overdue payment that needs a professional follow-up email to request payment while maintaining the client relationship.`,
-          meeting_type: "followup",
-          client_name: inv.client
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Draft failed");
-      setFollowUpResults(prev=>({...prev,[inv.id]:data}));
-      setFollowUpStates(prev=>({...prev,[inv.id]:"done"}));
-    } catch (err) {
-      setFollowUpStates(prev=>({...prev,[inv.id]:"error"}));
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/collections-assistant", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+  body: JSON.stringify({
+    client_name: inv.client,
+    invoice_id: inv.id,
+    amount: inv.total,
+    due_date: inv.due,
+    invoice_type: inv.type,
+    triggered_by: "manual_button"
+  })
+});
+const data = await res.json();
+if (!res.ok) throw new Error(data.error || "Draft failed");
+setFollowUpResults(prev=>({...prev,[inv.id]:data}));
+setFollowUpStates(prev=>({...prev,[inv.id]:"done"}));
     }
   };
 
@@ -563,22 +564,27 @@ function InvoicingTab() {
               </div>
               {/* Agent-drafted email panel */}
               {fs==="done"&&fr&&expandedEmail[inv.id]&&(
-                <div style={{ padding:"12px 16px", background:"rgba(99,102,241,0.04)", borderBottom:"1px solid rgba(255,255,255,0.03)", animation:"fu 0.3s ease both" }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                    <span style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M }}>🤖 AGENT-DRAFTED FOLLOW-UP EMAIL</span>
-                    <button onClick={()=>{navigator.clipboard?.writeText(fr.qualification_summary||"");}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
-                  </div>
-                  <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.6, padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
-                    {fr.qualification_summary}
-                  </div>
-                  {fr.next_steps?.length>0&&(
-                    <div style={{ marginTop:8 }}>
-                      <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Recommended Actions</div>
-                      {fr.next_steps.map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
-                    </div>
-                  )}
-                </div>
-              )}
+  <div style={{ padding:"12px 16px", background:"rgba(99,102,241,0.04)", borderBottom:"1px solid rgba(255,255,255,0.03)", animation:"fu 0.3s ease both" }}>
+    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        <span style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M }}>🤖 AGENT-DRAFTED FOLLOW-UP EMAIL</span>
+        {fr.escalation_level&&<span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color:fr.escalation_level==="final"?"#f87171":fr.escalation_level==="firm"?"#fbbf24":"#4ade80", background:fr.escalation_level==="final"?"rgba(248,113,113,0.1)":fr.escalation_level==="firm"?"rgba(251,191,36,0.1)":"rgba(74,222,128,0.1)", border:`1px solid ${fr.escalation_level==="final"?"rgba(248,113,113,0.2)":fr.escalation_level==="firm"?"rgba(251,191,36,0.2)":"rgba(74,222,128,0.2)"}`, borderRadius:4, padding:"1px 6px" }}>{fr.escalation_level}</span>}
+        {fr.flag_for_service_pause&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:4, padding:"1px 6px" }}>⚠ FLAG: SERVICE PAUSE</span>}
+      </div>
+      <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
+    </div>
+    {fr.subject&&<div style={{ fontSize:10, fontWeight:600, color:"#e5e7eb", marginBottom:8, padding:"6px 10px", background:"rgba(255,255,255,0.03)", borderRadius:5 }}>Subject: {fr.subject}</div>}
+    <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.6, padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:7, whiteSpace:"pre-wrap" }}>
+      {fr.body}
+    </div>
+    {fr.recommended_action&&(
+      <div style={{ marginTop:8, padding:"6px 10px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:5 }}>
+        <span style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600 }}>Next Action: </span>
+        <span style={{ fontSize:10, color:"#e5e7eb" }}>{fr.recommended_action}</span>
+      </div>
+    )}
+  </div>
+)}
             </div>
           );
         })}
