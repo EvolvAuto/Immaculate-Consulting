@@ -1391,7 +1391,6 @@ export default function ICBOS() {
   const margin = c.monthlyFee > 0 ? (monthlyProfit / c.monthlyFee) * 100 : 0;
   return { monthlyProfit, effectiveRate, margin, monthlyTimeValue, monthlyCost };
 
-
 // ─── Voice Engine ────────────────────────────────────────────────────
 function processVoice(text) {
   const l = text.toLowerCase();
