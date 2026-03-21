@@ -469,6 +469,30 @@ function SalesPrepTab() {
   const annualStaff = 10 * 18 * 52 * 0.8;
   const tierPrice = { 1:3500, 2:6500, 3:10000 }[selected.tier];
   const roi = ((annualRev + annualStaff - tierPrice*12) / (tierPrice*12)) * 100;
+ const [analysisState, setAnalysisState] = useState(null); // null | loading | done | error
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [transcriptText, setTranscriptText] = useState("");
+  const [showTranscriptInput, setShowTranscriptInput] = useState(false);
+
+  const handleAnalyzeCall = async () => {
+    if (!transcriptText.trim()) return;
+    setAnalysisState("loading");
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({ transcript: transcriptText, meeting_type: "discovery", client_name: selected.practice })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      setAnalysisResult(data);
+      setAnalysisState("done");
+    } catch (err) {
+      console.error("Analysis error:", err);
+      setAnalysisState("error");
+    }
+  };
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16, maxWidth:800 }}>
       <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Sales Discovery Prep</h2>
@@ -519,6 +543,83 @@ function SalesPrepTab() {
           </div>))}
         </div>
       </Panel>
+      {/* Agent 2 — Analyze Call */}
+      <div style={{ background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:12, padding:"16px 18px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:13, fontWeight:600, color:"#e5e7eb" }}>🤖 Discovery Call Analyzer</div>
+            <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>Paste a transcript to get BANT score, pain points, and next steps</div>
+          </div>
+          <button onClick={()=>setShowTranscriptInput(p=>!p)} style={{ fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>
+            {showTranscriptInput ? "Hide" : "Paste Transcript"}
+          </button>
+        </div>
+        {showTranscriptInput && (
+          <div style={{ display:"flex", flexDirection:"column", gap:8, animation:"fu 0.3s ease both" }}>
+            <textarea
+              value={transcriptText}
+              onChange={e=>setTranscriptText(e.target.value)}
+              placeholder="Paste call transcript here..."
+              style={{ width:"100%", minHeight:120, padding:"10px 12px", borderRadius:8, border:"1px solid rgba(255,255,255,0.08)", background:"rgba(0,0,0,0.3)", color:"#e5e7eb", fontSize:11.5, fontFamily:"inherit", outline:"none", resize:"vertical" }}
+            />
+            <button
+              onClick={handleAnalyzeCall}
+              disabled={!transcriptText.trim() || analysisState==="loading"}
+              style={{ padding:"9px 0", borderRadius:8, border:"none", background:transcriptText.trim()?"linear-gradient(135deg,#6366f1,#8b5cf6)":"rgba(255,255,255,0.06)", color:transcriptText.trim()?"white":"#4b5563", fontSize:12, fontWeight:700, cursor:transcriptText.trim()?"pointer":"not-allowed" }}
+            >
+              {analysisState==="loading" ? "Analyzing..." : "▶ Analyze Call"}
+            </button>
+          </div>
+        )}
+        {analysisState==="loading" && (
+          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 0", fontSize:11, color:"#38bdf8" }}>
+            <span style={{ width:7, height:7, borderRadius:"50%", background:"#38bdf8", display:"inline-block", animation:"pr 1.2s ease-out infinite" }}/>
+            Running Discovery Analyzer — usually 15-20 seconds...
+          </div>
+        )}
+        {analysisState==="error" && <div style={{ fontSize:11, color:"#f87171", marginTop:8 }}>✗ Analysis failed — check agent logs</div>}
+        {analysisState==="done" && analysisResult && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:10, animation:"fu 0.4s ease both" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:8, textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>BANT Score</div>
+                <div style={{ fontSize:24, fontWeight:800, color:analysisResult.bant_score>=70?"#4ade80":analysisResult.bant_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{analysisResult.bant_score}</div>
+                <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
+              </div>
+              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:8, textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Rec. Tier</div>
+                <div style={{ fontSize:24, fontWeight:800, color:"#818cf8", fontFamily:M }}>{analysisResult.recommended_tier}</div>
+              </div>
+              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:8, textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Urgency</div>
+                <div style={{ fontSize:16, fontWeight:700, color:analysisResult.follow_up_urgency==="high"?"#f87171":analysisResult.follow_up_urgency==="medium"?"#fbbf24":"#4ade80", fontFamily:M, textTransform:"uppercase" }}>{analysisResult.follow_up_urgency}</div>
+              </div>
+            </div>
+            <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:8 }}>
+              <div style={{ fontSize:10, fontWeight:600, color:"#6b7280", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Summary</div>
+              <div style={{ fontSize:11.5, color:"#e5e7eb", lineHeight:1.5 }}>{analysisResult.qualification_summary}</div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:8 }}>
+                <div style={{ fontSize:10, fontWeight:600, color:"#f87171", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Pain Points</div>
+                {analysisResult.pain_points?.map((p,i)=><div key={i} style={{ fontSize:11, color:"#e5e7eb", marginBottom:3 }}>• {p}</div>)}
+              </div>
+              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:8 }}>
+                <div style={{ fontSize:10, fontWeight:600, color:"#4ade80", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Next Steps</div>
+                {analysisResult.next_steps?.map((s,i)=><div key={i} style={{ fontSize:11, color:"#e5e7eb", marginBottom:3 }}>• {s}</div>)}
+              </div>
+            </div>
+            {analysisResult.ic_services_match?.length > 0 && (
+              <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:8 }}>
+                <div style={{ fontSize:10, fontWeight:600, color:"#818cf8", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>IC Services Match</div>
+                <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                  {analysisResult.ic_services_match.map((s,i)=><span key={i} style={{ fontSize:10, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:4, padding:"2px 8px" }}>{s}</span>)}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
