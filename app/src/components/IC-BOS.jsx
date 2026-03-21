@@ -1539,22 +1539,82 @@ function CapTab() {
   );
 }
 
-// Comms Tab (Feature 7)
-function CommsTab() {
-  const all=CLIENTS.flatMap(c=>c.contactLog.map(l=>({...l,client:c.name}))).sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const tc={email:"#38bdf8",call:"#4ade80",meeting:"#c084fc",sms:"#fbbf24"};
+// Comms Tab (Feature 7) — with agent visual tokens + recording upload shortcut
+function CommsTab({ onTabNav }) {
+  const all = CLIENTS.flatMap(c => c.contactLog.map(l => ({ ...l, client: c.name }))).sort((a,b) => new Date(b.date) - new Date(a.date));
+  const tc = { email:"#38bdf8", call:"#4ade80", meeting:"#c084fc", sms:"#fbbf24" };
+
+  // Mock agent-generated entries — these will come from Supabase in Task 17
+  const agentEntries = new Set(["Mar 01", "Feb 28"]); // dates of mock agent-written entries
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, maxWidth:680 }}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Communication Log</h2><button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"comm"}))} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Log Comms</button></div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Communication Log</h2>
+        <div style={{ display:"flex", gap:8 }}>
+          {/* Recording upload shortcut */}
+          <button
+            onClick={() => onTabNav && onTabNav("agents")}
+            style={{ fontSize:11, fontWeight:600, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}
+          >
+            🎙️ Upload Recording
+          </button>
+          <button
+            onClick={() => document.dispatchEvent(new CustomEvent("ic-show-form", { detail:"comm" }))}
+            style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}
+          >
+            + Log Comms
+          </button>
+        </div>
+      </div>
+
+      {/* Agent activity note */}
+      <div style={{ fontSize:10, color:"#4b5563", padding:"6px 10px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
+        🤖 Entries with an indigo border were written by an IC-BOS agent. Upload a recording to auto-generate call entries.
+      </div>
+
       <div style={{ position:"relative", paddingLeft:20 }}>
         <div style={{ position:"absolute", left:6, top:0, bottom:0, width:2, background:"rgba(255,255,255,0.04)" }}/>
-        {all.map((c,i)=>(<div key={i} style={{ position:"relative", marginBottom:10, animation:`fu 0.3s ease ${i*30}ms both` }}>
-          <div style={{ position:"absolute", left:-17, top:3, width:12, height:12, borderRadius:"50%", background:tc[c.type], border:"2px solid #0a0a0f" }}/>
-          <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.04)", borderRadius:8, padding:"8px 14px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}><span style={{ fontSize:12, fontWeight:600, color:"#e5e7eb" }}>{c.client}</span><span style={{ fontSize:10, color:"#6b7280", fontFamily:M }}>{c.date}</span></div>
-            <div style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ fontSize:9, color:tc[c.type], fontWeight:600, textTransform:"uppercase", fontFamily:M }}>{c.type}</span><span style={{ fontSize:11, color:"#9ca3af" }}>{c.note}</span></div>
-          </div>
-        </div>))}
+        {all.map((c,i) => {
+          const isAgentEntry = agentEntries.has(c.date);
+          return (
+            <div key={i} style={{ position:"relative", marginBottom:10, animation:`fu 0.3s ease ${i*30}ms both` }}>
+              <div style={{ position:"absolute", left:-17, top:3, width:12, height:12, borderRadius:"50%", background:tc[c.type], border:"2px solid #0a0a0f" }}/>
+              <div style={{
+                background: isAgentEntry ? "rgba(99,102,241,0.04)" : "rgba(255,255,255,0.02)",
+                border: `1px solid ${isAgentEntry ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)"}`,
+                borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid rgba(255,255,255,0.04)",
+                borderRadius:8,
+                padding:"8px 14px"
+              }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:12, fontWeight:600, color:"#e5e7eb" }}>{c.client}</span>
+                    {isAgentEntry && (
+                      <span style={{ fontSize:8, fontWeight:700, color:"#818cf8", background:"rgba(99,102,241,0.12)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>🤖 AGENT</span>
+                    )}
+                  </div>
+                  <span style={{ fontSize:10, color:"#6b7280", fontFamily:M }}>{c.date}</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                  <span style={{ fontSize:9, color:tc[c.type], fontWeight:600, textTransform:"uppercase", fontFamily:M }}>{c.type}</span>
+                  <span style={{ fontSize:11, color:"#9ca3af" }}>{c.note}</span>
+                </div>
+                {/* View Transcript / View Analysis buttons for call entries */}
+                {c.type === "call" && (
+                  <div style={{ display:"flex", gap:5, marginTop:6 }}>
+                    <button style={{ fontSize:9, color:"#38bdf8", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.12)", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
+                      View Transcript
+                    </button>
+                    <button style={{ fontSize:9, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
+                      View Analysis
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1802,7 +1862,7 @@ export default function ICBOS() {
         {tab==="proposal"&&<ProposalTab/>}
         {tab==="salesprep"&&<SalesPrepTab/>}
         {tab==="tasks"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Action Items</h2><button onClick={()=>setShowForm("task")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Task</button></div><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS].sort((a,b)=>({high:0,medium:1,low:2})[a.priority]-({high:0,medium:1,low:2})[b.priority]).map((t,i)=><TaskItem key={t.id} task={t} delay={i*30}/>)}</div></>}
-        {tab==="comms"&&<CommsTab/>}
+        {tab==="comms"&&<CommsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
 {showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>setShowForm(null)}/>}
