@@ -1175,15 +1175,6 @@ export default function ICBOS() {
     }),
   ].filter(n => !dismissedNotifs.includes(n.id));
 
-  const runningAgents = [];
-  const allNotifs = [
-    ...PIPELINE.filter(d=>d.daysInStage>=7).map(d=>({ id:`stale-${d.id}`, icon:"⏳", tab:"pipeline", color:"#fbbf24", text:`${d.practice} stale — ${d.daysInStage} days in ${STAGE_LABELS[d.stage]}` })),
-    ...INVOICES.filter(i=>i.status==="overdue").map(i=>({ id:`overdue-${i.id}`, icon:"💰", tab:"invoicing", color:"#f87171", text:`${i.client} invoice overdue — $${i.total.toLocaleString()} due ${i.due}` })),
-    ...CLIENTS.filter(c=>c.healthScore<70).map(c=>({ id:`health-${c.id}`, icon:"❤️", tab:"clients", color:"#fb923c", text:`${c.name} health score low — ${c.healthScore}/100` })),
-    ...CLIENTS.filter(c=>{ const d=Math.round((new Date(c.renewalDate)-Date.now())/864e5); return d>0&&d<=60; }).map(c=>{ const d=Math.round((new Date(c.renewalDate)-Date.now())/864e5); return { id:`renewal-${c.id}`, icon:"🔄", tab:"renewals", color:"#818cf8", text:`${c.name} renewal in ${d} days — health ${c.healthScore}` }; }),
-  ].filter(n=>!dismissedNotifs.includes(n.id));
-  const unreadCount = allNotifs.length;
-  const isAnyAgentRunning = runningAgents.length > 0;
   return (
     <div style={{ minHeight:"100vh", background:"#0a0a0f", color:"#e5e7eb", fontFamily:"'Inter',-apple-system,sans-serif", "--mono":"'JetBrains Mono',monospace" }}>
       <style>{`
