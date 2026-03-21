@@ -1121,7 +1121,10 @@ function CommsTab() {
 // ═══════════════════════════════════════════════════════════════════════
 export default function ICBOS() {
   const [tab, setTab] = useState("overview");
-const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoice'|'comm'
+  const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoice'|'comm'
+  const [showPulsePopover, setShowPulsePopover] = useState(false);
+  const [showNotifs, setShowNotifs] = useState(false);
+  const [dismissedNotifs, setDismissedNotifs] = useState([]);
   useEffect(()=>{const h=(e)=>setShowForm(e.detail);document.addEventListener("ic-show-form",h);return()=>document.removeEventListener("ic-show-form",h);},[]);
   const tabs = [
    { id:"overview", l:"Overview" }, { id:"agents", l:"Agents" }, { id:"pipeline", l:"Pipeline" },
@@ -1138,7 +1141,42 @@ const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoi
   const highTasks = TASKS.filter(t=>t.priority==="high").length;
   const overdueInvs = INVOICES.filter(i=>i.status==="overdue");
   const pipeVal = PIPELINE.reduce((s,d)=>s+d.value,0);
+  
+// ── Mock agent running state (will be replaced by live agent_activity query in Step 17)
+  const runningAgents = []; // empty = all idle; populate to test pulse: e.g. ["Proposal Generator"]
 
+  // ── Derive smart notifications from existing mock data ──────────────
+  const allNotifs = [
+    ...PIPELINE.filter(d => d.daysInStage >= 7).map(d => ({
+      id: `stale-${d.id}`, type: "stale", color: "#fbbf24",
+      icon: "⏳", tab: "pipeline",
+      text: `${d.practice} stale — ${d.daysInStage} days in ${STAGE_LABELS[d.stage]}`,
+    })),
+    ...INVOICES.filter(i => i.status === "overdue").map(i => ({
+      id: `overdue-${i.id}`, type: "overdue", color: "#f87171",
+      icon: "💰", tab: "invoicing",
+      text: `${i.client} invoice overdue — $${i.total.toLocaleString()} due ${i.due}`,
+    })),
+    ...CLIENTS.filter(c => c.healthScore < 70).map(c => ({
+      id: `health-${c.id}`, type: "health", color: "#fb923c",
+      icon: "❤️", tab: "clients",
+      text: `${c.name} health score low — ${c.healthScore}/100`,
+    })),
+    ...CLIENTS.filter(c => {
+      const days = Math.round((new Date(c.renewalDate) - Date.now()) / 864e5);
+      return days > 0 && days <= 60;
+    }).map(c => {
+      const days = Math.round((new Date(c.renewalDate) - Date.now()) / 864e5);
+      return {
+        id: `renewal-${c.id}`, type: "renewal", color: "#818cf8",
+        icon: "🔄", tab: "renewals",
+        text: `${c.name} renewal in ${days} days — health ${c.healthScore}`,
+      };
+    }),
+  ].filter(n => !dismissedNotifs.includes(n.id));
+
+  const unreadCount = allNotifs.length;
+  const isAnyAgentRunning = runningAgents.length > 0;
   return (
     <div style={{ minHeight:"100vh", background:"#0a0a0f", color:"#e5e7eb", fontFamily:"'Inter',-apple-system,sans-serif", "--mono":"'JetBrains Mono',monospace" }}>
       <style>{`
@@ -1154,9 +1192,95 @@ const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoi
 
       {/* Header */}
       <header style={{ position:"sticky", top:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 24px", background:"rgba(10,10,15,0.9)", backdropFilter:"blur(20px)", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:30, height:30, borderRadius:8, background:"linear-gradient(135deg,#6366f1,#8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"white" }}>IC</div>
-          <div><div style={{ fontSize:13, fontWeight:700, color:"#f0f0f0" }}>IC-BOS</div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>Immaculate Consulting Business Operating System</div></div>
+        <div style={{ display:"flex", alignItems:"center", gap:10, position:"relative" }}>
+
+          {/* LIVE badge */}
+          <span style={{ fontSize:9, color:"#4ade80", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}>
+            <span style={{ width:4, height:4, borderRadius:"50%", background:"#4ade80" }}/>LIVE
+          </span>
+
+          {/* Agent Activity Pulse */}
+          <div style={{ position:"relative" }}>
+            <button
+              onClick={() => { setShowPulsePopover(p => !p); setShowNotifs(false); }}
+              title="Agent activity"
+              style={{ width:28, height:28, borderRadius:"50%", border:`1px solid ${isAnyAgentRunning ? "rgba(56,189,248,0.3)" : "rgba(255,255,255,0.08)"}`, background: isAnyAgentRunning ? "rgba(56,189,248,0.1)" : "rgba(255,255,255,0.04)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}
+            >
+              <span style={{ width:8, height:8, borderRadius:"50%", background: isAnyAgentRunning ? "#38bdf8" : "#4b5563", display:"block" }}/>
+              {isAnyAgentRunning && <span style={{ position:"absolute", width:14, height:14, borderRadius:"50%", background:"rgba(56,189,248,0.3)", animation:"pr 1.2s ease-out infinite" }}/>}
+            </button>
+            {showPulsePopover && (
+              <div style={{ position:"absolute", top:36, right:0, width:220, background:"#111118", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"12px 14px", zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both" }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:M, marginBottom:8 }}>Agent Pulse</div>
+                {isAnyAgentRunning ? (
+                  runningAgents.map(name => (
+                    <div key={name} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:"#38bdf8", flexShrink:0, animation:"pr 1.2s ease-out infinite" }}/>
+                      <span style={{ fontSize:11, color:"#7dd3fc" }}>{name}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ fontSize:11, color:"#4b5563", display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ width:7, height:7, borderRadius:"50%", background:"#374151", flexShrink:0 }}/>
+                    All agents idle
+                  </div>
+                )}
+                <button onClick={() => { setTab("agents"); setShowPulsePopover(false); }} style={{ marginTop:10, fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"4px 10px", cursor:"pointer", width:"100%" }}>
+                  Open Agents Tab →
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Smart Notifications Bell */}
+          <div style={{ position:"relative" }}>
+            <button
+              onClick={() => { setShowNotifs(p => !p); setShowPulsePopover(false); }}
+              title="Notifications"
+              style={{ width:28, height:28, borderRadius:"50%", border:`1px solid ${unreadCount > 0 ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.08)"}`, background: unreadCount > 0 ? "rgba(251,191,36,0.06)" : "rgba(255,255,255,0.04)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, position:"relative" }}
+            >
+              🔔
+              {unreadCount > 0 && (
+                <span style={{ position:"absolute", top:-3, right:-3, minWidth:14, height:14, borderRadius:7, background:"#f87171", border:"2px solid #0a0a0f", fontSize:8, fontWeight:800, color:"white", fontFamily:M, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 2px" }}>
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            {showNotifs && (
+              <div style={{ position:"absolute", top:36, right:0, width:300, background:"#111118", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both", overflow:"hidden" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px 8px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+                  <span style={{ fontSize:11, fontWeight:700, color:"#e5e7eb" }}>Notifications</span>
+                  {allNotifs.length > 0 && (
+                    <button onClick={() => setDismissedNotifs(prev => [...prev, ...allNotifs.map(n => n.id)])} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"none", cursor:"pointer" }}>Clear all</button>
+                  )}
+                </div>
+                <div style={{ maxHeight:320, overflowY:"auto" }}>
+                  {allNotifs.length === 0 ? (
+                    <div style={{ padding:"20px 14px", fontSize:11, color:"#4b5563", textAlign:"center" }}>No new notifications</div>
+                  ) : (
+                    allNotifs.map(n => (
+                      <div key={n.id} style={{ display:"flex", alignItems:"flex-start", gap:9, padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.03)", cursor:"pointer" }}
+                        onClick={() => { setTab(n.tab); setShowNotifs(false); }}
+                        onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                      >
+                        <span style={{ fontSize:14, flexShrink:0, marginTop:1 }}>{n.icon}</span>
+                        <span style={{ fontSize:11, color:"#9ca3af", flex:1, lineHeight:1.4 }}>{n.text}</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); setDismissedNotifs(prev => [...prev, n.id]); }}
+                          style={{ fontSize:12, color:"#4b5563", background:"transparent", border:"none", cursor:"pointer", flexShrink:0, padding:"0 2px" }}
+                        >×</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Sign Out */}
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} style={{ fontSize:10, color:"#9ca3af", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>Sign Out</button>
+
         </div>
         <nav style={{ display:"flex", gap:1, flexWrap:"wrap", justifyContent:"center", maxWidth:820 }}>
           {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"5px 9px", borderRadius:6, border:"none", cursor:"pointer", fontSize:10.5, fontWeight:500, background:tab===t.id?"rgba(99,102,241,0.15)":"transparent", color:tab===t.id?"#a5b4fc":"#6b7280", transition:"all 0.15s", position:"relative" }}>
