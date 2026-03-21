@@ -1681,7 +1681,249 @@ function AutoTab() {
     </div>
   );
 }
+// ═══════════════════════════════════════════════════════════════════════
+// TEAM TAB — HR + App Access Management (Principal only)
+// ═══════════════════════════════════════════════════════════════════════
+function TeamTab({ webhookSecret }) {
+  const API = "https://api.immaculate-consulting.org";
+  const HEADERS = { "Content-Type": "application/json", "x-vapi-secret": webhookSecret };
 
+  // App users state
+  const [appUsers, setAppUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState(null);
+
+  // Invite form state
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("consultant");
+  const [inviteState, setInviteState] = useState(null); // null | loading | done | error
+  const [inviteError, setInviteError] = useState("");
+
+  // Role update state
+  const [updatingRole, setUpdatingRole] = useState({});
+
+  // Team members (HR) state — seeded with Leonard
+  const [team, setTeam] = useState([
+    { id: 1, name: "Leonard Croom", title: "Principal Consultant", type: "Full-Time", hoursPerWeek: 50, monthlyCost: 0, startDate: "2025-01-01", notes: "Founder" },
+  ]);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [newMember, setNewMember] = useState({ name: "", title: "", type: "Full-Time", hoursPerWeek: 40, monthlyCost: 0, startDate: "", notes: "" });
+
+  const roleColors = { principal: "#a5b4fc", consultant: "#4ade80", viewer: "#fbbf24" };
+  const roleBg = { principal: "rgba(99,102,241,0.1)", consultant: "rgba(74,222,128,0.1)", viewer: "rgba(251,191,36,0.1)" };
+  const roleBorder = { principal: "rgba(99,102,241,0.2)", consultant: "rgba(74,222,128,0.2)", viewer: "rgba(251,191,36,0.2)" };
+
+  // Load app users on mount
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const loadUsers = async () => {
+    setUsersLoading(true);
+    setUsersError(null);
+    try {
+      const res = await fetch(`${API}/api/admin/list-users`, { headers: HEADERS });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load users");
+      setAppUsers(data.users);
+    } catch (err) {
+      setUsersError(err.message);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviteState("loading");
+    setInviteError("");
+    try {
+      const res = await fetch(`${API}/api/admin/invite-user`, {
+        method: "POST", headers: HEADERS,
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Invite failed");
+      setInviteState("done");
+      setInviteEmail("");
+      setTimeout(() => { setInviteState(null); loadUsers(); }, 2000);
+    } catch (err) {
+      setInviteError(err.message);
+      setInviteState("error");
+      setTimeout(() => setInviteState(null), 4000);
+    }
+  };
+
+  const handleRoleChange = async (userId, newRole) => {
+    setUpdatingRole(prev => ({ ...prev, [userId]: true }));
+    try {
+      const res = await fetch(`${API}/api/admin/update-role`, {
+        method: "PATCH", headers: HEADERS,
+        body: JSON.stringify({ user_id: userId, role: newRole })
+      });
+      if (!res.ok) throw new Error("Update failed");
+      setAppUsers(prev => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
+    } catch (err) {
+      alert("Failed to update role: " + err.message);
+    } finally {
+      setUpdatingRole(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const addTeamMember = () => {
+    if (!newMember.name.trim()) return;
+    setTeam(prev => [...prev, { ...newMember, id: Date.now() }]);
+    setNewMember({ name: "", title: "", type: "Full-Time", hoursPerWeek: 40, monthlyCost: 0, startDate: "", notes: "" });
+    setShowAddMember(false);
+  };
+
+  const removeTeamMember = (id) => {
+    if (id === 1) return; // protect Leonard
+    setTeam(prev => prev.filter(t => t.id !== id));
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 900 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: "#f0f0f0" }}>Team</h2>
+          <p style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>HR records and app access management</p>
+        </div>
+      </div>
+
+      {/* ── Section 1: App Access ─────────────────────────────────── */}
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: "16px 18px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>App Access</div>
+            <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>Invite team members and manage their IC-BOS access level</div>
+          </div>
+          <button onClick={loadUsers} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 5, padding: "3px 8px", cursor: "pointer" }}>↻ Refresh</button>
+        </div>
+
+        {/* Invite form */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, marginBottom: 14, padding: "12px 14px", background: "rgba(99,102,241,0.04)", border: "1px solid rgba(99,102,241,0.1)", borderRadius: 9 }}>
+          <input
+            value={inviteEmail}
+            onChange={e => setInviteEmail(e.target.value)}
+            placeholder="Email address to invite..."
+            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 11, fontFamily: "inherit", outline: "none" }}
+          />
+          <select
+            value={inviteRole}
+            onChange={e => setInviteRole(e.target.value)}
+            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 11, fontFamily: "inherit", outline: "none", cursor: "pointer" }}
+          >
+            <option value="consultant">Consultant</option>
+            <option value="viewer">Viewer</option>
+            <option value="principal">Principal</option>
+          </select>
+          <button
+            onClick={handleInvite}
+            disabled={!inviteEmail.trim() || inviteState === "loading"}
+            style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: inviteEmail.trim() ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "rgba(255,255,255,0.06)", color: inviteEmail.trim() ? "white" : "#4b5563", fontSize: 11, fontWeight: 600, cursor: inviteEmail.trim() ? "pointer" : "not-allowed" }}
+          >
+            {inviteState === "loading" ? "Sending..." : inviteState === "done" ? "✓ Sent!" : "Send Invite"}
+          </button>
+        </div>
+        {inviteState === "error" && <div style={{ fontSize: 10, color: "#f87171", marginBottom: 10 }}>✗ {inviteError}</div>}
+
+        {/* Users table */}
+        {usersLoading ? (
+          <div style={{ fontSize: 11, color: "#6b7280", padding: "12px 0", textAlign: "center" }}>Loading users...</div>
+        ) : usersError ? (
+          <div style={{ fontSize: 11, color: "#f87171" }}>Error: {usersError}</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {/* Header */}
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8, padding: "4px 10px", fontSize: 9, color: "#4b5563", fontFamily: M, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <span>Email</span><span>Role</span><span>Last Sign In</span><span>Status</span>
+            </div>
+            {appUsers.map(u => (
+              <div key={u.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8, alignItems: "center", padding: "8px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 7 }}>
+                <span style={{ fontSize: 11, color: "#e5e7eb", fontFamily: M }}>{u.email}</span>
+                <select
+                  value={u.role}
+                  onChange={e => handleRoleChange(u.id, e.target.value)}
+                  disabled={updatingRole[u.id]}
+                  style={{ padding: "3px 6px", borderRadius: 5, border: `1px solid ${roleBorder[u.role] || "rgba(255,255,255,0.08)"}`, background: roleBg[u.role] || "rgba(255,255,255,0.04)", color: roleColors[u.role] || "#9ca3af", fontSize: 10, fontWeight: 600, fontFamily: M, cursor: "pointer", outline: "none" }}
+                >
+                  <option value="principal">Principal</option>
+                  <option value="consultant">Consultant</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+                <span style={{ fontSize: 10, color: "#6b7280", fontFamily: M }}>{u.last_sign_in ? new Date(u.last_sign_in).toLocaleDateString() : "Never"}</span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: u.confirmed ? "#4ade80" : "#fbbf24", background: u.confirmed ? "rgba(74,222,128,0.1)" : "rgba(251,191,36,0.1)", borderRadius: 4, padding: "2px 7px", fontFamily: M, textTransform: "uppercase", display: "inline-block" }}>{u.confirmed ? "Active" : "Pending"}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Section 2: HR Records ──────────────────────────────────── */}
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: "16px 18px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>Team Members</div>
+            <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>{team.length} member{team.length !== 1 ? "s" : ""} · ${team.reduce((s, t) => s + Number(t.monthlyCost), 0).toLocaleString()}/mo total cost</div>
+          </div>
+          <button onClick={() => setShowAddMember(p => !p)} style={{ fontSize: 11, fontWeight: 600, color: "#a5b4fc", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add Member</button>
+        </div>
+
+        {/* Add member form */}
+        {showAddMember && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14, padding: "12px 14px", background: "rgba(99,102,241,0.04)", border: "1px solid rgba(99,102,241,0.1)", borderRadius: 9, animation: "fu 0.3s ease both" }}>
+            {[
+              { label: "Name", key: "name", type: "text", placeholder: "Full name" },
+              { label: "Title", key: "title", type: "text", placeholder: "e.g. Jr. Consultant" },
+              { label: "Start Date", key: "startDate", type: "date", placeholder: "" },
+              { label: "Hours/Week", key: "hoursPerWeek", type: "number", placeholder: "40" },
+              { label: "Monthly Cost ($)", key: "monthlyCost", type: "number", placeholder: "0" },
+              { label: "Notes", key: "notes", type: "text", placeholder: "Optional" },
+            ].map(f => (
+              <div key={f.key}>
+                <div style={{ fontSize: 9, color: "#6b7280", fontFamily: M, textTransform: "uppercase", marginBottom: 3 }}>{f.label}</div>
+                <input
+                  type={f.type}
+                  value={newMember[f.key]}
+                  onChange={e => setNewMember(prev => ({ ...prev, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))}
+                  placeholder={f.placeholder}
+                  style={{ width: "100%", padding: "6px 8px", borderRadius: 5, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 11, fontFamily: "inherit", outline: "none" }}
+                />
+              </div>
+            ))}
+            <div style={{ gridColumn: "1/-1", display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+              <button onClick={() => setShowAddMember(false)} style={{ fontSize: 11, color: "#6b7280", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={addTeamMember} style={{ fontSize: 11, fontWeight: 600, color: "white", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", border: "none", borderRadius: 6, padding: "5px 16px", cursor: "pointer" }}>Add Member</button>
+            </div>
+          </div>
+        )}
+
+        {/* Team table */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, padding: "4px 10px", fontSize: 9, color: "#4b5563", fontFamily: M, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <span>Name</span><span>Title</span><span>Type</span><span>Hrs/Wk</span><span>Mo. Cost</span><span></span>
+          </div>
+          {team.map(t => (
+            <div key={t.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, alignItems: "center", padding: "10px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 7 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{t.name}</div>
+                {t.notes && <div style={{ fontSize: 9, color: "#6b7280" }}>{t.notes}</div>}
+              </div>
+              <span style={{ fontSize: 11, color: "#9ca3af" }}>{t.title}</span>
+              <span style={{ fontSize: 10, color: "#6b7280", fontFamily: M }}>{t.type}</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#f0f0f0", fontFamily: M }}>{t.hoursPerWeek}h</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: t.monthlyCost > 0 ? "#f87171" : "#4ade80", fontFamily: M }}>{t.monthlyCost > 0 ? `$${Number(t.monthlyCost).toLocaleString()}` : "—"}</span>
+              {t.id !== 1 ? (
+                <button onClick={() => removeTeamMember(t.id)} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}>Remove</button>
+              ) : <span/>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 // Capacity Tab (Feature 5) — Team-aware with hiring forecaster
 function CapTab() {
   const [team, setTeam] = useState([
@@ -2043,6 +2285,7 @@ export default function ICBOS() {
     { id:"roi", l:"ROI" }, { id:"financials", l:"Financials", principalOnly: true },
     { id:"capacity", l:"Capacity", principalOnly: true },
     { id:"profitability", l:"Profitability", principalOnly: true },
+    { id:"team", l:"Team", principalOnly: true },
     { id:"salesprep", l:"Sales Prep" }, { id:"report", l:"Report" },
   ];
   const tabs = allTabs.filter(t => !t.principalOnly || canViewFinancials);
@@ -2266,6 +2509,7 @@ export default function ICBOS() {
         {tab==="automations"&&<AutoTab/>}
         {tab==="onboarding"&&<OnboardingTab/>}
         {tab==="capacity"&&<CapTab/>}
+        {tab==="team"&&<TeamTab webhookSecret={import.meta.env.VITE_VAPI_WEBHOOK_SECRET}/>}
         {tab==="profitability"&&<ProfitabilityTab/>}
         {tab==="renewals"&&<RenewalsTab/>}
         {tab==="proposal"&&<ProposalTab/>}
