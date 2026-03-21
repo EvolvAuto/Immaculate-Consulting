@@ -856,10 +856,12 @@ function SalesPrepTab() {
   const annualStaff = 10 * 18 * 52 * 0.8;
   const tierPrice = { 1:3500, 2:6500, 3:10000 }[selected.tier];
   const roi = ((annualRev + annualStaff - tierPrice*12) / (tierPrice*12)) * 100;
- const [analysisState, setAnalysisState] = useState(null); // null | loading | done | error
+ const [analysisState, setAnalysisState] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [transcriptText, setTranscriptText] = useState("");
   const [showTranscriptInput, setShowTranscriptInput] = useState(false);
+  const [researchState, setResearchState] = useState(null);
+  const [researchResult, setResearchResult] = useState(null);
 
   const handleAnalyzeCall = async () => {
     if (!transcriptText.trim()) return;
@@ -879,7 +881,38 @@ function SalesPrepTab() {
       setAnalysisState("error");
     }
   };
-
+const handleResearchProspect = async () => {
+    setResearchState("loading");
+    setResearchResult(null);
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/competitive-intel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          practice_name: selected.practice,
+          specialty: selected.specialty,
+          ehr: selected.ehr,
+          tier: selected.tier,
+          providers: selected.providers,
+          payer_mix: selected.payer,
+          no_show_baseline: selected.noShowBaseline,
+          value: selected.value,
+          contact_name: selected.contact,
+          ehr_difficulty: selected.ehrDifficulty,
+          ehr_notes: selected.ehrNotes,
+          stage: selected.stage,
+          days_in_stage: selected.daysInStage,
+          triggered_by: "manual_button"
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Research failed");
+      setResearchResult(data);
+      setResearchState("done");
+    } catch (err) {
+      setResearchState("error");
+    }
+  };
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16, maxWidth:800 }}>
       <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Sales Discovery Prep</h2>
@@ -1007,9 +1040,63 @@ function SalesPrepTab() {
           </div>
         )}
       </div>
+  {/* Agent 9 — Research Prospect */}
+      <div style={{ background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:12, padding:"16px 18px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+          <div>
+            <div style={{ fontSize:13, fontWeight:600, color:"#e5e7eb" }}>🤖 Competitive Intel Researcher</div>
+            <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>Pain points, objections, talking points, and deal strategy for {selected.practice}</div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            {researchState==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Researching...</span>}
+            {researchState==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+            {(!researchState||researchState===null)&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Research Prospect</button>}
+            {researchState==="done"&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Re-run</button>}
+          </div>
+        </div>
+        {researchState==="done"&&researchResult&&(
+          <div style={{ display:"flex", flexDirection:"column", gap:10, animation:"fu 0.4s ease both" }}>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Confidence to Close</div>
+                <div style={{ fontSize:22, fontWeight:800, color:researchResult.confidence_to_close>=70?"#4ade80":researchResult.confidence_to_close>=40?"#fbbf24":"#f87171", fontFamily:M }}>{researchResult.confidence_to_close}</div>
+                <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
+              </div>
+              <div style={{ gridColumn:"2/4", padding:"8px 10px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
+                <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Recommended Next Action</div>
+                <div style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.4 }}>{researchResult.recommended_next_action}</div>
+              </div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Specialty Pain Points</div>
+                {researchResult.specialty_pain_points?.map((p,i)=><div key={i} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
+              </div>
+              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>IC Advantages</div>
+                {researchResult.ic_competitive_advantages?.map((a,i)=><div key={i} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {a}</div>)}
+              </div>
+              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Likely Objections</div>
+                {researchResult.likely_objections?.map((o,i)=><div key={i} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {o}</div>)}
+              </div>
+              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                <div style={{ fontSize:9, color:"#38bdf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Medicaid Talking Points</div>
+                {researchResult.medicaid_talking_points?.map((t,i)=><div key={i} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {t}</div>)}
+              </div>
+            </div>
+            <div style={{ padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
+              <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+              <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{researchResult.agent_summary}</div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+
+// WEEKLY REPORT (Feature 12)
 
 // WEEKLY REPORT (Feature 12) — with Agent 4 digest + 3 Things to Act On
 function WeeklyReportTab() {
