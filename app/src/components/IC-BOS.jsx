@@ -271,6 +271,32 @@ function RevChart({ data }) {
 }
 
 function PipelineBoard() {
+  const [proposalStates, setProposalStates] = useState({});
+
+  const handleGenerateProposal = async (deal) => {
+    // Mock deals don't have real Supabase UUIDs — button is wired and ready for Task 17
+    if (!deal.supabase_id) {
+      setProposalStates(prev => ({ ...prev, [deal.id]: 'nomock' }));
+      setTimeout(() => setProposalStates(prev => ({ ...prev, [deal.id]: null })), 3000);
+      return;
+    }
+    setProposalStates(prev => ({ ...prev, [deal.id]: 'loading' }));
+    try {
+      const res = await fetch('https://api.immaculate-consulting.org/api/agents/generate-proposal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-vapi-secret': import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({ deal_id: deal.supabase_id })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Agent error');
+      setProposalStates(prev => ({ ...prev, [deal.id]: 'done' }));
+      setTimeout(() => setProposalStates(prev => ({ ...prev, [deal.id]: null })), 4000);
+    } catch (err) {
+      setProposalStates(prev => ({ ...prev, [deal.id]: 'error' }));
+      setTimeout(() => setProposalStates(prev => ({ ...prev, [deal.id]: null })), 4000);
+    }
+  };
+
   return (
     <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:8 }}>
       {STAGES.map(stg=>{
@@ -280,22 +306,44 @@ function PipelineBoard() {
             <span style={{ width:6, height:6, borderRadius:"50%", background:c.dot }}/><span style={{ fontSize:10, fontWeight:600, color:c.text, textTransform:"uppercase", letterSpacing:"0.05em", fontFamily:M }}>{STAGE_LABELS[stg]}</span>
             <span style={{ fontSize:9, color:"#6b7280", marginLeft:"auto", fontFamily:M }}>${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}</span>
           </div>
-          {deals.map(d=>(<div key={d.id} style={{ background:c.bg, border:`1px solid ${c.border}15`, borderRadius:9, padding:"10px 12px", marginBottom:6 }}>
-            <div style={{ fontSize:12, fontWeight:600, color:"#e5e7eb" }}>{d.practice}</div>
-            <div style={{ fontSize:10, color:"#9ca3af", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
-              <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
-              <span style={{ fontSize:8, fontWeight:600, color:"#111", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
-            </div>
-            <div style={{ fontSize:10, color:"#6b7280", marginTop:5 }}>→ {d.nextAction}</div>
-            {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
-          </div>))}
+          {deals.map(d=>{
+            const ps = proposalStates[d.id];
+            return (<div key={d.id} style={{ background:c.bg, border:`1px solid ${c.border}15`, borderRadius:9, padding:"10px 12px", marginBottom:6 }}>
+              <div style={{ fontSize:12, fontWeight:600, color:"#e5e7eb" }}>{d.practice}</div>
+              <div style={{ fontSize:10, color:"#9ca3af", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
+                <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
+                <span style={{ fontSize:8, fontWeight:600, color:"#111", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
+              </div>
+              <div style={{ fontSize:10, color:"#6b7280", marginTop:5 }}>→ {d.nextAction}</div>
+              {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
+              {/* Agent 1 — Generate Proposal button */}
+              <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+                {ps === 'done' && <div style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
+                {ps === 'error' && <div style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error — check agent logs</div>}
+                {ps === 'nomock' && <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M }}>⚡ Live data needed (Task 17)</div>}
+                {(!ps || ps === null) && (
+                  <button
+                    onClick={() => handleGenerateProposal(d)}
+                    style={{ width:"100%", padding:"5px 0", borderRadius:6, border:"1px solid rgba(99,102,241,0.2)", background:"rgba(99,102,241,0.08)", color:"#a5b4fc", cursor:"pointer", fontSize:9.5, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}
+                  >
+                    🤖 Generate Proposal
+                  </button>
+                )}
+                {ps === 'loading' && (
+                  <div style={{ fontSize:9, color:"#38bdf8", fontFamily:M, textAlign:"center", padding:"4px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                    <span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", display:"inline-block", animation:"pr 1.2s ease-out infinite" }}/>
+                    Generating...
+                  </div>
+                )}
+              </div>
+            </div>);
+          })}
         </div>);
       })}
     </div>
   );
 }
-
 // ═══════════════════════════════════════════════════════════════════════
 // FEATURE TABS
 // ═══════════════════════════════════════════════════════════════════════
