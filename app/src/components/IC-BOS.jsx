@@ -597,6 +597,10 @@ function OnboardingTab() {
     setPlanStates(prev => ({ ...prev, [proj.id]: "loading" }));
     try {
       const res = await fetch("https://api.immaculate-consulting.org/api/agents/generate-onboarding-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          client_name: proj.client,
           tier: proj.tier,
           ehr: proj.ehr,
           kickoff_date: proj.kickoff,
