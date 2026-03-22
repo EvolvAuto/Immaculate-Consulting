@@ -1508,7 +1508,94 @@ function RenewalsTab() {
 
 // Proposal Builder (Feature 3) — Full service catalog
 function ProposalTab() {
-  const [mode, setMode] = useState("managed"); // managed | individual | mixed
+  const [mode, setMode] = useState("managed");
+  // ── Agent-generated proposals from Supabase ──────────────────────
+  const [agentProposals, setAgentProposals] = useState([]);
+  const [proposalsLoading, setProposalsLoading] = useState(true);
+  const [expandedProposal, setExpandedProposal] = useState(null);
+
+  useEffect(() => {
+    supabase
+      .from("proposals")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (data) setAgentProposals(data);
+        setProposalsLoading(false);
+      });
+  }, []);
+
+  const printAgentProposal = (p) => {
+    const roi = p.roi_projection || {};
+    const today = new Date();
+    const dateStr = today.toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
+    const validThru = new Date(today.setDate(today.getDate()+30)).toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>Proposal - ${p.practice_name}</title>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;max-width:850px;margin:0 auto;padding:40px 48px;font-size:13px;line-height:1.6}
+      h1{color:#6366f1;font-size:26px;font-weight:800;margin-bottom:2px}
+      h2{font-size:15px;font-weight:700;color:#1e293b;border-bottom:2px solid #6366f1;padding-bottom:6px;margin:28px 0 14px;text-transform:uppercase;letter-spacing:0.05em}
+      h3{font-size:13px;font-weight:700;color:#334155;margin:16px 0 8px}
+      .subtitle{color:#64748b;font-size:13px;margin-bottom:28px}
+      .cover{margin-bottom:32px;padding-bottom:24px;border-bottom:3px solid #6366f1}
+      .cover-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px}
+      .cover-block p{font-size:12px;color:#475569;margin:2px 0}
+      .cover-block strong{color:#1e293b;font-size:13px}
+      .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+      .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center}
+      .kpi .value{font-size:20px;font-weight:800;color:#6366f1}
+      .kpi .label{font-size:11px;color:#64748b;margin-top:3px}
+      .content{white-space:pre-wrap;line-height:1.7;font-size:13px;color:#334155;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;margin:14px 0}
+      .email-box{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;margin:14px 0;white-space:pre-wrap;font-size:12px;color:#0c4a6e}
+      .badge{display:inline-block;background:rgba(99,102,241,0.1);color:#6366f1;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+      .footer{margin-top:36px;padding-top:14px;border-top:2px solid #e2e8f0;color:#64748b;font-size:11px;display:flex;justify-content:space-between}
+      @media print{body{padding:20px 32px}}
+    </style></head><body>
+    <div class="cover">
+      <h1>Immaculate Consulting</h1>
+      <div class="subtitle">Operations Transformation Proposal <span class="badge">AI Generated</span></div>
+      <div class="cover-grid">
+        <div class="cover-block">
+          <strong>Prepared for:</strong>
+          <p>${p.practice_name}</p>
+          ${p.specialty ? `<p>${p.specialty}</p>` : ''}
+          ${p.ehr ? `<p>EHR: ${p.ehr}</p>` : ''}
+          ${p.tier ? `<p>Service Tier: Tier ${p.tier}</p>` : ''}
+        </div>
+        <div class="cover-block">
+          <strong>Prepared by:</strong>
+          <p>Immaculate Consulting</p>
+          <p>Leonard Croom, Principal</p>
+          <p>leonard@immaculate-consulting.org</p>
+          <p style="margin-top:8px;font-size:11px;color:#94a3b8;">Date: ${dateStr}</p>
+          <p style="font-size:11px;color:#94a3b8;">Valid Through: ${validThru}</p>
+        </div>
+      </div>
+    </div>
+
+    <h2>Investment Summary</h2>
+    <div class="kpi-grid">
+      ${p.monthly_fee ? `<div class="kpi"><div class="value">$${Number(p.monthly_fee).toLocaleString()}/mo</div><div class="label">Monthly Fee</div></div>` : ''}
+      ${p.setup_fee ? `<div class="kpi"><div class="value">$${Number(p.setup_fee).toLocaleString()}</div><div class="label">Setup Fee</div></div>` : ''}
+      ${p.monthly_fee ? `<div class="kpi"><div class="value">$${(Number(p.monthly_fee)*12 + Number(p.setup_fee||0)).toLocaleString()}</div><div class="label">Year 1 Total</div></div>` : ''}
+      ${roi.annualBenefit ? `<div class="kpi"><div class="value">$${Math.round(roi.annualBenefit).toLocaleString()}</div><div class="label">Annual Benefit</div></div>` : ''}
+      ${roi.roiPct ? `<div class="kpi"><div class="value">${Math.round(roi.roiPct)}%</div><div class="label">Year 1 ROI</div></div>` : ''}
+      ${roi.paybackMonths ? `<div class="kpi"><div class="value">${roi.paybackMonths} mo</div><div class="label">Payback Period</div></div>` : ''}
+    </div>
+
+    ${p.proposal_content ? `<h2>Proposal Details</h2><div class="content">${p.proposal_content}</div>` : ''}
+    ${p.follow_up_email ? `<h2>Follow-up Email Draft</h2><div class="email-box">${p.follow_up_email}</div>` : ''}
+
+    <div class="footer">
+      <span>Immaculate Consulting | immaculate-consulting.org | Leonard Croom</span>
+      <span>Valid through ${validThru} | Confidential</span>
+    </div>
+    </body></html>`);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 500);
+  };
   const [pid, setPid] = useState(PIPELINE[0].id);
   const [tier, setTier] = useState(2);
   const [selectedServices, setSelectedServices] = useState([]);
@@ -1810,7 +1897,66 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
 };
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Proposal Builder</h2>
+
+      {/* ── Agent-Generated Proposals Section ── */}
+      <div>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Agent-Generated Proposals</h2>
+        <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>Created by Agent 1 — Proposal Generator</p>
+      </div>
+      {proposalsLoading ? (
+        <p style={{ fontSize:12, color:"#6b7280" }}>Loading proposals...</p>
+      ) : agentProposals.length === 0 ? (
+        <div style={{ padding:"16px", background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:8 }}>
+          <p style={{ fontSize:12, color:"#6b7280" }}>No agent-generated proposals yet. Use the Generate Proposal button on a Pipeline deal to create one.</p>
+        </div>
+      ) : (
+        agentProposals.map(p => (
+          <div key={p.id} style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(99,102,241,0.15)", borderLeft:"3px solid #6366f1", borderRadius:8, padding:"14px 16px" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:"#e2e8f0" }}>{p.practice_name}</div>
+                <div style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>
+                  {p.specialty && `${p.specialty} · `}{p.ehr && `${p.ehr} · `}
+                  {p.monthly_fee && `$${Number(p.monthly_fee).toLocaleString()}/mo · `}
+                  Tier {p.tier}
+                </div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{
+                  fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
+                  background: p.status==="Accepted" ? "rgba(74,222,128,0.1)" : p.status==="Sent" ? "rgba(56,189,248,0.1)" : p.status==="Declined" ? "rgba(248,113,113,0.1)" : "rgba(251,191,36,0.1)",
+                  color: p.status==="Accepted" ? "#4ade80" : p.status==="Sent" ? "#38bdf8" : p.status==="Declined" ? "#f87171" : "#fbbf24"
+                }}>{p.status}</span>
+                <button
+                  onClick={() => setExpandedProposal(expandedProposal === p.id ? null : p.id)}
+                  style={{ fontSize:11, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}
+                >
+                  {expandedProposal === p.id ? "Hide" : "View"}
+                </button>
+                <button
+                  onClick={() => printAgentProposal(p)}
+                  style={{ fontSize:11, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}
+                >
+                  📄 PDF
+                </button>
+              </div>
+            </div>
+            {expandedProposal === p.id && p.proposal_content && (
+              <div style={{ marginTop:12, padding:"12px", background:"rgba(0,0,0,0.2)", borderRadius:7, fontSize:12, color:"#d1d5db", lineHeight:1.7, whiteSpace:"pre-wrap", maxHeight:300, overflowY:"auto" }}>
+                {p.proposal_content}
+              </div>
+            )}
+            <div style={{ fontSize:10, color:"#475569", marginTop:8 }}>
+              🤖 Generated {new Date(p.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
+            </div>
+          </div>
+        ))
+      )}
+
+      {/* Divider */}
+      <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:14 }}>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Proposal Builder</h2>
+      </div>
 
       {/* Prospect selector */}
       <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
