@@ -699,6 +699,7 @@ export function AddInvoicePanel({ onClose, onSaved, supabase, clients = [] }) {
   const blank = {
     client_id: "", invoice_type: "Monthly Retainer",
     amount: "", due_date: "", notes: "",
+    stripe_invoice_id: "",
   };
   const [fields, setFields] = useState(blank);
   const [saving, setSaving] = useState(false);
@@ -727,15 +728,16 @@ export function AddInvoicePanel({ onClose, onSaved, supabase, clients = [] }) {
     const invoiceNum = `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
 
     const { error: err } = await supabase.from("invoices").insert([{
-      invoice_number: invoiceNum,
-      client_id:      fields.client_id,
-      invoice_type:   fields.invoice_type,
-      amount:         Number(fields.amount),
-      total_amount:   Number(fields.amount),
-      due_date:       fields.due_date || null,
-      status:         "Pending",
-      notes:          fields.notes || null,
-      issued_date:    new Date().toISOString().split("T")[0],
+      invoice_number:    invoiceNum,
+      client_id:         fields.client_id,
+      invoice_type:      fields.invoice_type,
+      amount:            Number(fields.amount),
+      total_amount:      Number(fields.amount),
+      due_date:          fields.due_date || null,
+      status:            "Pending",
+      notes:             fields.notes || null,
+      issued_date:       new Date().toISOString().split("T")[0],
+      stripe_invoice_id: fields.stripe_invoice_id || null,
     }]);
 
     setSaving(false);
@@ -774,6 +776,14 @@ export function AddInvoicePanel({ onClose, onSaved, supabase, clients = [] }) {
           <Input value={fields.due_date} onChange={set("due_date")} type="date" />
         </Field>
       </div>
+
+     <Field label="Stripe Invoice ID">
+        <Input
+          value={fields.stripe_invoice_id}
+          onChange={set("stripe_invoice_id")}
+          placeholder="in_1234567890 (from Stripe dashboard)"
+        />
+      </Field>
 
       <Field label="Notes">
         <Textarea value={fields.notes} onChange={set("notes")} placeholder="March managed service retainer..." />
