@@ -60,13 +60,15 @@ const S = {
     padding: "9px 12px", color: "#f0f0f0", fontSize: 13,
     fontFamily: "inherit", outline: "none", boxSizing: "border-box",
     transition: "border-color 0.15s",
+    colorScheme: "dark",
   },
   select: {
     width: "100%", background: "#1e293b",
     border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7,
     padding: "9px 12px", color: "#f0f0f0", fontSize: 13,
     fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-    appearance: "none", cursor: "pointer",
+    appearance: "none", cursor: "pointer", colorScheme: "dark",
+  },
   },
   textarea: {
     width: "100%", background: "rgba(255,255,255,0.04)",
