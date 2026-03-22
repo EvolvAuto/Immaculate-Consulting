@@ -412,6 +412,131 @@ const handleGenerateOutreach = async (deal) => {
 function ClientsTab({ onShowForm, canEdit = true }) {
   const [analyzeStates, setAnalyzeStates] = useState({});
   const [analyzeResults, setAnalyzeResults] = useState({});
+  const [reportStates, setReportStates] = useState({});
+  const [reportResults, setReportResults] = useState({});
+  const [expandedReport, setExpandedReport] = useState({});
+
+  const handleGenerateReport = async (client) => {
+    setReportStates(prev => ({ ...prev, [client.id]: "loading" }));
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/agents/generate-client-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          client_name: client.name,
+          tier: client.tier,
+          ehr: client.ehr,
+          status: client.status,
+          health_score: client.healthScore,
+          no_show_before: client.noShowBefore,
+          no_show_current: client.noShowCurrent,
+          weekly_hours_saved: client.weeklyHoursSaved,
+          weekly_hours_spent: client.weeklyHoursSpent,
+          monthly_fee: client.monthlyFee,
+          automations: client.automations.join(", "),
+          renewal_date: client.renewalDate,
+          go_live_date: client.goLive,
+          providers: client.providers,
+          appts_per_week: client.apptsPerWeek,
+          avg_visit_value: client.avgVisitValue,
+          staff_hourly_rate: client.staffHourlyRate,
+          platform_cost: client.platformCost,
+          contact_log: client.contactLog
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Report generation failed");
+      setReportResults(prev => ({ ...prev, [client.id]: data }));
+      setReportStates(prev => ({ ...prev, [client.id]: "done" }));
+    } catch (err) {
+      setReportStates(prev => ({ ...prev, [client.id]: "error" }));
+    }
+  };
+
+  const printClientReport = (client, report) => {
+    const m = report.metrics || {};
+    const today = new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' });
+    const renewalColor = report.renewal_outlook === 'positive' ? '#16a34a' : report.renewal_outlook === 'at-risk' ? '#dc2626' : '#d97706';
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>Monthly Report - ${client.name}</title>
+    <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;max-width:850px;margin:0 auto;padding:40px 48px;font-size:13px;line-height:1.6}
+      h1{color:#6366f1;font-size:24px;font-weight:800;margin-bottom:2px}
+      h2{font-size:14px;font-weight:700;color:#1e293b;border-bottom:2px solid #6366f1;padding-bottom:6px;margin:24px 0 12px;text-transform:uppercase;letter-spacing:0.05em}
+      h3{font-size:12px;font-weight:700;color:#334155;margin:12px 0 6px}
+      .subtitle{color:#64748b;font-size:12px;margin-bottom:24px}
+      .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+      .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;text-align:center}
+      .kpi .value{font-size:18px;font-weight:800;color:#6366f1}
+      .kpi .value.green{color:#16a34a}
+      .kpi .label{font-size:10px;color:#64748b;margin-top:2px}
+      .highlight{background:#f0fdf4;border-left:3px solid #16a34a;padding:8px 12px;margin:6px 0;border-radius:0 6px 6px 0;font-size:12px}
+      .rec{background:#f8fafc;border-left:3px solid #6366f1;padding:8px 12px;margin:6px 0;border-radius:0 6px 6px 0;font-size:12px}
+      .priority{background:#fffbeb;border-left:3px solid #d97706;padding:8px 12px;margin:6px 0;border-radius:0 6px 6px 0;font-size:12px}
+      .renewal-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;color:white;background:${renewalColor}}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+      .section-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin:8px 0;font-size:12px;line-height:1.6}
+      .footer{margin-top:32px;padding-top:12px;border-top:2px solid #e2e8f0;color:#64748b;font-size:11px;display:flex;justify-content:space-between}
+      @media print{body{padding:20px 32px}}
+    </style></head><body>
+
+    <h1>Monthly Performance Report</h1>
+    <div class="subtitle">
+      ${client.name} &nbsp;·&nbsp; Tier ${client.tier} &nbsp;·&nbsp; ${client.ehr} &nbsp;·&nbsp;
+      ${today} &nbsp;·&nbsp;
+      <span class="renewal-badge">${(report.renewal_outlook||'').toUpperCase()}</span>
+    </div>
+
+    <h2>Performance at a Glance</h2>
+    <div class="kpi-grid">
+      <div class="kpi"><div class="value green">${m.noShowReduction}%</div><div class="label">No-Show Reduction</div></div>
+      <div class="kpi"><div class="value">${m.recoveredAppts}</div><div class="label">Appts Recovered/Wk</div></div>
+      <div class="kpi"><div class="value">$${(m.totalToDate||0).toLocaleString()}</div><div class="label">ROI to Date</div></div>
+      <div class="kpi"><div class="value green">${m.roi}%</div><div class="label">Year 1 ROI</div></div>
+      <div class="kpi"><div class="value">$${(m.annualRev||0).toLocaleString()}</div><div class="label">Annual Rev Recovered</div></div>
+      <div class="kpi"><div class="value">$${(m.annualStaff||0).toLocaleString()}</div><div class="label">Annual Staff Savings</div></div>
+      <div class="kpi"><div class="value">$${(m.totalBenefit||0).toLocaleString()}</div><div class="label">Total Annual Benefit</div></div>
+      <div class="kpi"><div class="value">${m.moActive} mo</div><div class="label">Months Active</div></div>
+    </div>
+
+    <h2>Executive Summary</h2>
+    <div class="section-box">${report.executive_summary}</div>
+
+    <div class="two-col">
+      <div>
+        <h2>Performance Highlights</h2>
+        ${(report.performance_highlights||[]).map(h=>`<div class="highlight">✓ ${h}</div>`).join('')}
+      </div>
+      <div>
+        <h2>Recommendations</h2>
+        ${(report.recommendations||[]).map(r=>`<div class="rec">→ ${r}</div>`).join('')}
+      </div>
+    </div>
+
+    <h2>No-Show Analysis</h2>
+    <div class="section-box">${report.no_show_analysis}</div>
+
+    <h2>Automation Performance</h2>
+    <div class="section-box">${report.automation_performance}</div>
+
+    <h2>Financial Return</h2>
+    <div class="section-box">${report.roi_summary}</div>
+
+    <h2>Next Month Priorities</h2>
+    ${(report.next_month_priorities||[]).map(p=>`<div class="priority">▸ ${p}</div>`).join('')}
+
+    <h2>Renewal Outlook</h2>
+    <div class="section-box">${report.renewal_notes}</div>
+
+    <div class="footer">
+      <span>Immaculate Consulting | Monthly Performance Report | ${client.name}</span>
+      <span>${today} | Confidential</span>
+    </div>
+    </body></html>`);
+    win.document.close();
+    setTimeout(() => { win.print(); }, 500);
+  };
 
   const handleAnalyze = async (client) => {
     setAnalyzeStates(prev => ({ ...prev, [client.id]: "loading" }));
@@ -498,12 +623,25 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                 </div>
                 <span style={{ fontFamily:M, color:"#f0f0f0" }}>${c.monthlyFee.toLocaleString()}</span>
                 <span style={{ fontSize:10.5, color:"#9ca3af" }}>{c.nextMilestone}</span>
-                {/* Analyze button */}
-                <div>
-                 {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
+                {/* Analyze + Report buttons */}
+                <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
+                  {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
                   {as==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Running...</span>}
                   {as==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
                   {as==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+                  {/* Monthly Report button */}
+                  {canEdit && c.status === "active" && (
+                    <button
+                      onClick={() => reportStates[c.id] === "done"
+                        ? setExpandedReport(prev => ({...prev, [c.id]: !prev[c.id]}))
+                        : handleGenerateReport(c)
+                      }
+                      disabled={reportStates[c.id] === "loading"}
+                      style={{ fontSize:9.5, fontWeight:600, color:"#fbbf24", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap", opacity: reportStates[c.id] === "loading" ? 0.6 : 1 }}
+                    >
+                      {reportStates[c.id] === "loading" ? "⏳ Generating..." : reportStates[c.id] === "done" ? "📋 View Report" : "📋 Monthly Report"}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -541,6 +679,51 @@ function ClientsTab({ onShowForm, canEdit = true }) {
     </div>
   </div>
 )}
+              {/* Monthly Report result panel */}
+              {reportStates[c.id] === "done" && reportResults[c.id] && expandedReport[c.id] && (
+                <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(251,191,36,0.1)", animation:"fu 0.3s ease both" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                    <span style={{ fontSize:10, fontWeight:700, color:"#fbbf24", fontFamily:M, textTransform:"uppercase" }}>📋 Monthly Performance Report</span>
+                    <button
+                      onClick={() => printClientReport(c, reportResults[c.id])}
+                      style={{ fontSize:10, color:"#fbbf24", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:6, padding:"4px 12px", cursor:"pointer" }}
+                    >
+                      📄 Download PDF
+                    </button>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:10 }}>
+                    {[
+                      { label:"No-Show Reduction", value:`${reportResults[c.id].metrics?.noShowReduction}%`, color:"#4ade80" },
+                      { label:"ROI to Date", value:`$${(reportResults[c.id].metrics?.totalToDate||0).toLocaleString()}`, color:"#818cf8" },
+                      { label:"Annual Benefit", value:`$${(reportResults[c.id].metrics?.totalBenefit||0).toLocaleString()}`, color:"#fbbf24" },
+                      { label:"Year 1 ROI", value:`${reportResults[c.id].metrics?.roi}%`, color:"#4ade80" },
+                    ].map((kpi,ki) => (
+                      <div key={ki} style={{ padding:"8px", background:"rgba(0,0,0,0.2)", borderRadius:6, textAlign:"center" }}>
+                        <div style={{ fontSize:14, fontWeight:700, color:kpi.color, fontFamily:M }}>{kpi.value}</div>
+                        <div style={{ fontSize:9, color:"#6b7280", marginTop:2 }}>{kpi.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:7, marginBottom:8 }}>
+                    <div style={{ fontSize:10, color:"#94a3b8", marginBottom:4 }}>Executive Summary</div>
+                    <div style={{ fontSize:11, color:"#e2e8f0", lineHeight:1.5 }}>{reportResults[c.id].executive_summary}</div>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                    <div style={{ padding:"10px 12px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
+                      <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Highlights</div>
+                      {reportResults[c.id].performance_highlights?.slice(0,3).map((h,hi) => (
+                        <div key={hi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:3 }}>✓ {h}</div>
+                      ))}
+                    </div>
+                    <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
+                      <div style={{ fontSize:10, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommendations</div>
+                      {reportResults[c.id].recommendations?.slice(0,3).map((r,ri) => (
+                        <div key={ri} style={{ fontSize:10, color:"#e5e7eb", marginBottom:3 }}>→ {r}</div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
