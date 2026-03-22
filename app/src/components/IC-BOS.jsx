@@ -2572,7 +2572,7 @@ function TeamTab({ webhookSecret }) {
             <div key={t.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, alignItems: "center", padding: "10px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 7 }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{t.name}</div>
-                {t.notes && <div style={{ fontSize: 9, color: "#6b7280" }}>{t.notes}</div>}
+               {t.notes && <div style={{ fontSize: 9, color: "#a5b4fc" }}>{t.notes}</div>}
               </div>
               <span style={{ fontSize: 11, color: "#a5b4fc" }}>{t.title}</span>
               <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: M }}>{t.type}</span>
