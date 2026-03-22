@@ -1512,48 +1512,225 @@ function ProposalTab() {
   );
 // ── Proposal PDF Print helper ────────────────────────────────────────────
 const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aRev, aStaff, aBen) => {
+  const today = new Date();
+  const dateStr = today.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const validThru = new Date(today.setDate(today.getDate() + 30)).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const noShowTarget = Math.max(8, Math.round(prospect.noShowBaseline * 0.5));
+  const noShowReduction = prospect.noShowBaseline - noShowTarget;
+  const noShowsPerWk = Math.round((prospect.noShowBaseline / 100) * prospect.apptsPerWeek);
+  const recoveredAppts = Math.round((noShowReduction / 100) * prospect.apptsPerWeek);
+  const paybackMonths = aBen > 0 ? Math.round((totalYear1 / aBen) * 12) : 0;
+  const netYear1 = Math.round(aBen - totalYear1);
+  const roiRatio = totalYear1 > 0 ? (aBen / totalYear1).toFixed(2) : 0;
+  const tierName = totalMonthly >= 8000 ? 'Tier 3 — Enterprise' : totalMonthly >= 5000 ? 'Tier 2 — Professional' : 'Tier 1 — Essential';
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head><title>Proposal - ${prospect.practice}</title>
   <style>
-    body{font-family:'Segoe UI',sans-serif;color:#1e293b;max-width:800px;margin:40px auto;padding:0 24px}
-    h1{color:#6366f1;font-size:28px;margin-bottom:4px}
-    .subtitle{color:#64748b;font-size:14px;margin-bottom:32px}
-    .section{margin-bottom:24px}
-    .section h2{font-size:16px;color:#334155;border-bottom:2px solid #e2e8f0;padding-bottom:8px;margin-bottom:12px}
-    .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:16px 0}
-    .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;text-align:center}
-    .kpi .value{font-size:22px;font-weight:700;color:#6366f1}
-    .kpi .label{font-size:12px;color:#64748b;margin-top:4px}
-    .footer{margin-top:40px;padding-top:16px;border-top:2px solid #e2e8f0;color:#64748b;font-size:12px}
-    @media print{body{margin:0}}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',Arial,sans-serif;color:#1e293b;max-width:850px;margin:0 auto;padding:40px 48px;font-size:13px;line-height:1.6}
+    h1{color:#6366f1;font-size:26px;font-weight:800;margin-bottom:2px}
+    h2{font-size:15px;font-weight:700;color:#1e293b;border-bottom:2px solid #6366f1;padding-bottom:6px;margin:28px 0 14px;text-transform:uppercase;letter-spacing:0.05em}
+    h3{font-size:13px;font-weight:700;color:#334155;margin:16px 0 8px}
+    .subtitle{color:#64748b;font-size:13px;margin-bottom:28px}
+    .cover{margin-bottom:32px;padding-bottom:24px;border-bottom:3px solid #6366f1}
+    .cover-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px}
+    .cover-block p{font-size:12px;color:#475569;margin:2px 0}
+    .cover-block strong{color:#1e293b;font-size:13px}
+    .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0}
+    .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;text-align:center}
+    .kpi .value{font-size:20px;font-weight:800;color:#6366f1}
+    .kpi .value.green{color:#16a34a}
+    .kpi .value.red{color:#dc2626}
+    .kpi .label{font-size:11px;color:#64748b;margin-top:3px}
+    .highlight-box{background:linear-gradient(135deg,rgba(99,102,241,0.06),rgba(99,102,241,0.02));border:1px solid rgba(99,102,241,0.2);border-radius:8px;padding:16px;margin:14px 0}
+    .highlight-box p{margin:4px 0;font-size:12px;color:#334155}
+    .bullet{margin:4px 0 4px 16px;font-size:12px;color:#334155}
+    .bullet::before{content:"• ";color:#6366f1;font-weight:700}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+    .investment-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e2e8f0;font-size:12px}
+    .investment-row.total{font-weight:700;font-size:13px;color:#6366f1;border-bottom:2px solid #6366f1;padding-top:10px}
+    .phase{background:#f8fafc;border-left:3px solid #6366f1;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0}
+    .phase h4{font-size:12px;font-weight:700;color:#6366f1;margin-bottom:4px}
+    .phase p{font-size:11px;color:#475569}
+    .sig-block{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:40px}
+    .sig-line{border-top:1px solid #334155;margin-top:40px;padding-top:6px;font-size:11px;color:#64748b}
+    .footer{margin-top:36px;padding-top:14px;border-top:2px solid #e2e8f0;color:#64748b;font-size:11px;display:flex;justify-content:space-between}
+    .badge{display:inline-block;background:rgba(99,102,241,0.1);color:#6366f1;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;margin-left:8px}
+    @media print{body{padding:20px 32px}h2{page-break-after:avoid}.phase{page-break-inside:avoid}}
   </style></head><body>
-  <h1>Immaculate Consulting</h1>
-  <div class="subtitle">Healthcare Automation Proposal | ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
-  <div class="section"><h2>Proposed For</h2>
-    <p><strong>${prospect.practice}</strong> &mdash; ${prospect.specialty}</p>
-    <p>EHR: ${prospect.ehr} | Providers: ${prospect.providers} | Payer Mix: ${prospect.payer}</p>
-    <p>No-Show Baseline: ${prospect.noShowBaseline}% | EHR Integration: ${prospect.ehrDifficulty} difficulty (${prospect.ehrTimeline})</p>
-  </div>
-  <div class="section"><h2>Investment Summary</h2>
-    <div class="kpi-grid">
-      ${totalMonthly > 0 ? `<div class="kpi"><div class="value">$${totalMonthly.toLocaleString()}/mo</div><div class="label">Monthly Recurring</div></div>` : ''}
-      ${totalOneTime > 0 ? `<div class="kpi"><div class="value">$${totalOneTime.toLocaleString()}</div><div class="label">One-Time / Project</div></div>` : ''}
-      <div class="kpi"><div class="value">$${totalYear1.toLocaleString()}</div><div class="label">Year 1 Total</div></div>
+
+  <!-- COVER -->
+  <div class="cover">
+    <h1>Immaculate Consulting</h1>
+    <div class="subtitle">Operations Transformation Proposal</div>
+    <div class="cover-grid">
+      <div class="cover-block">
+        <strong>Prepared for:</strong>
+        <p>${prospect.practice}</p>
+        <p>${prospect.specialty}</p>
+        <p>${prospect.contact || ''}</p>
+      </div>
+      <div class="cover-block">
+        <strong>Prepared by:</strong>
+        <p>Immaculate Consulting</p>
+        <p>Leonard Croom, Principal</p>
+        <p>leonard@immaculate-consulting.org</p>
+        <p style="margin-top:8px;font-size:11px;color:#94a3b8;">Date: ${dateStr}</p>
+        <p style="font-size:11px;color:#94a3b8;">Valid Through: ${validThru}</p>
+      </div>
     </div>
   </div>
-  <div class="section"><h2>Projected ROI</h2>
-    <div class="kpi-grid">
-      ${aRev ? `<div class="kpi"><div class="value">$${Math.round(aRev).toLocaleString()}</div><div class="label">Revenue Recovered/Yr</div></div>` : ''}
-      ${aStaff ? `<div class="kpi"><div class="value">$${Math.round(aStaff).toLocaleString()}</div><div class="label">Staff Savings/Yr</div></div>` : ''}
-      ${aBen ? `<div class="kpi"><div class="value">$${Math.round(aBen).toLocaleString()}</div><div class="label">Total Annual Benefit</div></div>` : ''}
-      <div class="kpi"><div class="value" style="color:${roi > 0 ? '#16a34a' : '#dc2626'}">${Math.round(roi)}%</div><div class="label">Year 1 ROI</div></div>
-      ${aBen && totalMonthly ? `<div class="kpi"><div class="value">$${Math.round((aBen*3)-(totalYear1+(totalMonthly*24))).toLocaleString()}</div><div class="label">3-Year Net Benefit</div></div>` : ''}
+
+  <!-- EXECUTIVE SUMMARY -->
+  <h2>Executive Summary</h2>
+  <p style="margin-bottom:12px">${prospect.practice} is experiencing a no-show rate of <strong>${prospect.noShowBaseline}%</strong> — approximately <strong>${noShowsPerWk} missed appointments per week</strong> — impacting both operational efficiency and revenue. Based on our discovery conversation, we understand your practice faces the following challenges:</p>
+
+  <h3>Key Challenges Identified:</h3>
+  <p class="bullet">No-show rate of ${prospect.noShowBaseline}% resulting in ~${noShowsPerWk} missed appointments per week</p>
+  <p class="bullet">Staff time spent on manual appointment reminder calls and insurance verification</p>
+  <p class="bullet">EHR integration complexity (${prospect.ehr}) creating administrative bottlenecks</p>
+  <p class="bullet">Revenue leakage from unconfirmed appointments and claim denials</p>
+
+  <h3>Proposed Solution:</h3>
+  <p class="bullet"><strong>${tierName}</strong> — AI-powered automation package</p>
+  <p class="bullet">Automated Appointment Reminders with 2-way SMS confirmation</p>
+  <p class="bullet">Insurance Verification automation prior to appointments</p>
+  <p class="bullet">Seamless ${prospect.ehr} integration via secure FHIR API</p>
+
+  <h3>Expected Outcomes:</h3>
+  <p class="bullet">Reduce no-show rate from ${prospect.noShowBaseline}% to ~${noShowTarget}% (${noShowReduction}% improvement)</p>
+  <p class="bullet">Recover approximately <strong>${recoveredAppts} appointments/week</strong> — $${Math.round(aRev).toLocaleString()} annual revenue</p>
+  <p class="bullet">Save staff time worth <strong>$${Math.round(aStaff).toLocaleString()}/year</strong> through automation</p>
+  <p class="bullet">ROI of <strong>${Math.round(roi)}%</strong> in first 12 months | Payback period: <strong>${paybackMonths} months</strong></p>
+
+  <div class="highlight-box">
+    <p><strong>Monthly Service Fee:</strong> $${totalMonthly.toLocaleString()}/month</p>
+    ${totalOneTime > 0 ? `<p><strong>One-Time Setup:</strong> $${totalOneTime.toLocaleString()}</p>` : ''}
+    <p><strong>Total First Year Investment:</strong> $${totalYear1.toLocaleString()}</p>
+    <p style="margin-top:8px;font-size:13px;font-weight:700;color:#16a34a">Total First Year Value: $${Math.round(aBen).toLocaleString()} &nbsp;|&nbsp; Net Benefit: $${netYear1 > 0 ? '+' : ''}${netYear1.toLocaleString()}</p>
+  </div>
+
+  <!-- PRACTICE OVERVIEW -->
+  <h2>Understanding Your Current State</h2>
+  <h3>Practice Overview:</h3>
+  <p class="bullet">Practice Name: ${prospect.practice}</p>
+  <p class="bullet">Specialty: ${prospect.specialty}</p>
+  <p class="bullet">Providers: ${prospect.providers}</p>
+  <p class="bullet">EHR System: ${prospect.ehr} (Integration difficulty: ${prospect.ehrDifficulty}, Timeline: ${prospect.ehrTimeline})</p>
+  <p class="bullet">Payer Mix: ${prospect.payer}</p>
+  <p class="bullet">Estimated patient volume: ~${prospect.apptsPerWeek} appointments/week</p>
+
+  <h3>Current Operational Pain Points:</h3>
+  <h3>1. High No-Show Rate</h3>
+  <p class="bullet">Current no-show rate: ${prospect.noShowBaseline}% (~${noShowsPerWk} no-shows/week)</p>
+  <p class="bullet">Annual lost revenue: $${Math.round((prospect.noShowBaseline/100) * prospect.apptsPerWeek * 65 * 52).toLocaleString()} (at $65/visit)</p>
+  <p class="bullet">Staff time spent on manual reminder calls: 10-15 hours/week</p>
+
+  <h3>2. Manual Administrative Burden</h3>
+  <p class="bullet">Insurance verification done manually prior to appointments</p>
+  <p class="bullet">Front desk staff capacity consumed by preventable manual tasks</p>
+  <p class="bullet">Risk of claim denials from incomplete pre-authorization</p>
+
+  <!-- OUR SOLUTION -->
+  <h2>Our Solution: ${tierName}</h2>
+  <p style="margin-bottom:14px">We propose implementing our ${tierName} service package, providing comprehensive AI-powered automation tailored to ${prospect.ehr} and the NC Medicaid payer environment.</p>
+
+  <h3>1. Automated Appointment Reminders</h3>
+  <p class="bullet">SMS and email reminders sent 48 and 24 hours before appointments</p>
+  <p class="bullet">Personalized with provider name, time, and location</p>
+  <p class="bullet">2-way SMS — patients confirm, cancel, or reschedule via text</p>
+  <p class="bullet">Automatic ${prospect.ehr} status updates</p>
+  <p class="bullet"><em>Expected impact: Reduce no-shows by 40-60%, eliminate 10-15 staff hours/week</em></p>
+
+  <h3>2. Insurance Pre-Verification</h3>
+  <p class="bullet">Automatic eligibility checks 48 hours before appointments</p>
+  <p class="bullet">Flags coverage issues before the patient arrives</p>
+  <p class="bullet">Reduces claim denials and day-of surprises</p>
+  <p class="bullet"><em>Technology: ${prospect.ehr} API + Availity clearinghouse integration</em></p>
+
+  <h3>Additional Features Included:</h3>
+  <p class="bullet">${prospect.ehr} integration via secure FHIR API</p>
+  <p class="bullet">HIPAA-compliant infrastructure and data handling</p>
+  <p class="bullet">Real-time monitoring dashboard (IC-BOS)</p>
+  <p class="bullet">Monthly performance analytics and reporting</p>
+  <p class="bullet">Dedicated support during business hours</p>
+
+  <!-- ROI ANALYSIS -->
+  <h2>Return on Investment Analysis</h2>
+  <div class="kpi-grid">
+    <div class="kpi"><div class="value">$${Math.round(aRev).toLocaleString()}</div><div class="label">Revenue Recovered/Year</div></div>
+    <div class="kpi"><div class="value">$${Math.round(aStaff).toLocaleString()}</div><div class="label">Staff Savings/Year</div></div>
+    <div class="kpi"><div class="value">$${Math.round(aBen).toLocaleString()}</div><div class="label">Total Annual Benefit</div></div>
+    <div class="kpi"><div class="value ${roi > 0 ? 'green' : 'red'}">${Math.round(roi)}%</div><div class="label">Year 1 ROI</div></div>
+    <div class="kpi"><div class="value">${paybackMonths} mo</div><div class="label">Payback Period</div></div>
+    <div class="kpi"><div class="value green">$${roiRatio}</div><div class="label">Return per $1 Invested</div></div>
+  </div>
+
+  <h3>ROI Summary:</h3>
+  <div class="investment-row"><span>Total Annual Benefit</span><span>$${Math.round(aBen).toLocaleString()}</span></div>
+  <div class="investment-row"><span>Year 1 Investment</span><span>-$${totalYear1.toLocaleString()}</span></div>
+  <div class="investment-row total"><span>Net Year 1 Value</span><span style="color:${netYear1>0?'#16a34a':'#dc2626'}">$${netYear1 > 0 ? '+' : ''}${netYear1.toLocaleString()}</span></div>
+
+  <!-- IMPLEMENTATION ROADMAP -->
+  <h2>Implementation Roadmap</h2>
+  <p style="margin-bottom:14px">Our proven 5-phase implementation ensures smooth deployment with minimal disruption. <strong>Total timeline: ${prospect.ehrTimeline} from contract to full production.</strong></p>
+  <div class="phase"><h4>Phase 1 — Discovery & Setup (Week 1-2)</h4><p>Contract execution, kickoff meeting, ${prospect.ehr} integration access setup, system architecture design, baseline metrics establishment</p></div>
+  <div class="phase"><h4>Phase 2 — Build (Week 3-4)</h4><p>${prospect.ehr} API integration development, automation workflow creation, SMS/email template customization, sandbox testing</p></div>
+  <div class="phase"><h4>Phase 3 — Testing (Week 5)</h4><p>End-to-end UAT with real appointments, staff walkthrough, error handling validation, performance verification</p></div>
+  <div class="phase"><h4>Phase 4 — Training & Go-Live (Week 6)</h4><p>2 live training sessions (up to 15 staff), go-live support, monitoring during first 48 hours intensive</p></div>
+  <div class="phase"><h4>Phase 5 — Optimize (Week 7-8 and Ongoing)</h4><p>30-day intensive monitoring, workflow refinements, performance reporting, quarterly business reviews</p></div>
+
+  <!-- INVESTMENT BREAKDOWN -->
+  <h2>Investment Breakdown</h2>
+  <div class="two-col">
+    <div>
+      ${totalMonthly > 0 ? `<div class="investment-row"><span>Monthly Service Fee (${tierName})</span><span>$${totalMonthly.toLocaleString()}/mo</span></div>
+      <div class="investment-row"><span>Annual Service Fee (x12)</span><span>$${(totalMonthly*12).toLocaleString()}</span></div>` : ''}
+      ${totalOneTime > 0 ? `<div class="investment-row"><span>One-Time Implementation Fee</span><span>$${totalOneTime.toLocaleString()}</span></div>` : ''}
+      <div class="investment-row"><span>Est. Usage Costs (SMS, etc.)</span><span>~$50-100/mo</span></div>
+      <div class="investment-row total"><span>Year 1 Total Investment</span><span>$${totalYear1.toLocaleString()}</span></div>
+    </div>
+    <div>
+      <h3 style="margin-top:0">Payment Terms:</h3>
+      <p class="bullet">Implementation fee: 50% at signing, 50% at go-live</p>
+      <p class="bullet">Monthly service fee: Due 1st of month, Net 15</p>
+      <p class="bullet">Payment: ACH, check, or credit card (3% fee)</p>
+      <h3>Contract Terms:</h3>
+      <p class="bullet">Initial term: 12 months from go-live</p>
+      <p class="bullet">Auto-renewal: Month-to-month after initial term</p>
+      <p class="bullet">Termination: 30-day written notice</p>
+      <p class="bullet">SLA: 99% uptime guarantee</p>
     </div>
   </div>
+
+  <!-- NEXT STEPS -->
+  <h2>Next Steps to Get Started</h2>
+  <p style="margin-bottom:12px">We are excited to partner with <strong>${prospect.practice}</strong> to transform your operations!</p>
+  <div class="phase"><h4>1. Review This Proposal</h4><p>Share with key stakeholders. We are available for questions — leonard@immaculate-consulting.org</p></div>
+  <div class="phase"><h4>2. Approve & Sign</h4><p>Review and sign the Master Services Agreement. Return via email or DocuSign.</p></div>
+  <div class="phase"><h4>3. Kickoff</h4><p>Kickoff meeting within 2 business days of signed contract. Target go-live: ${prospect.ehrTimeline} from start date.</p></div>
+
+  <!-- ACCEPTANCE -->
+  <h2>Proposal Acceptance</h2>
+  <p style="font-size:12px;margin-bottom:16px">By signing below, ${prospect.practice} accepts this proposal and authorizes Immaculate Consulting to proceed with implementation as described. This proposal, along with the attached Master Services Agreement, constitutes the complete agreement between parties.</p>
+  <div class="sig-block">
+    <div>
+      <p style="font-size:12px;font-weight:600">For ${prospect.practice}:</p>
+      <div class="sig-line">${prospect.contact || '[Contact Name]'}, [Title] &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date</div>
+      <div class="sig-line" style="margin-top:28px">Print Name</div>
+    </div>
+    <div>
+      <p style="font-size:12px;font-weight:600">For Immaculate Consulting:</p>
+      <div class="sig-line">Leonard Croom, Principal &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Date</div>
+    </div>
+  </div>
+
   <div class="footer">
-    <p>Immaculate Consulting | immaculate-consulting.org | Leonard Croom</p>
-    <p>This proposal is confidential and intended solely for the named recipient.</p>
-  </div></body></html>`);
+    <span>Immaculate Consulting | immaculate-consulting.org | Leonard Croom</span>
+    <span>Valid through ${validThru} | Confidential</span>
+  </div>
+
+  </body></html>`);
   win.document.close();
   setTimeout(() => { win.print(); }, 500);
 };
