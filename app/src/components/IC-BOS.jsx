@@ -7,56 +7,62 @@ import { supabase } from "../lib/supabaseClient";
 // ── Theme CSS Variables ───────────────────────────────────────────────────────
 const THEME_STYLE = `
   [data-theme="dark"] {
-    --bg-page:         #071830;
-    --bg-surface:      #0d2b4e;
-    --bg-card:         #0d2b4e;
-    --bg-card-hover:   #0f3058;
-    --bg-input:        rgba(42,182,215,0.06);
-    --border-color:    rgba(42,182,215,0.12);
-    --border-subtle:   rgba(42,182,215,0.08);
-    --accent:          #2ab6d7;
-    --accent-muted:    rgba(42,182,215,0.15);
-    --accent-text:     #2ab6d7;
-    --text-primary:    #f0f8ff;
-    --text-secondary:  #a8c8e8;
-    --text-muted:      #7aaacb;
-    --text-label:      #4a6a8a;
-    --header-bg:       #0d2b4e;
-    --header-border:   rgba(42,182,215,0.15);
-    --popover-bg:      #0a2240;
-    --success:         #4ade80;
-    --warning:         #fbbf24;
-    --danger:          #f87171;
-    --tab-active-bg:   rgba(42,182,215,0.15);
-    --tab-active-text: #2ab6d7;
-    --tab-text:        #7aaacb;
+    --bg-page:          #071830;
+    --bg-surface:       #0d2b4e;
+    --bg-card:          #0d2b4e;
+    --bg-input:         rgba(42,182,215,0.06);
+    --border-color:     rgba(42,182,215,0.12);
+    --border-subtle:    rgba(42,182,215,0.08);
+    --accent:           #2ab6d7;
+    --accent-muted:     rgba(42,182,215,0.15);
+    --text-primary:     #f0f8ff;
+    --text-secondary:   #a8c8e8;
+    --text-muted:       #7aaacb;
+    --text-label:       #4a6a8a;
+    --header-bg:        #0d2b4e;
+    --header-border:    rgba(42,182,215,0.15);
+    --popover-bg:       #0a2240;
+    --popover-border:   rgba(42,182,215,0.15);
+    --success:          #4ade80;
+    --warning:          #fbbf24;
+    --danger:           #f87171;
+    --tab-active-bg:    rgba(42,182,215,0.15);
+    --tab-active-text:  #2ab6d7;
+    --tab-text:         #7aaacb;
+    --scrollbar:        rgba(42,182,215,0.2);
   }
   [data-theme="light"] {
-    --bg-page:         #eef6fb;
-    --bg-surface:      #ffffff;
-    --bg-card:         #ffffff;
-    --bg-card-hover:   #f5fafd;
-    --bg-input:        #f0f7fc;
-    --border-color:    #cce4f0;
-    --border-subtle:   #ddedf7;
-    --accent:          #2ab6d7;
-    --accent-muted:    rgba(42,182,215,0.12);
-    --accent-text:     #1664a0;
-    --text-primary:    #0d2b4e;
-    --text-secondary:  #2d5f80;
-    --text-muted:      #5a8aaa;
-    --text-label:      #7aaacb;
-    --header-bg:       #0d2b4e;
-    --header-border:   rgba(42,182,215,0.2);
-    --popover-bg:      #ffffff;
-    --success:         #16a34a;
-    --warning:         #d97706;
-    --danger:          #dc2626;
-    --tab-active-bg:   rgba(42,182,215,0.15);
-    --tab-active-text: #2ab6d7;
-    --tab-text:        #a8c8e8;
+    --bg-page:          #e8f4fb;
+    --bg-surface:       #ffffff;
+    --bg-card:          #ffffff;
+    --bg-input:         #f0f7fc;
+    --border-color:     #b8d8ed;
+    --border-subtle:    #cce4f0;
+    --accent:           #2ab6d7;
+    --accent-muted:     rgba(42,182,215,0.15);
+    --text-primary:     #0d2b4e;
+    --text-secondary:   #1e5070;
+    --text-muted:       #2d6a8a;
+    --text-label:       #4a8aaa;
+    --header-bg:        #0d2b4e;
+    --header-border:    rgba(42,182,215,0.2);
+    --popover-bg:       #ffffff;
+    --popover-border:   #b8d8ed;
+    --success:          #15803d;
+    --warning:          #b45309;
+    --danger:           #b91c1c;
+    --tab-active-bg:    rgba(42,182,215,0.15);
+    --tab-active-text:  #1a7a9a;
+    --tab-text:         #a8c8e8;
+    --scrollbar:        #b8d8ed;
   }
-`;
+  [data-theme="light"] * {
+    scrollbar-color: var(--scrollbar) transparent !important;
+  }
+  [data-theme="light"] ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar) !important;
+  }
+`
 
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -403,16 +409,16 @@ const handleGenerateOutreach = async (deal) => {
                 <span style={{ fontSize:8, fontWeight:600, color:"#111", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
               </div>
               <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:5 }}>→ {d.nextAction}</div>
-              {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
+              {d.daysInStage>5&&<div style={{ fontSize:9, color:"var(--danger)", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
              {/* Agent 7 — Generate Outreach button (Cold stage only) */}
               {d.stage === "cold" && (
                 <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid var(--border-color)" }}>
                   {outreachStates[d.id] === "loading" && <div style={{ fontSize:9, color:"#38bdf8", fontFamily:M, textAlign:"center", padding:"4px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", display:"inline-block", animation:"pr 1.2s ease-out infinite" }}/>Writing outreach...</div>}
-                  {outreachStates[d.id] === "error" && <div style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error — try again</div>}
+                  {outreachStates[d.id] === "error" && <div style={{ fontSize:9, color:"var(--danger)", fontFamily:M }}>✗ Error — try again</div>}
                   {outreachStates[d.id] === "done" && outreachResults[d.id] && (
                     <div>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
-                        <span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Outreach ready</span>
+                        <span style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>✓ Outreach ready</span>
                         <button onClick={() => setExpandedOutreach(prev => ({...prev, [d.id]: !prev[d.id]}))} style={{ fontSize:9, color:"#a5b4fc", background:"transparent", border:"1px solid rgba(99,102,241,0.2)", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>{expandedOutreach[d.id] ? "Hide" : "View"}</button>
                       </div>
                       {expandedOutreach[d.id] && (
@@ -436,9 +442,9 @@ const handleGenerateOutreach = async (deal) => {
               )}
               {/* Agent 1 — Generate Proposal button */}
               <div style={{ marginTop:d.stage==="cold"?4:8, paddingTop:8, borderTop:"1px solid var(--border-color)" }}>
-                {ps === 'done' && <div style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
-                {ps === 'error' && <div style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error — check agent logs</div>}
-                {ps === 'nomock' && <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M }}>⚡ Live data needed (Task 17)</div>}
+                {ps === 'done' && <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
+                {ps === 'error' && <div style={{ fontSize:9, color:"var(--danger)", fontFamily:M }}>✗ Error — check agent logs</div>}
+                {ps === 'nomock' && <div style={{ fontSize:9, color:"var(--warning)", fontFamily:M }}>⚡ Live data needed (Task 17)</div>}
                {(!ps || ps === null) && canEdit && (
                   <button
                     onClick={() => handleGenerateProposal(d)}
@@ -638,7 +644,7 @@ function ClientsTab({ onShowForm, canEdit = true }) {
       {/* At-risk banner */}
       {CLIENTS.filter(c=>c.healthScore<70).length>0&&(
         <div style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"10px 14px", display:"flex", alignItems:"center", gap:8 }}>
-          <span style={{ fontSize:11, color:"#fca5a5" }}>⚠️ {CLIENTS.filter(c=>c.healthScore<70).length} client{CLIENTS.filter(c=>c.healthScore<70).length>1?"s":""} at risk — health score below 70</span>
+          <span style={{ fontSize:11, color:"var(--danger)" }}>⚠️ {CLIENTS.filter(c=>c.healthScore<70).length} client{CLIENTS.filter(c=>c.healthScore<70).length>1?"s":""} at risk — health score below 70</span>
         </div>
       )}
 
@@ -661,7 +667,7 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                 <div>
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     <span style={{ fontWeight:600, color:"var(--text-primary)" }}>{c.name}</span>
-                    {isAtRisk&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M }}>AT RISK</span>}
+                    {isAtRisk&&<span style={{ fontSize:8, fontWeight:700, color:"var(--danger)", background:"rgba(248,113,113,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M }}>AT RISK</span>}
                   </div>
                   <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:1 }}>T{c.tier} · {c.ehr}</div>
                 </div>
@@ -675,7 +681,7 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                 </div>
                 <div style={{ fontFamily:M }}>
                   <span style={{ color:"var(--text-primary)" }}>{c.noShowCurrent}%</span>
-                  {noShowImprovement>0&&<span style={{ color:"#4ade80", fontSize:9, marginLeft:3 }}>↓{noShowImprovement.toFixed(1)}</span>}
+                  {noShowImprovement>0&&<span style={{ color:"var(--success)", fontSize:9, marginLeft:3 }}>↓{noShowImprovement.toFixed(1)}</span>}
                 </div>
                 <span style={{ fontFamily:M, color:"var(--text-primary)" }}>${c.monthlyFee.toLocaleString()}</span>
                 <span style={{ fontSize:10.5, color:"var(--text-secondary)" }}>{c.nextMilestone}</span>
@@ -683,8 +689,8 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                 <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
                   {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
                   {as==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Running...</span>}
-                  {as==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
-                  {as==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+                  {as==="done"&&<span style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>✓ Done</span>}
+                  {as==="error"&&<span style={{ fontSize:9, color:"var(--danger)", fontFamily:M }}>✗ Error</span>}
                   {/* Monthly Report button */}
                   {canEdit && c.status === "active" && (
                     <button
@@ -693,7 +699,7 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                         : handleGenerateReport(c)
                       }
                       disabled={reportStates[c.id] === "loading"}
-                      style={{ fontSize:9.5, fontWeight:600, color:"#fbbf24", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap", opacity: reportStates[c.id] === "loading" ? 0.6 : 1 }}
+                      style={{ fontSize:9.5, fontWeight:600, color:"var(--warning)", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap", opacity: reportStates[c.id] === "loading" ? 0.6 : 1 }}
                     >
                       {reportStates[c.id] === "loading" ? "⏳ Generating..." : reportStates[c.id] === "done" ? "📋 View Report" : "📋 Monthly Report"}
                     </button>
@@ -710,27 +716,27 @@ function ClientsTab({ onShowForm, canEdit = true }) {
       <div style={{ fontSize:9, color: ar.risk_level==="high"?"#f87171":ar.risk_level==="medium"?"#fbbf24":"#4ade80", fontWeight:600, textTransform:"uppercase", marginTop:2 }}>{ar.risk_level} risk</div>
     </div>
     <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-      <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Risk Factors</div>
+      <div style={{ fontSize:9, color:"var(--danger)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Risk Factors</div>
       {ar.risk_factors?.slice(0,2).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {p}</div>)}
     </div>
     <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-      <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Interventions</div>
+      <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Interventions</div>
       {ar.recommended_interventions?.slice(0,2).map((s,si)=><div key={si} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {s}</div>)}
     </div>
     {ar.renewal_talking_points?.length>0&&(
       <div style={{ padding:"8px 10px", background:"rgba(251,191,36,0.04)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:7 }}>
-        <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Outlook: {ar.renewal_outlook}</div>
+        <div style={{ fontSize:9, color:"var(--warning)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Outlook: {ar.renewal_outlook}</div>
         {ar.renewal_talking_points.slice(0,2).map((t,ti)=><div key={ti} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {t}</div>)}
       </div>
     )}
     {ar.upsell_opportunity&&(
       <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
-        <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Upsell Opportunity</div>
+        <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Upsell Opportunity</div>
         <div style={{ fontSize:10, color:"var(--text-primary)" }}>{ar.upsell_opportunity}</div>
       </div>
     )}
     <div style={{ gridColumn:"1/-1", padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-      <div style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+      <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
       <div style={{ fontSize:11, color:"var(--text-secondary)", lineHeight:1.4 }}>{ar.agent_summary}</div>
     </div>
   </div>
@@ -739,20 +745,20 @@ function ClientsTab({ onShowForm, canEdit = true }) {
               {reportStates[c.id] === "done" && reportResults[c.id] && expandedReport[c.id] && (
                 <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(251,191,36,0.1)", animation:"fu 0.3s ease both" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-                    <span style={{ fontSize:10, fontWeight:700, color:"#fbbf24", fontFamily:M, textTransform:"uppercase" }}>📋 Monthly Performance Report</span>
+                    <span style={{ fontSize:10, fontWeight:700, color:"var(--warning)", fontFamily:M, textTransform:"uppercase" }}>📋 Monthly Performance Report</span>
                     <button
                       onClick={() => printClientReport(c, reportResults[c.id])}
-                      style={{ fontSize:10, color:"#fbbf24", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:6, padding:"4px 12px", cursor:"pointer" }}
+                      style={{ fontSize:10, color:"var(--warning)", background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:6, padding:"4px 12px", cursor:"pointer" }}
                     >
                       📄 Download PDF
                     </button>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:10 }}>
                     {[
-                      { label:"No-Show Reduction", value:`${reportResults[c.id].metrics?.noShowReduction}%`, color:"#4ade80" },
+                      { label:"No-Show Reduction", value:`${reportResults[c.id].metrics?.noShowReduction}%`, color:"var(--success)" },
                       { label:"ROI to Date", value:`$${(reportResults[c.id].metrics?.totalToDate||0).toLocaleString()}`, color:"#818cf8" },
-                      { label:"Annual Benefit", value:`$${(reportResults[c.id].metrics?.totalBenefit||0).toLocaleString()}`, color:"#fbbf24" },
-                      { label:"Year 1 ROI", value:`${reportResults[c.id].metrics?.roi}%`, color:"#4ade80" },
+                      { label:"Annual Benefit", value:`$${(reportResults[c.id].metrics?.totalBenefit||0).toLocaleString()}`, color:"var(--warning)" },
+                      { label:"Year 1 ROI", value:`${reportResults[c.id].metrics?.roi}%`, color:"var(--success)" },
                     ].map((kpi,ki) => (
                       <div key={ki} style={{ padding:"8px", background:"var(--bg-input)", borderRadius:6, textAlign:"center" }}>
                         <div style={{ fontSize:14, fontWeight:700, color:kpi.color, fontFamily:M }}>{kpi.value}</div>
@@ -766,13 +772,13 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                     <div style={{ padding:"10px 12px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
-                      <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Highlights</div>
+                      <div style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Highlights</div>
                       {reportResults[c.id].performance_highlights?.slice(0,3).map((h,hi) => (
                         <div key={hi} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:3 }}>✓ {h}</div>
                       ))}
                     </div>
                     <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                      <div style={{ fontSize:10, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommendations</div>
+                      <div style={{ fontSize:10, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommendations</div>
                       {reportResults[c.id].recommendations?.slice(0,3).map((r,ri) => (
                         <div key={ri} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:3 }}>→ {r}</div>
                       ))}
@@ -837,7 +843,7 @@ function InvoicingTab() {
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, padding:"12px 16px", background:"var(--bg-card)", border:"1px solid var(--border-color)", borderRadius:10 }}>
         <div>
           <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Total A/R Outstanding</div>
-          <div style={{ fontSize:18, fontWeight:700, color:"#fbbf24", fontFamily:M }}>${totalAR.toLocaleString()}</div>
+          <div style={{ fontSize:18, fontWeight:700, color:"var(--warning)", fontFamily:M }}>${totalAR.toLocaleString()}</div>
         </div>
         <div>
           <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}># Overdue</div>
@@ -845,7 +851,7 @@ function InvoicingTab() {
         </div>
         <div>
           <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Oldest Outstanding</div>
-          <div style={{ fontSize:14, fontWeight:700, color:"#f87171", fontFamily:M }}>{oldestOverdue ? `${oldestOverdue.client} — Due ${oldestOverdue.due}` : "None"}</div>
+          <div style={{ fontSize:14, fontWeight:700, color:"var(--danger)", fontFamily:M }}>{oldestOverdue ? `${oldestOverdue.client} — Due ${oldestOverdue.due}` : "None"}</div>
         </div>
       </div>
 
@@ -868,7 +874,7 @@ function InvoicingTab() {
           const daysOverdue = isOverdue ? Math.round((Date.now()-new Date(inv.due))/864e5) : 0;
           return (
             <div key={inv.id}>
-              <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, alignItems:"center", padding:"10px 16px", borderBottom:"1px solid var(--border-color)", fontSize:12, animation:`fu 0.3s ease ${i*30}ms both`, background:isOverdue?"rgba(248,113,113,0.03)":"transparent" }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, alignItems:"center", padding:"10px 16px", borderBottom:"1px solid var(--border-subtle)", fontSize:12, animation:`fu 0.3s ease ${i*30}ms both`, background:isOverdue?"rgba(248,113,113,0.03)":"transparent" }}>
                 <span style={{ fontFamily:M, color:"var(--text-secondary)", fontSize:11 }}>{inv.id}</span>
                 <span style={{ fontWeight:600, color:"var(--text-primary)" }}>{inv.client}</span>
                 <span style={{ fontSize:11, color:"var(--text-secondary)" }}>{inv.type}</span>
@@ -877,9 +883,9 @@ function InvoicingTab() {
                 <span style={{ fontFamily:M, color:"var(--text-primary)", fontWeight:600 }}>${inv.total.toLocaleString()}</span>
                 <div style={{ display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
                   <span style={{ fontSize:10, fontWeight:600, color:stColors[inv.status], textTransform:"uppercase" }}>{inv.status}</span>
-                  {isOverdue&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.15)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>{daysOverdue}d</span>}
+                  {isOverdue&&<span style={{ fontSize:8, fontWeight:700, color:"var(--danger)", background:"rgba(248,113,113,0.15)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>{daysOverdue}d</span>}
                   {inv.stripe_invoice_id&&inv.status==="paid"&&(
-                    <span style={{ fontSize:8, fontWeight:700, color:"var(--accent)", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>
+                    <span style={{ fontSize:8, fontWeight:700, color:"#818cf8", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>
                       ⚡ Stripe
                     </span>
                   )}
@@ -887,18 +893,18 @@ function InvoicingTab() {
                 <div>
                   {isOverdue&&(!fs||fs===null)&&<button onClick={()=>handleDraftFollowUp(inv)} style={{ fontSize:9, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Draft Follow-up</button>}
                   {fs==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:3 }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Drafting...</span>}
-                  {fs==="done"&&<button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:!prev[inv.id]}))} style={{ fontSize:9, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer" }}>{expandedEmail[inv.id]?"Hide":"View Email"}</button>}
-                  {fs==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+                  {fs==="done"&&<button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:!prev[inv.id]}))} style={{ fontSize:9, color:"var(--success)", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer" }}>{expandedEmail[inv.id]?"Hide":"View Email"}</button>}
+                  {fs==="error"&&<span style={{ fontSize:9, color:"var(--danger)", fontFamily:M }}>✗ Error</span>}
                 </div>
               </div>
               {/* Agent-drafted email panel */}
               {fs==="done"&&fr&&expandedEmail[inv.id]&&(
-  <div style={{ padding:"12px 16px", background:"rgba(99,102,241,0.04)", borderBottom:"1px solid var(--border-color)", animation:"fu 0.3s ease both" }}>
+  <div style={{ padding:"12px 16px", background:"rgba(99,102,241,0.04)", borderBottom:"1px solid var(--border-subtle)", animation:"fu 0.3s ease both" }}>
     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <span style={{ fontSize:10, fontWeight:700, color:"var(--accent)", fontFamily:M }}>🤖 AGENT-DRAFTED FOLLOW-UP EMAIL</span>
+        <span style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M }}>🤖 AGENT-DRAFTED FOLLOW-UP EMAIL</span>
         {fr.escalation_level&&<span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color:fr.escalation_level==="final"?"#f87171":fr.escalation_level==="firm"?"#fbbf24":"#4ade80", background:fr.escalation_level==="final"?"rgba(248,113,113,0.1)":fr.escalation_level==="firm"?"rgba(251,191,36,0.1)":"rgba(74,222,128,0.1)", border:`1px solid ${fr.escalation_level==="final"?"rgba(248,113,113,0.2)":fr.escalation_level==="firm"?"rgba(251,191,36,0.2)":"rgba(74,222,128,0.2)"}`, borderRadius:4, padding:"1px 6px" }}>{fr.escalation_level}</span>}
-        {fr.flag_for_service_pause&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:4, padding:"1px 6px" }}>⚠ FLAG: SERVICE PAUSE</span>}
+        {fr.flag_for_service_pause&&<span style={{ fontSize:9, fontWeight:700, color:"var(--danger)", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:4, padding:"1px 6px" }}>⚠ FLAG: SERVICE PAUSE</span>}
       </div>
       <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"var(--text-muted)", background:"transparent", border:"1px solid var(--border-color)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
     </div>
@@ -908,7 +914,7 @@ function InvoicingTab() {
     </div>
     {fr.recommended_action&&(
       <div style={{ marginTop:8, padding:"6px 10px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:5 }}>
-        <span style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600 }}>Next Action: </span>
+        <span style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600 }}>Next Action: </span>
         <span style={{ fontSize:10, color:"var(--text-primary)" }}>{fr.recommended_action}</span>
       </div>
     )}
@@ -998,8 +1004,8 @@ function OnboardingTab() {
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 {(!ps||ps===null)&&<button onClick={()=>handleGeneratePlan(proj)} style={{ fontSize:10, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Generate Plan</button>}
                 {ps==="loading"&&<span style={{ fontSize:10, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:5 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Generating...</span>}
-                {ps==="done"&&<span style={{ fontSize:10, color:"#4ade80", fontFamily:M }}>✓ Plan ready</span>}
-                {ps==="error"&&<span style={{ fontSize:10, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+                {ps==="done"&&<span style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M }}>✓ Plan ready</span>}
+                {ps==="error"&&<span style={{ fontSize:10, color:"var(--danger)", fontFamily:M }}>✗ Error</span>}
               </div>
             }
           >
@@ -1018,7 +1024,7 @@ function OnboardingTab() {
             {/* Risks */}
             {proj.risks.length>0&&(
               <div style={{ padding:"10px 14px", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:8, marginBottom:12 }}>
-                <div style={{ fontSize:10, fontWeight:600, color:"#fbbf24", fontFamily:M, marginBottom:4 }}>RISKS</div>
+                <div style={{ fontSize:10, fontWeight:600, color:"var(--warning)", fontFamily:M, marginBottom:4 }}>RISKS</div>
                 {proj.risks.map((r,i)=><div key={i} style={{ fontSize:11, color:"var(--text-primary)", marginBottom:2 }}>• {r}</div>)}
               </div>
             )}
@@ -1026,7 +1032,7 @@ function OnboardingTab() {
             {/* Agent 3 result panel */}
             {ps==="done"&&pr&&(
               <div style={{ borderTop:"1px solid var(--border-color)", paddingTop:12, display:"flex", flexDirection:"column", gap:10, animation:"fu 0.3s ease both" }}>
-                <div style={{ fontSize:10, fontWeight:700, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
                   🤖 Agent 3 — Onboarding Orchestrator
                 </div>
 
@@ -1038,7 +1044,7 @@ function OnboardingTab() {
                 {/* Task list */}
                {(pr.task_list||pr.next_steps)?.length>0&&(
                   <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:7 }}>
-                    <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Generated Task List ({(pr.task_list||pr.next_steps).length} tasks)</div>
+                    <div style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Generated Task List ({(pr.task_list||pr.next_steps).length} tasks)</div>
                     {(pr.task_list||pr.next_steps).map((s,si)=>(
                       <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:5 }}>
                         <span style={{ width:16, height:16, borderRadius:4, border:"1.5px solid rgba(99,102,241,0.3)", flexShrink:0, marginTop:1 }}/>
@@ -1248,7 +1254,7 @@ const handleResearchProspect = async () => {
               { l:"Contact", v:selected.contact },
               { l:"Pipeline Stage", v:STAGE_LABELS[selected.stage] },
               { l:"Days in Stage", v:selected.daysInStage },
-            ].map((r,i)=>(<div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid var(--border-color)" }}>
+            ].map((r,i)=>(<div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid var(--border-subtle)" }}>
               <span style={{ fontSize:11.5, color:"var(--text-muted)" }}>{r.l}</span>
               <span style={{ fontSize:11.5, fontWeight:600, color:"var(--text-primary)" }}>{r.v}</span>
             </div>))}
@@ -1315,7 +1321,7 @@ const handleResearchProspect = async () => {
             Running Discovery Analyzer — usually 15-20 seconds...
           </div>
         )}
-        {analysisState==="error" && <div style={{ fontSize:11, color:"#f87171", marginTop:8 }}>✗ Analysis failed — check agent logs</div>}
+        {analysisState==="error" && <div style={{ fontSize:11, color:"var(--danger)", marginTop:8 }}>✗ Analysis failed — check agent logs</div>}
         {analysisState==="done" && analysisResult && (
           <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:10, animation:"fu 0.4s ease both" }}>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
@@ -1326,7 +1332,7 @@ const handleResearchProspect = async () => {
               </div>
               <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8, textAlign:"center" }}>
                 <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Rec. Tier</div>
-                <div style={{ fontSize:24, fontWeight:800, color:"var(--accent)", fontFamily:M }}>{analysisResult.recommended_tier}</div>
+                <div style={{ fontSize:24, fontWeight:800, color:"#818cf8", fontFamily:M }}>{analysisResult.recommended_tier}</div>
               </div>
               <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8, textAlign:"center" }}>
                 <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Urgency</div>
@@ -1339,17 +1345,17 @@ const handleResearchProspect = async () => {
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
               <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8 }}>
-                <div style={{ fontSize:10, fontWeight:600, color:"#f87171", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Pain Points</div>
+                <div style={{ fontSize:10, fontWeight:600, color:"var(--danger)", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Pain Points</div>
                 {analysisResult.pain_points?.map((p,i)=><div key={i} style={{ fontSize:11, color:"var(--text-primary)", marginBottom:3 }}>• {p}</div>)}
               </div>
               <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8 }}>
-                <div style={{ fontSize:10, fontWeight:600, color:"#4ade80", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Next Steps</div>
+                <div style={{ fontSize:10, fontWeight:600, color:"var(--success)", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Next Steps</div>
                 {analysisResult.next_steps?.map((s,i)=><div key={i} style={{ fontSize:11, color:"var(--text-primary)", marginBottom:3 }}>• {s}</div>)}
               </div>
             </div>
             {analysisResult.ic_services_match?.length > 0 && (
               <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:8 }}>
-                <div style={{ fontSize:10, fontWeight:600, color:"var(--accent)", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>IC Services Match</div>
+                <div style={{ fontSize:10, fontWeight:600, color:"#818cf8", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>IC Services Match</div>
                 <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
                   {analysisResult.ic_services_match.map((s,i)=><span key={i} style={{ fontSize:10, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:4, padding:"2px 8px" }}>{s}</span>)}
                 </div>
@@ -1367,7 +1373,7 @@ const handleResearchProspect = async () => {
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             {researchState==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Researching...</span>}
-            {researchState==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+            {researchState==="error"&&<span style={{ fontSize:9, color:"var(--danger)", fontFamily:M }}>✗ Error</span>}
             {(!researchState||researchState===null)&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Research Prospect</button>}
             {researchState==="done"&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"var(--text-muted)", background:"transparent", border:"1px solid var(--border-color)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Re-run</button>}
           </div>
@@ -1381,21 +1387,21 @@ const handleResearchProspect = async () => {
                 <div style={{ fontSize:9, color:"var(--text-muted)" }}>/100</div>
               </div>
               <div style={{ gridColumn:"2/4", padding:"8px 10px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                <div style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Recommended Next Action</div>
+                <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Recommended Next Action</div>
                 <div style={{ fontSize:11, color:"var(--text-primary)", lineHeight:1.4 }}>{researchResult.recommended_next_action}</div>
               </div>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
               <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-                <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Specialty Pain Points</div>
+                <div style={{ fontSize:9, color:"var(--danger)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Specialty Pain Points</div>
                 {researchResult.specialty_pain_points?.map((p,i)=><div key={i} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {p}</div>)}
               </div>
               <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-                <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>IC Advantages</div>
+                <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>IC Advantages</div>
                 {researchResult.ic_competitive_advantages?.map((a,i)=><div key={i} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {a}</div>)}
               </div>
               <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-                <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Likely Objections</div>
+                <div style={{ fontSize:9, color:"var(--warning)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Likely Objections</div>
                 {researchResult.likely_objections?.map((o,i)=><div key={i} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {o}</div>)}
               </div>
               <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
@@ -1404,7 +1410,7 @@ const handleResearchProspect = async () => {
               </div>
             </div>
             <div style={{ padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-              <div style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+              <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
               <div style={{ fontSize:11, color:"var(--text-secondary)", lineHeight:1.4 }}>{researchResult.agent_summary}</div>
             </div>
           </div>
@@ -1518,7 +1524,7 @@ function WeeklyReportTab() {
           ⚡ 3 Things to Act On This Week
         </div>
         {threeThings.length === 0 ? (
-          <div style={{ fontSize:11, color:"#4ade80" }}>✓ No urgent actions — business is healthy this week</div>
+          <div style={{ fontSize:11, color:"var(--success)" }}>✓ No urgent actions — business is healthy this week</div>
         ) : (
           threeThings.map((item,i) => (
             <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:i<threeThings.length-1?8:0 }}>
@@ -1537,19 +1543,19 @@ function WeeklyReportTab() {
         </div>
       )}
       {digestState==="error" && (
-        <div style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"12px 16px", fontSize:11, color:"#f87171" }}>
+        <div style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"12px 16px", fontSize:11, color:"var(--danger)" }}>
           ✗ Digest generation failed — check agent logs
         </div>
       )}
       {digestState==="done" && digestResult && (
         <div style={{ background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.12)", borderLeft:"3px solid #6366f1", borderRadius:12, padding:"16px 18px", animation:"fu 0.4s ease both" }}>
-          <div style={{ fontSize:10, fontWeight:700, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
             🤖 Agent 4 — AI Narrative Digest
           </div>
          <div style={{ fontSize:12, color:"var(--text-primary)", lineHeight:1.7, marginBottom:12 }}>{digestResult.narrative || digestResult.qualification_summary}</div>
           {(digestResult.top_priorities||digestResult.next_steps)?.length>0 && (
             <div>
-              <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Top Priorities</div>
+              <div style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Top Priorities</div>
               {(digestResult.top_priorities||digestResult.next_steps).map((s,si)=>(
                 <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:6 }}>
                   <span style={{ fontSize:9, fontWeight:700, color:typeof s==="object"&&s.priority==="high"?"#f87171":"#fbbf24", background:typeof s==="object"&&s.priority==="high"?"rgba(248,113,113,0.12)":"rgba(251,191,36,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M, flexShrink:0, marginTop:1 }}>{typeof s==="object"?s.priority?.toUpperCase():String(si+1).padStart(2,"0")}</span>
@@ -1569,7 +1575,7 @@ function WeeklyReportTab() {
         <Panel key={si} title={sec.title}>
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             {sec.items.map((item,i)=>(
-              <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-subtle)" }}>
                 <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{item.l}</span>
                 <span style={{ fontSize:12, fontWeight:600, color:item.c, fontFamily:M }}>{item.v}</span>
               </div>
@@ -1589,7 +1595,7 @@ function ROITab() {
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <div style={{ textAlign:"center", padding:"20px 0 8px", animation:"fu 0.5s ease both" }}>
         <div style={{ fontSize:10, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:M, marginBottom:6 }}>Total Client Value Recovered</div>
-        <div style={{ fontSize:44, fontWeight:800, color:"#4ade80", fontFamily:M, lineHeight:1 }}><AnimNum value={Math.round(totalRec)} prefix="$" dur={1800}/></div>
+        <div style={{ fontSize:44, fontWeight:800, color:"var(--text-muted)", fontFamily:M, lineHeight:1 }}><AnimNum value={Math.round(totalRec)} prefix="$" dur={1800}/></div>
       </div>
       {crs.map((c,i)=>(
         <Panel key={c.id} title={c.name} subtitle={`Tier ${c.tier} · ${c.r.moActive} months · ${c.ehr}`}>
@@ -1677,13 +1683,13 @@ function RenewalsTab() {
                 <span style={{ fontSize:9, fontWeight:700, color:churnColor, background:churnBg, padding:"2px 8px", borderRadius:5, fontFamily:M }}>{churnRisk} Risk</span>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                {risk&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.12)", padding:"2px 8px", borderRadius:5, fontFamily:M }}>AT RISK</span>}
+                {risk&&<span style={{ fontSize:9, fontWeight:700, color:"var(--danger)", background:"rgba(248,113,113,0.12)", padding:"2px 8px", borderRadius:5, fontFamily:M }}>AT RISK</span>}
                 <span style={{ fontSize:11, fontWeight:600, color:bc, fontFamily:M }}>{d}d</span>
                 {/* Predict Risk button */}
                 {(!ps||ps===null)&&<button onClick={()=>handlePredictRisk(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Predict Risk</button>}
                 {ps==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Analyzing...</span>}
-                {ps==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
-                {ps==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+                {ps==="done"&&<span style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>✓ Done</span>}
+                {ps==="error"&&<span style={{ fontSize:9, color:"var(--danger)", fontFamily:M }}>✗ Error</span>}
               </div>
             </div>
 
@@ -1700,7 +1706,7 @@ function RenewalsTab() {
               <span>Health: <span style={{ color:c.healthScore>=80?"#4ade80":c.healthScore>=70?"#fbbf24":"#f87171", fontWeight:600 }}>{c.healthScore}</span></span>
               <span>No-Show: <span style={{ fontWeight:600, color:"var(--text-primary)" }}>{c.noShowCurrent}%</span></span>
               <span>ARR: <span style={{ fontWeight:600, color:"var(--text-primary)" }}>${(c.monthlyFee*12).toLocaleString()}</span></span>
-              <span>Hours Saved/wk: <span style={{ fontWeight:600, color:"#4ade80" }}>{c.weeklyHoursSaved}h</span></span>
+              <span>Hours Saved/wk: <span style={{ fontWeight:600, color:"var(--success)" }}>{c.weeklyHoursSaved}h</span></span>
             </div>
 
             {/* Agent 6 result panel */}
@@ -1723,22 +1729,22 @@ function RenewalsTab() {
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                   <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Churn Signals</div>
+                    <div style={{ fontSize:9, color:"var(--danger)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Churn Signals</div>
                     {pr.churn_signals?.slice(0,3).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {p}</div>)}
                   </div>
                   <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Talking Points</div>
+                    <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Talking Points</div>
                     {pr.renewal_talking_points?.slice(0,3).map((s,si)=><div key={si} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {s}</div>)}
                   </div>
                 </div>
                 {pr.upsell_potential&&(
                   <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Upsell Potential</div>
+                    <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Upsell Potential</div>
                     <div style={{ fontSize:10, color:"var(--text-primary)" }}>{pr.upsell_potential}</div>
                   </div>
                 )}
                 <div style={{ padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                  <div style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+                  <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
                   <div style={{ fontSize:11, color:"var(--text-secondary)", lineHeight:1.4 }}>{pr.agent_summary}</div>
                 </div>
               </div>
@@ -2234,14 +2240,14 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
           </div>
           {/* Web App Add-Ons */}
           <div style={{ marginTop:12 }}>
-            <div style={{ fontSize:11, fontWeight:600, color:"var(--text-primary)", marginBottom:8 }}>Web App Add-Ons {tier===3&&<span style={{ color:"#4ade80", fontWeight:400 }}>— included in Tier 3</span>}</div>
+            <div style={{ fontSize:11, fontWeight:600, color:"var(--text-primary)", marginBottom:8 }}>Web App Add-Ons {tier===3&&<span style={{ color:"var(--success)", fontWeight:400 }}>— included in Tier 3</span>}</div>
             {tier < 3 && <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:6 }}>
               {webAppAddOns.map(ao=>{
                 const active = selectedAddOns.includes(ao.id);
                 return (<button key={ao.id} onClick={()=>toggleAddOn(ao.id)} style={{ padding:"8px 10px", borderRadius:7, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.05)"}`, background:active?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.015)", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <span style={{ fontSize:11, fontWeight:active?600:400, color:active?"#a5b4fc":"#9ca3af" }}>{ao.name}</span>
-                    <span style={{ width:14, height:14, borderRadius:4, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.12)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"var(--text-primary)" }}>{active&&"✓"}</span>
+                    <span style={{ width:14, height:14, borderRadius:4, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.12)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white" }}>{active&&"✓"}</span>
                   </div>
                   <div style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, marginTop:3 }}>{ao.priceRange} + ${ao.monthly}/mo</div>
                 </button>);
@@ -2280,51 +2286,51 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
       <Panel title="Proposal Summary" subtitle={`${prospect.practice} · ${prospect.providers} providers · ${prospect.ehr}`} style={{ background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.1)" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {mode !== "individual" && (
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-subtle)" }}>
               <span style={{ fontSize:12, color:"var(--text-secondary)" }}>Managed — Tier {tier}: {managedTiers[tier].n}</span>
-              <span style={{ fontSize:12, fontWeight:600, color:"var(--accent)", fontFamily:M }}>${managedTiers[tier].p.toLocaleString()}/mo</span>
+              <span style={{ fontSize:12, fontWeight:600, color:"#818cf8", fontFamily:M }}>${managedTiers[tier].p.toLocaleString()}/mo</span>
             </div>
           )}
           {selectedAddOns.map(id=>{const ao=webAppAddOns.find(a=>a.id===id);return ao&&(
-            <div key={id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
+            <div key={id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-subtle)" }}>
               <span style={{ fontSize:12, color:"var(--text-secondary)" }}>Add-On: {ao.name}</span>
               <span style={{ fontSize:12, color:"var(--text-primary)", fontFamily:M }}>${ao.price.toLocaleString()} + ${ao.monthly}/mo</span>
             </div>
           );})}
           {selectedServices.map(sel=>{const svc=individualServices.find(x=>x.id===sel.svcId);const opt=svc?.options[sel.optIdx];return opt&&(
-            <div key={sel.key} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
+            <div key={sel.key} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-subtle)" }}>
               <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{svc.name}: {opt.n}</span>
               <span style={{ fontSize:12, color:"var(--text-primary)", fontFamily:M }}>${opt.p.toLocaleString()}</span>
             </div>
           );})}
           {bundleDiscount > 0 && (
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
-              <span style={{ fontSize:12, color:"#4ade80" }}>Bundle Discount (10% — 2+ individual services)</span>
-              <span style={{ fontSize:12, fontWeight:600, color:"#4ade80", fontFamily:M }}>-${bundleDiscount.toLocaleString()}</span>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-subtle)" }}>
+              <span style={{ fontSize:12, color:"var(--success)" }}>Bundle Discount (10% — 2+ individual services)</span>
+              <span style={{ fontSize:12, fontWeight:600, color:"var(--text-muted)", fontFamily:M }}>-${bundleDiscount.toLocaleString()}</span>
             </div>
           )}
           {onboardingCredit > 0 && (
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
-              <span style={{ fontSize:12, color:"#4ade80" }}>Onboarding Credit (individual → managed)</span>
-              <span style={{ fontSize:12, fontWeight:600, color:"#4ade80", fontFamily:M }}>-$500</span>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-subtle)" }}>
+              <span style={{ fontSize:12, color:"var(--success)" }}>Onboarding Credit (individual → managed)</span>
+              <span style={{ fontSize:12, fontWeight:600, color:"var(--text-muted)", fontFamily:M }}>-$500</span>
             </div>
           )}
         </div>
         {/* Totals */}
         <div style={{ display:"grid", gridTemplateColumns:totalMonthly>0?"repeat(3,1fr)":"repeat(2,1fr)", gap:10, marginTop:14, padding:"14px", background:"var(--bg-input)", borderRadius:8 }}>
           {totalOneTime > 0 && <div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>One-Time / Project</div><div style={{ fontSize:22, fontWeight:800, color:"var(--text-primary)", fontFamily:M, marginTop:2 }}>${totalOneTime.toLocaleString()}</div></div>}
-          {totalMonthly > 0 && <div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>Monthly Recurring</div><div style={{ fontSize:22, fontWeight:800, color:"var(--accent)", fontFamily:M, marginTop:2 }}>${totalMonthly.toLocaleString()}<span style={{fontSize:11}}>/mo</span></div></div>}
-          <div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>Year 1 Total</div><div style={{ fontSize:22, fontWeight:800, color:"#fbbf24", fontFamily:M, marginTop:2 }}>${totalYear1.toLocaleString()}</div></div>
+          {totalMonthly > 0 && <div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>Monthly Recurring</div><div style={{ fontSize:22, fontWeight:800, color:"#818cf8", fontFamily:M, marginTop:2 }}>${totalMonthly.toLocaleString()}<span style={{fontSize:11}}>/mo</span></div></div>}
+          <div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>Year 1 Total</div><div style={{ fontSize:22, fontWeight:800, color:"var(--warning)", fontFamily:M, marginTop:2 }}>${totalYear1.toLocaleString()}</div></div>
         </div>
       </Panel>
 
       {/* ROI (for managed/mixed) */}
       {mode !== "individual" && (
         <div style={{ display:"flex", gap:10, padding:"12px 14px", background:roi>0?"rgba(74,222,128,0.04)":"rgba(248,113,113,0.04)", borderRadius:8, border:`1px solid ${roi>0?"rgba(74,222,128,0.08)":"rgba(248,113,113,0.08)"}` }}>
-          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>PROJ. REVENUE RECOVERED/YR</div><div style={{ fontSize:18, fontWeight:700, color:"#4ade80", fontFamily:M, marginTop:2 }}>${Math.round(aRev).toLocaleString()}</div><div style={{ fontSize:9, color:"var(--text-muted)" }}>{Math.round(rec)} appts/wk × $65</div></div>
+          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>PROJ. REVENUE RECOVERED/YR</div><div style={{ fontSize:18, fontWeight:700, color:"var(--text-muted)", fontFamily:M, marginTop:2 }}>${Math.round(aRev).toLocaleString()}</div><div style={{ fontSize:9, color:"var(--text-muted)" }}>{Math.round(rec)} appts/wk × $65</div></div>
           <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>STAFF SAVINGS/YR</div><div style={{ fontSize:18, fontWeight:700, color:"#38bdf8", fontFamily:M, marginTop:2 }}>${Math.round(aStaff).toLocaleString()}</div><div style={{ fontSize:9, color:"var(--text-muted)" }}>~10h/wk × $18/hr</div></div>
           <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>YEAR 1 ROI</div><div style={{ fontSize:18, fontWeight:700, color:roi>0?"#4ade80":"#f87171", fontFamily:M, marginTop:2 }}>{Math.round(roi)}%</div></div>
-          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>3-YEAR NET BENEFIT</div><div style={{ fontSize:18, fontWeight:700, color:"#fbbf24", fontFamily:M, marginTop:2 }}>${Math.round((aBen*3)-(totalYear1+(totalMonthly*24))).toLocaleString()}</div></div>
+          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>3-YEAR NET BENEFIT</div><div style={{ fontSize:18, fontWeight:700, color:"var(--warning)", fontFamily:M, marginTop:2 }}>${Math.round((aBen*3)-(totalYear1+(totalMonthly*24))).toLocaleString()}</div></div>
         </div>
       )}
 
@@ -2380,8 +2386,8 @@ function AutoTab() {
         <KPI label="Cost Today" value={Math.round(AUTOMATIONS.reduce((s,a)=>s+a.costToday,0)*100)/100} prefix="$" spark={[12,14,16,17,18,19]} sparkColor="#fbbf24" delay={120}/>
         <KPI label="Errors 24h" value={AUTOMATIONS.reduce((s,a)=>s+a.errors24h,0)} spark={[2,1,3,0,1,9]} sparkColor={crit.length?"#f87171":"#4ade80"} delay={180}/>
       </div>
-      {crit.length>0&&<div style={{ background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.12)", borderRadius:10, padding:"12px 16px" }}>
-        <div style={{ fontSize:10, fontWeight:700, color:"#f87171", fontFamily:M, marginBottom:6 }}>⚠ CRITICAL</div>
+      {crit.length>0&&<div style={{ background:"rgba(var(--danger-rgb,248,113,113),0.06)", border:"1px solid rgba(248,113,113,0.12)", borderRadius:10, padding:"12px 16px" }}>
+        <div style={{ fontSize:10, fontWeight:700, color:"var(--danger)", fontFamily:M, marginBottom:6 }}>⚠ CRITICAL</div>
         {crit.map(a=><div key={a.id} style={{ fontSize:12, color:"var(--text-primary)" }}><strong>{a.client}</strong> → {a.name}: {a.successRate}% success</div>)}
       </div>}
       {AUTOMATIONS.map((a,i)=>(<div key={a.id} style={{ display:"grid", gridTemplateColumns:"2fr 1fr 0.7fr 0.7fr 0.7fr 0.5fr", alignItems:"center", gap:6, padding:"10px 16px", background:"var(--bg-card)", border:`1px solid ${a.status==="critical"?"rgba(248,113,113,0.1)":"rgba(255,255,255,0.04)"}`, borderRadius:8, animation:`fu 0.3s ease ${i*40}ms both`, fontSize:12 }}>
@@ -2560,7 +2566,7 @@ function TeamTab({ webhookSecret }) {
               <span>Email</span><span>Role</span><span>Last Sign In</span><span>Status</span>
             </div>
             {appUsers.map(u => (
-              <div key={u.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8, alignItems: "center", padding: "8px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", borderRadius: 7 }}>
+              <div key={u.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8, alignItems: "center", padding: "8px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-subtle)", borderRadius: 7 }}>
                 <span style={{ fontSize: 11, color: "#e5e7eb", fontFamily: M }}>{u.email}</span>
                 <select
                   value={u.role}
@@ -2625,7 +2631,7 @@ function TeamTab({ webhookSecret }) {
             <span>Name</span><span>Title</span><span>Type</span><span>Hrs/Wk</span><span>Mo. Cost</span><span></span>
           </div>
           {team.map(t => (
-            <div key={t.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, alignItems: "center", padding: "10px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", borderRadius: 7 }}>
+            <div key={t.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, alignItems: "center", padding: "10px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-subtle)", borderRadius: 7 }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{t.name}</div>
                {t.notes && <div style={{ fontSize: 9, color: "#a5b4fc" }}>{t.notes}</div>}
@@ -2781,7 +2787,7 @@ function CapTab() {
             const free = t.hoursAvail - used;
             const color = pct > 85 ? "#f87171" : pct > 70 ? "#fbbf24" : "#4ade80";
             return (
-              <div key={t.id} style={{ padding: "12px 0", borderBottom: ti < team.length - 1 ? "1px solid var(--border-color)" : "none", animation: `fu 0.3s ease ${ti * 60}ms both` }}>
+              <div key={t.id} style={{ padding: "12px 0", borderBottom: ti < team.length - 1 ? "1px solid var(--border-subtle)" : "none", animation: `fu 0.3s ease ${ti * 60}ms both` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div>
                     <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>{t.name}</span>
@@ -2832,7 +2838,7 @@ function CapTab() {
           <Panel title="New Client Scenarios">
             {scenarios.map((s, i) => {
               const np = Math.round(((teamHoursUsed + s.h) / teamHoursAvail) * 100); const fits = np <= 100;
-              return (<div key={i} style={{ padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, marginBottom: 5, border: `1px solid ${!fits ? "rgba(248,113,113,0.1)" : "var(--bg-card)"}` }}>
+              return (<div key={i} style={{ padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, marginBottom: 5, border: `1px solid ${!fits ? "rgba(248,113,113,0.1)" : "rgba(255,255,255,0.03)"}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 11.5, fontWeight: 600, color: "#e5e7eb" }}>{s.l}</span><span style={{ fontSize: 10.5, fontWeight: 600, color: fits ? "#4ade80" : "#f87171", fontFamily: M }}>{np}%{!fits && " ⚠"}</span></div>
                 <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>+{s.h}h/wk · +${s.r.toLocaleString()}/mo · {fits ? `${teamFree - s.h}h remaining` : "Over capacity — hire first"}</div>
               </div>);
@@ -2928,7 +2934,7 @@ function CommsTab({ onTabNav }) {
               <div style={{
                 background: isAgentEntry ? "rgba(99,102,241,0.04)" : "rgba(255,255,255,0.02)",
                 border: `1px solid ${isAgentEntry ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)"}`,
-                borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid var(--border-color)",
+                borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid var(--border-subtle)",
                 borderRadius:8,
                 padding:"8px 14px"
               }}>
@@ -2936,7 +2942,7 @@ function CommsTab({ onTabNav }) {
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     <span style={{ fontSize:12, fontWeight:600, color:"var(--text-primary)" }}>{c.client}</span>
                     {isAgentEntry && (
-                      <span style={{ fontSize:8, fontWeight:700, color:"var(--accent)", background:"rgba(99,102,241,0.12)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>🤖 AGENT</span>
+                      <span style={{ fontSize:8, fontWeight:700, color:"#818cf8", background:"rgba(99,102,241,0.12)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>🤖 AGENT</span>
                     )}
                   </div>
                   <span style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M }}>{c.date}</span>
@@ -3064,8 +3070,8 @@ export default function ICBOS() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pr{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.3);opacity:0}}
-        *{box-sizing:border-box;margin:0;padding:0;scrollbar-width:thin;scrollbar-color:var(--border-color) transparent}
-        ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:3px}
+        *{box-sizing:border-box;margin:0;padding:0;scrollbar-width:thin;scrollbar-color:var(--scrollbar) transparent}
+        ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:3px}
         button{font-family:inherit}
       `}</style>
 
@@ -3074,7 +3080,7 @@ export default function ICBOS() {
       {/* Header */}
       <header style={{ position:"sticky", top:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 24px", background:"var(--header-bg)", backdropFilter:"blur(20px)", borderBottom:"1px solid var(--header-border)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:30, height:30, borderRadius:8, background:"#2ab6d7", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"var(--text-primary)" }}>IC</div>
+          <div style={{ width:30, height:30, borderRadius:8, background:"#2ab6d7", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"white" }}>IC</div>
           <div><div style={{ fontSize:13, fontWeight:700, color:"var(--text-primary)" }}>IC-BOS</div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>Immaculate Consulting Business Operating System</div></div>
         </div>
         <nav style={{ display:"flex", gap:1, flexWrap:"wrap", justifyContent:"center", maxWidth:820 }}>
@@ -3096,7 +3102,7 @@ export default function ICBOS() {
           </button>
 
           {/* LIVE badge */}
-          <span style={{ fontSize:9, color:"#4ade80", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}>
+          <span style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}>
             <span style={{ width:4, height:4, borderRadius:"50%", background:"#4ade80" }}/>LIVE
           </span>
 
@@ -3111,7 +3117,7 @@ export default function ICBOS() {
               {isAnyAgentRunning && <span style={{ position:"absolute", width:14, height:14, borderRadius:"50%", background:"rgba(56,189,248,0.3)", animation:"pr 1.2s ease-out infinite" }}/>}
             </button>
             {showPulsePopover && (
-              <div style={{ position:"absolute", top:36, right:0, width:220, background:"var(--bg-surface)", border:"1px solid var(--border-color)", borderRadius:10, padding:"12px 14px", zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both" }}>
+              <div style={{ position:"absolute", top:36, right:0, width:220, background:"var(--popover-bg)", border:"1px solid var(--border-color)", borderRadius:10, padding:"12px 14px", zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both" }}>
                 <div style={{ fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:M, marginBottom:8 }}>Agent Pulse</div>
                 {isAnyAgentRunning ? (
                   runningAgents.map(name => (
@@ -3148,7 +3154,7 @@ export default function ICBOS() {
               )}
             </button>
             {showNotifs && (
-              <div style={{ position:"absolute", top:36, right:0, width:300, background:"var(--bg-surface)", border:"1px solid var(--border-color)", borderRadius:10, zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both", overflow:"hidden" }}>
+              <div style={{ position:"absolute", top:36, right:0, width:300, background:"var(--popover-bg)", border:"1px solid var(--border-color)", borderRadius:10, zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both", overflow:"hidden" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px 8px", borderBottom:"1px solid var(--border-color)" }}>
                   <span style={{ fontSize:11, fontWeight:700, color:"var(--text-primary)" }}>Notifications</span>
                   {allNotifs.length > 0 && (
@@ -3160,9 +3166,9 @@ export default function ICBOS() {
                     <div style={{ padding:"20px 14px", fontSize:11, color:"var(--text-label)", textAlign:"center" }}>No new notifications</div>
                   ) : (
                     allNotifs.map(n => (
-                      <div key={n.id} style={{ display:"flex", alignItems:"flex-start", gap:9, padding:"10px 14px", borderBottom:"1px solid var(--border-color)", cursor:"pointer" }}
+                      <div key={n.id} style={{ display:"flex", alignItems:"flex-start", gap:9, padding:"10px 14px", borderBottom:"1px solid var(--border-subtle)", cursor:"pointer" }}
                         onClick={() => { setTab(n.tab); setShowNotifs(false); }}
-                        onMouseEnter={e => e.currentTarget.style.background = "var(--bg-card)"}
+                        onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
                         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                       >
                         <span style={{ fontSize:14, flexShrink:0, marginTop:1 }}>{n.icon}</span>
@@ -3193,8 +3199,8 @@ export default function ICBOS() {
             {/* ROI Banner */}
             <div style={{ background:"linear-gradient(135deg,rgba(74,222,128,0.05),rgba(56,189,248,0.03))", border:"1px solid rgba(74,222,128,0.08)", borderRadius:12, padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", animation:"fu 0.5s ease both" }}>
               <div><div style={{ fontSize:9, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:M }}>Total Client Value Recovered</div>
-              <div style={{ fontSize:30, fontWeight:800, color:"#4ade80", fontFamily:M, lineHeight:1, marginTop:3 }}><AnimNum value={Math.round(totalROI)} prefix="$" dur={1800}/></div></div>
-              <button onClick={()=>setTab("roi")} style={{ fontSize:10, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>View →</button>
+              <div style={{ fontSize:30, fontWeight:800, color:"var(--text-muted)", fontFamily:M, lineHeight:1, marginTop:3 }}><AnimNum value={Math.round(totalROI)} prefix="$" dur={1800}/></div></div>
+              <button onClick={()=>setTab("roi")} style={{ fontSize:10, color:"var(--success)", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>View →</button>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
               <KPI label="MRR" value={FINANCIALS.mrr} prefix="$" change={12.2} spark={FINANCIALS.revenueHistory.map(r=>r.revenue)} sparkColor="#818cf8"/>
@@ -3205,17 +3211,17 @@ export default function ICBOS() {
             </div>
             {(critCount>0||overdueInvs.length>0)&&<div style={{ display:"flex", gap:10 }}>
               {critCount>0&&<div onClick={()=>setTab("automations")} style={{ flex:1, background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"10px 14px", cursor:"pointer", animation:"fu 0.4s ease both" }}>
-                <div style={{ fontSize:11, fontWeight:600, color:"#f87171" }}>⚠️ {critCount} critical automation</div>
+                <div style={{ fontSize:11, fontWeight:600, color:"var(--danger)" }}>⚠️ {critCount} critical automation</div>
                 <div style={{ fontSize:10, color:"var(--text-secondary)", marginTop:2 }}>{AUTOMATIONS.filter(a=>a.status==="critical").map(a=>`${a.client}: ${a.name}`).join(" · ")}</div>
               </div>}
               {overdueInvs.length>0&&<div onClick={()=>setTab("invoicing")} style={{ flex:1, background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"10px 14px", cursor:"pointer", animation:"fu 0.4s ease 100ms both" }}>
-                <div style={{ fontSize:11, fontWeight:600, color:"#f87171" }}>💰 {overdueInvs.length} overdue invoice</div>
+                <div style={{ fontSize:11, fontWeight:600, color:"var(--danger)" }}>💰 {overdueInvs.length} overdue invoice</div>
                 <div style={{ fontSize:10, color:"var(--text-secondary)", marginTop:2 }}>{overdueInvs.map(i=>`${i.client}: $${i.total.toLocaleString()}`).join(" · ")}</div>
               </div>}
             </div>}
             <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:12 }}>
               <Panel title="Revenue vs Expenses" subtitle="Last 6 months"><RevChart data={FINANCIALS.revenueHistory}/></Panel>
-              <Panel title="Priority Actions" action={<span style={{ fontSize:9, fontWeight:600, color:"#f87171", background:"rgba(248,113,113,0.1)", padding:"2px 7px", borderRadius:4, fontFamily:M }}>{highTasks} urgent</span>}>
+              <Panel title="Priority Actions" action={<span style={{ fontSize:9, fontWeight:600, color:"var(--danger)", background:"rgba(248,113,113,0.1)", padding:"2px 7px", borderRadius:4, fontFamily:M }}>{highTasks} urgent</span>}>
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>{TASKS.filter(t=>t.priority==="high").map((t,i)=><TaskItem key={t.id} task={t} delay={i*40}/>)}</div>
               </Panel>
             </div>
@@ -3237,7 +3243,7 @@ export default function ICBOS() {
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <Panel title="Revenue Trend"><RevChart data={FINANCIALS.revenueHistory}/></Panel>
-              <Panel title="Monthly P&L">{[{l:"Revenue",v:"$27,500",c:"#818cf8"},{l:"Expenses",v:"-$8,400",c:"#f87171"},{l:"Net",v:"$19,100",c:"#4ade80"},{l:"A/R",v:"$13,000",c:"#fbbf24"}].map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--border-color)"}}><span style={{fontSize:12,color:"var(--text-secondary)"}}>{m.l}</span><span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span></div>))}</Panel>
+              <Panel title="Monthly P&L">{[{l:"Revenue",v:"$27,500",c:"#818cf8"},{l:"Expenses",v:"-$8,400",c:"#f87171"},{l:"Net",v:"$19,100",c:"#4ade80"},{l:"A/R",v:"$13,000",c:"#fbbf24"}].map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--border-subtle)"}}><span style={{fontSize:12,color:"var(--text-secondary)"}}>{m.l}</span><span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span></div>))}</Panel>
             </div>
           </div>
         )}
