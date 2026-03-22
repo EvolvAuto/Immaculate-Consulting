@@ -683,6 +683,34 @@ function OnboardingTab() {
   const [planResults, setPlanResults] = useState({});
   const [expandedKickoff, setExpandedKickoff] = useState({});
   const phaseColors = { complete:"#4ade80", "in-progress":"#fbbf24", upcoming:"#4b5563" };
+  const [onboardingUpdateText, setOnboardingUpdateText] = useState("");
+  const [onboardingUpdateStatus, setOnboardingUpdateStatus] = useState("note");
+  const [savingUpdate, setSavingUpdate] = useState(false);
+  const [onboardingUpdates, setOnboardingUpdates] = useState({});
+
+  const fetchOnboardingUpdates = async (projectId) => {
+    const { data } = await supabase
+      .from("onboarding_updates")
+      .select("*")
+      .eq("onboarding_project_id", projectId)
+      .order("created_at", { ascending: false });
+    if (data) setOnboardingUpdates(prev => ({ ...prev, [projectId]: data }));
+  };
+
+  const saveOnboardingUpdate = async (proj) => {
+    if (!onboardingUpdateText.trim()) return;
+    setSavingUpdate(true);
+    const { error } = await supabase.from("onboarding_updates").insert({
+      update_text: onboardingUpdateText.trim(),
+      status: onboardingUpdateStatus,
+      phase_name: proj.phases?.find(p => p.status === "in-progress")?.name || null,
+    });
+    if (!error) {
+      setOnboardingUpdateText("");
+      fetchOnboardingUpdates(proj.id);
+    }
+    setSavingUpdate(false);
+  };
 
   const handleGeneratePlan = async (proj) => {
     setPlanStates(prev => ({ ...prev, [proj.id]: "loading" }));
@@ -797,6 +825,52 @@ function OnboardingTab() {
                 )}
               </div>
             )}
+         {/* Progress Update Log */}
+            <div style={{ marginTop:16, borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:16 }}>
+              <p style={{ color:"#94a3b8", fontSize:11, fontWeight:600, marginBottom:10, textTransform:"uppercase", letterSpacing:"0.05em" }}>Progress Log</p>
+              <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+                <select
+                  value={onboardingUpdateStatus}
+                  onChange={e => setOnboardingUpdateStatus(e.target.value)}
+                  style={{ background:"#1e293b", color:"#94a3b8", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 8px", fontSize:12 }}
+                >
+                  <option value="note">📝 Note</option>
+                  <option value="milestone">🏆 Milestone</option>
+                  <option value="blocker">🚧 Blocker</option>
+                  <option value="resolved">✅ Resolved</option>
+                </select>
+                <input
+                  value={onboardingUpdateText}
+                  onChange={e => setOnboardingUpdateText(e.target.value)}
+                  placeholder="Log a progress update..."
+                  style={{ flex:1, background:"#1e293b", color:"#e2e8f0", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 12px", fontSize:13 }}
+                />
+                <button
+                  onClick={() => saveOnboardingUpdate(proj)}
+                  disabled={savingUpdate || !onboardingUpdateText.trim()}
+                  style={{ background:"#6366f1", color:"white", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
+                >
+                  {savingUpdate ? "..." : "Log"}
+                </button>
+              </div>
+              {(onboardingUpdates[proj.id] || []).slice(0, 5).map(u => (
+                <div key={u.id} style={{ display:"flex", gap:10, marginBottom:8, alignItems:"flex-start" }}>
+                  <span style={{ fontSize:16, lineHeight:1 }}>
+                    {u.status === "milestone" ? "🏆" : u.status === "blocker" ? "🚧" : u.status === "resolved" ? "✅" : "📝"}
+                  </span>
+                  <div>
+                    <p style={{ color:"#e2e8f0", fontSize:13, margin:0 }}>{u.update_text}</p>
+                    <p style={{ color:"#475569", fontSize:11, margin:"2px 0 0" }}>
+                      {u.phase_name && `${u.phase_name} · `}
+                      {new Date(u.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric' })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {(onboardingUpdates[proj.id] || []).length === 0 && (
+                <p style={{ color:"#475569", fontSize:12, fontStyle:"italic" }}>No updates logged yet.</p>
+              )}
+            </div>
           </Panel>
         );
       })}
