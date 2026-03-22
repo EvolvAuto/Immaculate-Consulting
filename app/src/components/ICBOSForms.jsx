@@ -62,7 +62,7 @@ const S = {
     transition: "border-color 0.15s",
   },
   select: {
-    width: "100%", background: "rgba(255,255,255,0.04)",
+    width: "100%", background: "#1e293b",
     border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7,
     padding: "9px 12px", color: "#f0f0f0", fontSize: 13,
     fontFamily: "inherit", outline: "none", boxSizing: "border-box",
