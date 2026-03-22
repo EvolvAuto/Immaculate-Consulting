@@ -2574,7 +2574,7 @@ function TeamTab({ webhookSecret }) {
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{t.name}</div>
                 {t.notes && <div style={{ fontSize: 9, color: "#6b7280" }}>{t.notes}</div>}
               </div>
-              <span style={{ fontSize: 11, color: "#9ca3af" }}>{t.title}</span>
+              <span style={{ fontSize: 11, color: "#a5b4fc" }}>{t.title}</span>
               <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: M }}>{t.type}</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: "#f0f0f0", fontFamily: M }}>{t.hoursPerWeek}h</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: t.monthlyCost > 0 ? "#f87171" : "#4ade80", fontFamily: M }}>{t.monthlyCost > 0 ? `$${Number(t.monthlyCost).toLocaleString()}` : "—"}</span>
