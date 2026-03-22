@@ -23,12 +23,12 @@ const S = {
     alignItems: "center",
     justifyContent: "center",
     fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-    padding: "24px",
+    padding: "16px",
   },
   card: {
     width: "100%",
-    maxWidth: "900px",
-    minHeight: "520px",
+    maxWidth: "1100px",
+    minHeight: "620px",
     display: "grid",
     gridTemplateColumns: "55% 45%",
     borderRadius: "14px",
@@ -37,7 +37,7 @@ const S = {
   },
   left: {
     background: BRAND.navyDark,
-    padding: "44px 52px",
+    padding: "56px 64px",
     display: "flex",
     flexDirection: "column",
     justifyContent: "space-between",
@@ -165,7 +165,7 @@ const S = {
   right: {
     background: BRAND.navyDeep,
     borderLeft: "1px solid rgba(42,182,215,0.15)",
-    padding: "44px 44px",
+    padding: "56px 52px",
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
