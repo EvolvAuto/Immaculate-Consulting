@@ -819,9 +819,14 @@ function InvoicingTab() {
                 <span style={{ fontFamily:M, color:"#f0f0f0" }}>${inv.amount.toLocaleString()}</span>
                 <span style={{ fontFamily:M, color:"#6b7280" }}>${inv.usageCost}</span>
                 <span style={{ fontFamily:M, color:"#f0f0f0", fontWeight:600 }}>${inv.total.toLocaleString()}</span>
-                <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
                   <span style={{ fontSize:10, fontWeight:600, color:stColors[inv.status], textTransform:"uppercase" }}>{inv.status}</span>
                   {isOverdue&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.15)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>{daysOverdue}d</span>}
+                  {inv.stripe_invoice_id&&inv.status==="paid"&&(
+                    <span style={{ fontSize:8, fontWeight:700, color:"#818cf8", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>
+                      ⚡ Stripe
+                    </span>
+                  )}
                 </div>
                 <div>
                   {isOverdue&&(!fs||fs===null)&&<button onClick={()=>handleDraftFollowUp(inv)} style={{ fontSize:9, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Draft Follow-up</button>}
