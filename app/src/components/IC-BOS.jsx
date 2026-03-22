@@ -7,63 +7,74 @@ import { supabase } from "../lib/supabaseClient";
 // ── Theme CSS Variables ───────────────────────────────────────────────────────
 const THEME_STYLE = `
   [data-theme="dark"] {
-    --bg-page:          #071830;
-    --bg-surface:       #0d2b4e;
-    --bg-card:          #0d2b4e;
-    --bg-input:         rgba(42,182,215,0.06);
-    --border-color:     rgba(42,182,215,0.12);
-    --border-subtle:    rgba(42,182,215,0.08);
-    --accent:           #2ab6d7;
-    --accent-muted:     rgba(42,182,215,0.15);
-    --text-primary:     #f0f8ff;
-    --text-secondary:   #a8c8e8;
-    --text-muted:       #7aaacb;
-    --text-label:       #4a6a8a;
-    --header-bg:        #0d2b4e;
-    --header-border:    rgba(42,182,215,0.15);
-    --popover-bg:       #0a2240;
-    --popover-border:   rgba(42,182,215,0.15);
-    --success:          #4ade80;
-    --warning:          #fbbf24;
-    --danger:           #f87171;
-    --tab-active-bg:    rgba(42,182,215,0.15);
-    --tab-active-text:  #2ab6d7;
-    --tab-text:         #7aaacb;
-    --scrollbar:        rgba(42,182,215,0.2);
+    --bg-page:           #071830;
+    --bg-surface:        #0d2b4e;
+    --bg-card:           #0d2b4e;
+    --bg-input:          rgba(42,182,215,0.07);
+    --border-color:      rgba(42,182,215,0.14);
+    --border-subtle:     rgba(42,182,215,0.08);
+    --accent:            #2ab6d7;
+    --accent-muted:      rgba(42,182,215,0.15);
+    --text-primary:      #f0f8ff;
+    --text-secondary:    #a8c8e8;
+    --text-muted:        #7aaacb;
+    --text-label:        #4a6a8a;
+    --header-bg:         #0d2b4e;
+    --header-border:     rgba(42,182,215,0.15);
+    --popover-bg:        #0a2240;
+    --popover-border:    rgba(42,182,215,0.15);
+    --row-hover:         rgba(42,182,215,0.04);
+    --success:           #4ade80;
+    --warning:           #fbbf24;
+    --danger:            #f87171;
+    --tab-active-bg:     rgba(42,182,215,0.15);
+    --tab-active-text:   #2ab6d7;
+    --tab-text:          #7aaacb;
+    --scrollbar:         rgba(42,182,215,0.2);
   }
   [data-theme="light"] {
-    --bg-page:          #e8f4fb;
-    --bg-surface:       #ffffff;
-    --bg-card:          #ffffff;
-    --bg-input:         #f0f7fc;
-    --border-color:     #b8d8ed;
-    --border-subtle:    #cce4f0;
-    --accent:           #2ab6d7;
-    --accent-muted:     rgba(42,182,215,0.15);
-    --text-primary:     #0d2b4e;
-    --text-secondary:   #1e5070;
-    --text-muted:       #2d6a8a;
-    --text-label:       #4a8aaa;
-    --header-bg:        #0d2b4e;
-    --header-border:    rgba(42,182,215,0.2);
-    --popover-bg:       #ffffff;
-    --popover-border:   #b8d8ed;
-    --success:          #15803d;
-    --warning:          #b45309;
-    --danger:           #b91c1c;
-    --tab-active-bg:    rgba(42,182,215,0.15);
-    --tab-active-text:  #1a7a9a;
-    --tab-text:         #a8c8e8;
-    --scrollbar:        #b8d8ed;
+    --bg-page:           #dff0f9;
+    --bg-surface:        #ffffff;
+    --bg-card:           #ffffff;
+    --bg-input:          #f0f7fc;
+    --border-color:      #93c8e0;
+    --border-subtle:     #b8d8ed;
+    --accent:            #1a8ab5;
+    --accent-muted:      rgba(26,138,181,0.12);
+    --text-primary:      #0a1f35;
+    --text-secondary:    #0d3a5c;
+    --text-muted:        #1a5272;
+    --text-label:        #2d6e8e;
+    --header-bg:         #0d2b4e;
+    --header-border:     rgba(42,182,215,0.2);
+    --popover-bg:        #ffffff;
+    --popover-border:    #93c8e0;
+    --row-hover:         #eaf5fb;
+    --success:           #146b3a;
+    --warning:           #92400e;
+    --danger:            #991b1b;
+    --tab-active-bg:     rgba(26,138,181,0.15);
+    --tab-active-text:   #1a8ab5;
+    --tab-text:          #a8c8e8;
+    --scrollbar:         #93c8e0;
   }
-  [data-theme="light"] * {
-    scrollbar-color: var(--scrollbar) transparent !important;
-  }
-  [data-theme="light"] ::-webkit-scrollbar-thumb {
-    background: var(--scrollbar) !important;
-  }
-`
+  [data-theme="light"] ::-webkit-scrollbar-thumb { background: #93c8e0 !important; }
+  [data-theme="light"] input::placeholder,
+  [data-theme="light"] textarea::placeholder { color: #5a8aaa !important; opacity: 1 !important; }
+  [data-theme="light"] select option { background: #ffffff; color: #0a1f35; }
 
+  /* ── Light mode component overrides ── */
+  [data-theme="light"] .ic-card,
+  [data-theme="light"] [data-card] {
+    box-shadow: 0 1px 3px rgba(0,42,80,0.08);
+  }
+  [data-theme="light"] input,
+  [data-theme="light"] select,
+  [data-theme="light"] textarea {
+    background: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+  }`;
 // ═══════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -418,7 +429,7 @@ const handleGenerateOutreach = async (deal) => {
                   {outreachStates[d.id] === "done" && outreachResults[d.id] && (
                     <div>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
-                        <span style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>✓ Outreach ready</span>
+                        <span style={{ fontSize:9, color:"var(--success)", fontFamily:M }}>✓ Outreach ready</span>
                         <button onClick={() => setExpandedOutreach(prev => ({...prev, [d.id]: !prev[d.id]}))} style={{ fontSize:9, color:"#a5b4fc", background:"transparent", border:"1px solid rgba(99,102,241,0.2)", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>{expandedOutreach[d.id] ? "Hide" : "View"}</button>
                       </div>
                       {expandedOutreach[d.id] && (
@@ -442,7 +453,7 @@ const handleGenerateOutreach = async (deal) => {
               )}
               {/* Agent 1 — Generate Proposal button */}
               <div style={{ marginTop:d.stage==="cold"?4:8, paddingTop:8, borderTop:"1px solid var(--border-color)" }}>
-                {ps === 'done' && <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
+                {ps === 'done' && <div style={{ fontSize:9, color:"var(--success)", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
                 {ps === 'error' && <div style={{ fontSize:9, color:"var(--danger)", fontFamily:M }}>✗ Error — check agent logs</div>}
                 {ps === 'nomock' && <div style={{ fontSize:9, color:"var(--warning)", fontFamily:M }}>⚡ Live data needed (Task 17)</div>}
                {(!ps || ps === null) && canEdit && (
@@ -689,7 +700,7 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                 <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
                   {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
                   {as==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Running...</span>}
-                  {as==="done"&&<span style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>✓ Done</span>}
+                  {as==="done"&&<span style={{ fontSize:9, color:"var(--success)", fontFamily:M }}>✓ Done</span>}
                   {as==="error"&&<span style={{ fontSize:9, color:"var(--danger)", fontFamily:M }}>✗ Error</span>}
                   {/* Monthly Report button */}
                   {canEdit && c.status === "active" && (
@@ -720,7 +731,7 @@ function ClientsTab({ onShowForm, canEdit = true }) {
       {ar.risk_factors?.slice(0,2).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {p}</div>)}
     </div>
     <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-      <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Interventions</div>
+      <div style={{ fontSize:9, color:"var(--success)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Interventions</div>
       {ar.recommended_interventions?.slice(0,2).map((s,si)=><div key={si} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {s}</div>)}
     </div>
     {ar.renewal_talking_points?.length>0&&(
@@ -731,7 +742,7 @@ function ClientsTab({ onShowForm, canEdit = true }) {
     )}
     {ar.upsell_opportunity&&(
       <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
-        <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Upsell Opportunity</div>
+        <div style={{ fontSize:9, color:"var(--success)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Upsell Opportunity</div>
         <div style={{ fontSize:10, color:"var(--text-primary)" }}>{ar.upsell_opportunity}</div>
       </div>
     )}
@@ -772,7 +783,7 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                     <div style={{ padding:"10px 12px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
-                      <div style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Highlights</div>
+                      <div style={{ fontSize:10, color:"var(--success)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Highlights</div>
                       {reportResults[c.id].performance_highlights?.slice(0,3).map((h,hi) => (
                         <div key={hi} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:3 }}>✓ {h}</div>
                       ))}
@@ -1004,7 +1015,7 @@ function OnboardingTab() {
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 {(!ps||ps===null)&&<button onClick={()=>handleGeneratePlan(proj)} style={{ fontSize:10, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Generate Plan</button>}
                 {ps==="loading"&&<span style={{ fontSize:10, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:5 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Generating...</span>}
-                {ps==="done"&&<span style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M }}>✓ Plan ready</span>}
+                {ps==="done"&&<span style={{ fontSize:10, color:"var(--success)", fontFamily:M }}>✓ Plan ready</span>}
                 {ps==="error"&&<span style={{ fontSize:10, color:"var(--danger)", fontFamily:M }}>✗ Error</span>}
               </div>
             }
@@ -1044,7 +1055,7 @@ function OnboardingTab() {
                 {/* Task list */}
                {(pr.task_list||pr.next_steps)?.length>0&&(
                   <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:7 }}>
-                    <div style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Generated Task List ({(pr.task_list||pr.next_steps).length} tasks)</div>
+                    <div style={{ fontSize:10, color:"var(--success)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Generated Task List ({(pr.task_list||pr.next_steps).length} tasks)</div>
                     {(pr.task_list||pr.next_steps).map((s,si)=>(
                       <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:5 }}>
                         <span style={{ width:16, height:16, borderRadius:4, border:"1.5px solid rgba(99,102,241,0.3)", flexShrink:0, marginTop:1 }}/>
@@ -1082,7 +1093,7 @@ function OnboardingTab() {
                 <select
                   value={onboardingUpdateStatus}
                   onChange={e => setOnboardingUpdateStatus(e.target.value)}
-                  style={{ background:"#1e293b", color:"var(--text-secondary)", border:"1px solid var(--border-color)", borderRadius:6, padding:"6px 8px", fontSize:12 }}
+                  style={{ background:"#1e293b", color:"var(--text-secondary)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 8px", fontSize:12 }}
                 >
                   <option value="note">📝 Note</option>
                   <option value="milestone">🏆 Milestone</option>
@@ -1093,7 +1104,7 @@ function OnboardingTab() {
                   value={onboardingUpdateText}
                   onChange={e => setOnboardingUpdateText(e.target.value)}
                   placeholder="Log a progress update..."
-                  style={{ flex:1, background:"#1e293b", color:"var(--text-primary)", border:"1px solid var(--border-color)", borderRadius:6, padding:"6px 12px", fontSize:13 }}
+                  style={{ flex:1, background:"#1e293b", color:"var(--text-primary)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 12px", fontSize:13 }}
                 />
                 <button
                   onClick={() => saveOnboardingUpdate(proj)}
@@ -1397,7 +1408,7 @@ const handleResearchProspect = async () => {
                 {researchResult.specialty_pain_points?.map((p,i)=><div key={i} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {p}</div>)}
               </div>
               <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-                <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>IC Advantages</div>
+                <div style={{ fontSize:9, color:"var(--success)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>IC Advantages</div>
                 {researchResult.ic_competitive_advantages?.map((a,i)=><div key={i} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {a}</div>)}
               </div>
               <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
@@ -1555,7 +1566,7 @@ function WeeklyReportTab() {
          <div style={{ fontSize:12, color:"var(--text-primary)", lineHeight:1.7, marginBottom:12 }}>{digestResult.narrative || digestResult.qualification_summary}</div>
           {(digestResult.top_priorities||digestResult.next_steps)?.length>0 && (
             <div>
-              <div style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Top Priorities</div>
+              <div style={{ fontSize:10, color:"var(--success)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Top Priorities</div>
               {(digestResult.top_priorities||digestResult.next_steps).map((s,si)=>(
                 <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:6 }}>
                   <span style={{ fontSize:9, fontWeight:700, color:typeof s==="object"&&s.priority==="high"?"#f87171":"#fbbf24", background:typeof s==="object"&&s.priority==="high"?"rgba(248,113,113,0.12)":"rgba(251,191,36,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M, flexShrink:0, marginTop:1 }}>{typeof s==="object"?s.priority?.toUpperCase():String(si+1).padStart(2,"0")}</span>
@@ -1595,7 +1606,7 @@ function ROITab() {
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <div style={{ textAlign:"center", padding:"20px 0 8px", animation:"fu 0.5s ease both" }}>
         <div style={{ fontSize:10, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:M, marginBottom:6 }}>Total Client Value Recovered</div>
-        <div style={{ fontSize:44, fontWeight:800, color:"var(--text-muted)", fontFamily:M, lineHeight:1 }}><AnimNum value={Math.round(totalRec)} prefix="$" dur={1800}/></div>
+        <div style={{ fontSize:44, fontWeight:800, color:"var(--success)", fontFamily:M, lineHeight:1 }}><AnimNum value={Math.round(totalRec)} prefix="$" dur={1800}/></div>
       </div>
       {crs.map((c,i)=>(
         <Panel key={c.id} title={c.name} subtitle={`Tier ${c.tier} · ${c.r.moActive} months · ${c.ehr}`}>
@@ -1688,7 +1699,7 @@ function RenewalsTab() {
                 {/* Predict Risk button */}
                 {(!ps||ps===null)&&<button onClick={()=>handlePredictRisk(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Predict Risk</button>}
                 {ps==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Analyzing...</span>}
-                {ps==="done"&&<span style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>✓ Done</span>}
+                {ps==="done"&&<span style={{ fontSize:9, color:"var(--success)", fontFamily:M }}>✓ Done</span>}
                 {ps==="error"&&<span style={{ fontSize:9, color:"var(--danger)", fontFamily:M }}>✗ Error</span>}
               </div>
             </div>
@@ -1733,13 +1744,13 @@ function RenewalsTab() {
                     {pr.churn_signals?.slice(0,3).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {p}</div>)}
                   </div>
                   <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Talking Points</div>
+                    <div style={{ fontSize:9, color:"var(--success)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Talking Points</div>
                     {pr.renewal_talking_points?.slice(0,3).map((s,si)=><div key={si} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {s}</div>)}
                   </div>
                 </div>
                 {pr.upsell_potential&&(
                   <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
-                    <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Upsell Potential</div>
+                    <div style={{ fontSize:9, color:"var(--success)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Upsell Potential</div>
                     <div style={{ fontSize:10, color:"var(--text-primary)" }}>{pr.upsell_potential}</div>
                   </div>
                 )}
@@ -2306,13 +2317,13 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
           {bundleDiscount > 0 && (
             <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-subtle)" }}>
               <span style={{ fontSize:12, color:"var(--success)" }}>Bundle Discount (10% — 2+ individual services)</span>
-              <span style={{ fontSize:12, fontWeight:600, color:"var(--text-muted)", fontFamily:M }}>-${bundleDiscount.toLocaleString()}</span>
+              <span style={{ fontSize:12, fontWeight:600, color:"var(--success)", fontFamily:M }}>-${bundleDiscount.toLocaleString()}</span>
             </div>
           )}
           {onboardingCredit > 0 && (
             <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-subtle)" }}>
               <span style={{ fontSize:12, color:"var(--success)" }}>Onboarding Credit (individual → managed)</span>
-              <span style={{ fontSize:12, fontWeight:600, color:"var(--text-muted)", fontFamily:M }}>-$500</span>
+              <span style={{ fontSize:12, fontWeight:600, color:"var(--success)", fontFamily:M }}>-$500</span>
             </div>
           )}
         </div>
@@ -2327,7 +2338,7 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
       {/* ROI (for managed/mixed) */}
       {mode !== "individual" && (
         <div style={{ display:"flex", gap:10, padding:"12px 14px", background:roi>0?"rgba(74,222,128,0.04)":"rgba(248,113,113,0.04)", borderRadius:8, border:`1px solid ${roi>0?"rgba(74,222,128,0.08)":"rgba(248,113,113,0.08)"}` }}>
-          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>PROJ. REVENUE RECOVERED/YR</div><div style={{ fontSize:18, fontWeight:700, color:"var(--text-muted)", fontFamily:M, marginTop:2 }}>${Math.round(aRev).toLocaleString()}</div><div style={{ fontSize:9, color:"var(--text-muted)" }}>{Math.round(rec)} appts/wk × $65</div></div>
+          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>PROJ. REVENUE RECOVERED/YR</div><div style={{ fontSize:18, fontWeight:700, color:"var(--success)", fontFamily:M, marginTop:2 }}>${Math.round(aRev).toLocaleString()}</div><div style={{ fontSize:9, color:"var(--text-muted)" }}>{Math.round(rec)} appts/wk × $65</div></div>
           <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>STAFF SAVINGS/YR</div><div style={{ fontSize:18, fontWeight:700, color:"#38bdf8", fontFamily:M, marginTop:2 }}>${Math.round(aStaff).toLocaleString()}</div><div style={{ fontSize:9, color:"var(--text-muted)" }}>~10h/wk × $18/hr</div></div>
           <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>YEAR 1 ROI</div><div style={{ fontSize:18, fontWeight:700, color:roi>0?"#4ade80":"#f87171", fontFamily:M, marginTop:2 }}>{Math.round(roi)}%</div></div>
           <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>3-YEAR NET BENEFIT</div><div style={{ fontSize:18, fontWeight:700, color:"var(--warning)", fontFamily:M, marginTop:2 }}>${Math.round((aBen*3)-(totalYear1+(totalMonthly*24))).toLocaleString()}</div></div>
@@ -2386,7 +2397,7 @@ function AutoTab() {
         <KPI label="Cost Today" value={Math.round(AUTOMATIONS.reduce((s,a)=>s+a.costToday,0)*100)/100} prefix="$" spark={[12,14,16,17,18,19]} sparkColor="#fbbf24" delay={120}/>
         <KPI label="Errors 24h" value={AUTOMATIONS.reduce((s,a)=>s+a.errors24h,0)} spark={[2,1,3,0,1,9]} sparkColor={crit.length?"#f87171":"#4ade80"} delay={180}/>
       </div>
-      {crit.length>0&&<div style={{ background:"rgba(var(--danger-rgb,248,113,113),0.06)", border:"1px solid rgba(248,113,113,0.12)", borderRadius:10, padding:"12px 16px" }}>
+      {crit.length>0&&<div style={{ background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.12)", borderRadius:10, padding:"12px 16px" }}>
         <div style={{ fontSize:10, fontWeight:700, color:"var(--danger)", fontFamily:M, marginBottom:6 }}>⚠ CRITICAL</div>
         {crit.map(a=><div key={a.id} style={{ fontSize:12, color:"var(--text-primary)" }}><strong>{a.client}</strong> → {a.name}: {a.successRate}% success</div>)}
       </div>}
@@ -2838,7 +2849,7 @@ function CapTab() {
           <Panel title="New Client Scenarios">
             {scenarios.map((s, i) => {
               const np = Math.round(((teamHoursUsed + s.h) / teamHoursAvail) * 100); const fits = np <= 100;
-              return (<div key={i} style={{ padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, marginBottom: 5, border: `1px solid ${!fits ? "rgba(248,113,113,0.1)" : "rgba(255,255,255,0.03)"}` }}>
+              return (<div key={i} style={{ padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, marginBottom: 5, border: `1px solid ${!fits ? "rgba(248,113,113,0.1)" : "var(--row-hover)"}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 11.5, fontWeight: 600, color: "#e5e7eb" }}>{s.l}</span><span style={{ fontSize: 10.5, fontWeight: 600, color: fits ? "#4ade80" : "#f87171", fontFamily: M }}>{np}%{!fits && " ⚠"}</span></div>
                 <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>+{s.h}h/wk · +${s.r.toLocaleString()}/mo · {fits ? `${teamFree - s.h}h remaining` : "Over capacity — hire first"}</div>
               </div>);
@@ -3102,7 +3113,7 @@ export default function ICBOS() {
           </button>
 
           {/* LIVE badge */}
-          <span style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}>
+          <span style={{ fontSize:9, color:"var(--success)", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}>
             <span style={{ width:4, height:4, borderRadius:"50%", background:"#4ade80" }}/>LIVE
           </span>
 
@@ -3168,7 +3179,7 @@ export default function ICBOS() {
                     allNotifs.map(n => (
                       <div key={n.id} style={{ display:"flex", alignItems:"flex-start", gap:9, padding:"10px 14px", borderBottom:"1px solid var(--border-subtle)", cursor:"pointer" }}
                         onClick={() => { setTab(n.tab); setShowNotifs(false); }}
-                        onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--row-hover)"}
                         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                       >
                         <span style={{ fontSize:14, flexShrink:0, marginTop:1 }}>{n.icon}</span>
@@ -3199,7 +3210,7 @@ export default function ICBOS() {
             {/* ROI Banner */}
             <div style={{ background:"linear-gradient(135deg,rgba(74,222,128,0.05),rgba(56,189,248,0.03))", border:"1px solid rgba(74,222,128,0.08)", borderRadius:12, padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", animation:"fu 0.5s ease both" }}>
               <div><div style={{ fontSize:9, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:M }}>Total Client Value Recovered</div>
-              <div style={{ fontSize:30, fontWeight:800, color:"var(--text-muted)", fontFamily:M, lineHeight:1, marginTop:3 }}><AnimNum value={Math.round(totalROI)} prefix="$" dur={1800}/></div></div>
+              <div style={{ fontSize:30, fontWeight:800, color:"var(--success)", fontFamily:M, lineHeight:1, marginTop:3 }}><AnimNum value={Math.round(totalROI)} prefix="$" dur={1800}/></div></div>
               <button onClick={()=>setTab("roi")} style={{ fontSize:10, color:"var(--success)", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>View →</button>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
