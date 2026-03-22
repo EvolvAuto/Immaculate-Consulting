@@ -7,34 +7,54 @@ import { supabase } from "../lib/supabaseClient";
 // ── Theme CSS Variables ───────────────────────────────────────────────────────
 const THEME_STYLE = `
   [data-theme="dark"] {
-    --bg-page: #0a0a0f;
-    --bg-surface: #13131a;
-    --bg-card: rgba(255,255,255,0.02);
-    --border-color: rgba(255,255,255,0.05);
-    --text-primary: #f0f0f0;
-    --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
-    --text-label: #475569;
-    --header-bg: rgba(10,10,15,0.9);
-    --header-border: rgba(255,255,255,0.04);
-    --success: #4ade80;
-    --warning: #fbbf24;
-    --danger: #f87171;
+    --bg-page:         #071830;
+    --bg-surface:      #0d2b4e;
+    --bg-card:         #0d2b4e;
+    --bg-card-hover:   #0f3058;
+    --bg-input:        rgba(42,182,215,0.06);
+    --border-color:    rgba(42,182,215,0.12);
+    --border-subtle:   rgba(42,182,215,0.08);
+    --accent:          #2ab6d7;
+    --accent-muted:    rgba(42,182,215,0.15);
+    --accent-text:     #2ab6d7;
+    --text-primary:    #f0f8ff;
+    --text-secondary:  #a8c8e8;
+    --text-muted:      #7aaacb;
+    --text-label:      #4a6a8a;
+    --header-bg:       #0d2b4e;
+    --header-border:   rgba(42,182,215,0.15);
+    --popover-bg:      #0a2240;
+    --success:         #4ade80;
+    --warning:         #fbbf24;
+    --danger:          #f87171;
+    --tab-active-bg:   rgba(42,182,215,0.15);
+    --tab-active-text: #2ab6d7;
+    --tab-text:        #7aaacb;
   }
   [data-theme="light"] {
-    --bg-page: #eef6fb;
-    --bg-surface: #ffffff;
-    --bg-card: #ffffff;
-    --border-color: #cce4f0;
-    --text-primary: #0d2b4e;
-    --text-secondary: #2d5f80;
-    --text-muted: #5a8aaa;
-    --text-label: #7aaacb;
-    --header-bg: #0d2b4e;
-    --header-border: rgba(42,182,215,0.2);
-    --success: #16a34a;
-    --warning: #d97706;
-    --danger: #dc2626;
+    --bg-page:         #eef6fb;
+    --bg-surface:      #ffffff;
+    --bg-card:         #ffffff;
+    --bg-card-hover:   #f5fafd;
+    --bg-input:        #f0f7fc;
+    --border-color:    #cce4f0;
+    --border-subtle:   #ddedf7;
+    --accent:          #2ab6d7;
+    --accent-muted:    rgba(42,182,215,0.12);
+    --accent-text:     #1664a0;
+    --text-primary:    #0d2b4e;
+    --text-secondary:  #2d5f80;
+    --text-muted:      #5a8aaa;
+    --text-label:      #7aaacb;
+    --header-bg:       #0d2b4e;
+    --header-border:   rgba(42,182,215,0.2);
+    --popover-bg:      #ffffff;
+    --success:         #16a34a;
+    --warning:         #d97706;
+    --danger:          #dc2626;
+    --tab-active-bg:   rgba(42,182,215,0.15);
+    --tab-active-text: #2ab6d7;
+    --tab-text:        #a8c8e8;
   }
 `;
 
@@ -260,10 +280,10 @@ function Spark({ data, color="#4ade80", h=30, w=80 }) {
 
 function KPI({ label, value, prefix, suffix, change, spark, sparkColor, delay=0 }) {
   return (
-    <div style={{ background:"rgba(255,255,255,0.025)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:12, padding:"16px 18px", display:"flex", flexDirection:"column", gap:5, animation:`fu 0.5s ease ${delay}ms both`, position:"relative", overflow:"hidden" }}>
+    <div style={{ background:"var(--bg-card)", border:"1px solid var(--border-color)", borderRadius:12, padding:"16px 18px", display:"flex", flexDirection:"column", gap:5, animation:`fu 0.5s ease ${delay}ms both`, position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute", bottom:4, right:12, opacity:0.5 }}><Spark data={spark} color={sparkColor} h={28} w={60}/></div>
-      <span style={{ fontSize:10, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:M }}>{label}</span>
-      <span style={{ fontSize:24, fontWeight:700, color:"#f0f0f0", fontFamily:M, lineHeight:1 }}><AnimNum value={value} prefix={prefix} suffix={suffix}/></span>
+      <span style={{ fontSize:10, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:M }}>{label}</span>
+      <span style={{ fontSize:24, fontWeight:700, color:"var(--text-primary)", fontFamily:M, lineHeight:1 }}><AnimNum value={value} prefix={prefix} suffix={suffix}/></span>
       {change!==undefined&&<span style={{ fontSize:10, color:change>0?"#4ade80":"#f87171", fontFamily:M }}>{change>0?"▲":"▼"} {Math.abs(change)}%</span>}
     </div>
   );
@@ -271,9 +291,9 @@ function KPI({ label, value, prefix, suffix, change, spark, sparkColor, delay=0 
 
 function Panel({ title, subtitle, action, children, style:s }) {
   return (
-    <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:12, padding:"18px 20px", ...s }}>
-      {(title||action)&&<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:subtitle?4:14 }}><span style={{ fontSize:13, fontWeight:600, color:"#e5e7eb" }}>{title}</span>{action}</div>}
-      {subtitle&&<div style={{ fontSize:10.5, color:"#6b7280", marginBottom:14, fontFamily:M }}>{subtitle}</div>}
+    <div style={{ background:"var(--bg-card)", border:"1px solid var(--border-color)", borderRadius:12, padding:"18px 20px", ...s }}>
+      {(title||action)&&<div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:subtitle?4:14 }}><span style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>{title}</span>{action}</div>}
+      {subtitle&&<div style={{ fontSize:10.5, color:"var(--text-muted)", marginBottom:14, fontFamily:M }}>{subtitle}</div>}
       {children}
     </div>
   );
@@ -286,7 +306,7 @@ function TaskItem({ task, delay=0 }) {
     <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:7, background:done?"rgba(74,222,128,0.04)":"rgba(255,255,255,0.02)", border:`1px solid ${done?"rgba(74,222,128,0.08)":"rgba(255,255,255,0.04)"}`, animation:`fu 0.3s ease ${delay}ms both`, opacity:done?0.4:1, transition:"all 0.3s" }}>
       <button onClick={()=>setDone(!done)} style={{ width:16, height:16, borderRadius:4, border:`2px solid ${done?"#4ade80":pc[task.priority]}`, background:done?"#4ade80":"transparent", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>{done&&<span style={{color:"#111",fontSize:10,fontWeight:800}}>✓</span>}</button>
       <span style={{ flex:1, fontSize:12, color:done?"#6b7280":"#e5e7eb", textDecoration:done?"line-through":"none" }}>{task.text}</span>
-      <span style={{ fontSize:10, color:"#6b7280", fontFamily:M, flexShrink:0 }}>{task.due}</span>
+      <span style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, flexShrink:0 }}>{task.due}</span>
     </div>
   );
 }
@@ -298,9 +318,9 @@ function RevChart({ data }) {
       {data.map((d,i)=>(<div key={d.month} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4, animation:`fu 0.5s ease ${i*50}ms both` }}>
         <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:100 }}>
           <div style={{ width:12, height:(d.revenue/mx)*90, borderRadius:"3px 3px 0 0", background:"linear-gradient(to top,#4f46e5,#818cf8)" }}/>
-          <div style={{ width:8, height:(d.expenses/mx)*90, borderRadius:"3px 3px 0 0", background:"rgba(255,255,255,0.06)" }}/>
+          <div style={{ width:8, height:(d.expenses/mx)*90, borderRadius:"3px 3px 0 0", background:"var(--bg-input)" }}/>
         </div>
-        <span style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>{d.month}</span>
+        <span style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>{d.month}</span>
       </div>))}
     </div>
   );
@@ -371,22 +391,22 @@ const handleGenerateOutreach = async (deal) => {
         return (<div key={stg} style={{ minWidth:185, flex:"1 0 185px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:6, padding:"0 2px" }}>
             <span style={{ width:6, height:6, borderRadius:"50%", background:c.dot }}/><span style={{ fontSize:10, fontWeight:600, color:c.text, textTransform:"uppercase", letterSpacing:"0.05em", fontFamily:M }}>{STAGE_LABELS[stg]}</span>
-            <span style={{ fontSize:9, color:"#6b7280", marginLeft:"auto", fontFamily:M }}>${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}</span>
+            <span style={{ fontSize:9, color:"var(--text-muted)", marginLeft:"auto", fontFamily:M }}>${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}</span>
           </div>
           {deals.map(d=>{
             const ps = proposalStates[d.id];
             return (<div key={d.id} style={{ background:c.bg, border:`1px solid ${c.border}15`, borderRadius:9, padding:"10px 12px", marginBottom:6 }}>
-              <div style={{ fontSize:12, fontWeight:600, color:"#e5e7eb" }}>{d.practice}</div>
-              <div style={{ fontSize:10, color:"#9ca3af", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
+              <div style={{ fontSize:12, fontWeight:600, color:"var(--text-primary)" }}>{d.practice}</div>
+              <div style={{ fontSize:10, color:"var(--text-secondary)", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
                 <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
                 <span style={{ fontSize:8, fontWeight:600, color:"#111", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
               </div>
-              <div style={{ fontSize:10, color:"#6b7280", marginTop:5 }}>→ {d.nextAction}</div>
+              <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:5 }}>→ {d.nextAction}</div>
               {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
              {/* Agent 7 — Generate Outreach button (Cold stage only) */}
               {d.stage === "cold" && (
-                <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid var(--border-color)" }}>
                   {outreachStates[d.id] === "loading" && <div style={{ fontSize:9, color:"#38bdf8", fontFamily:M, textAlign:"center", padding:"4px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", display:"inline-block", animation:"pr 1.2s ease-out infinite" }}/>Writing outreach...</div>}
                   {outreachStates[d.id] === "error" && <div style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error — try again</div>}
                   {outreachStates[d.id] === "done" && outreachResults[d.id] && (
@@ -396,12 +416,12 @@ const handleGenerateOutreach = async (deal) => {
                         <button onClick={() => setExpandedOutreach(prev => ({...prev, [d.id]: !prev[d.id]}))} style={{ fontSize:9, color:"#a5b4fc", background:"transparent", border:"1px solid rgba(99,102,241,0.2)", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>{expandedOutreach[d.id] ? "Hide" : "View"}</button>
                       </div>
                       {expandedOutreach[d.id] && (
-                        <div style={{ background:"rgba(0,0,0,0.2)", borderRadius:6, padding:"8px 10px" }}>
-                          <div style={{ fontSize:9, fontWeight:600, color:"#e5e7eb", marginBottom:4 }}>Subj: {outreachResults[d.id].subject}</div>
-                          <div style={{ fontSize:10, color:"#9ca3af", lineHeight:1.5, marginBottom:6, whiteSpace:"pre-wrap" }}>{outreachResults[d.id].body}</div>
+                        <div style={{ background:"var(--bg-input)", borderRadius:6, padding:"8px 10px" }}>
+                          <div style={{ fontSize:9, fontWeight:600, color:"var(--text-primary)", marginBottom:4 }}>Subj: {outreachResults[d.id].subject}</div>
+                          <div style={{ fontSize:10, color:"var(--text-secondary)", lineHeight:1.5, marginBottom:6, whiteSpace:"pre-wrap" }}>{outreachResults[d.id].body}</div>
                           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                            <span style={{ fontSize:9, color:"#6b7280" }}>Follow up in {outreachResults[d.id].follow_up_timing}d</span>
-                            <button onClick={() => navigator.clipboard?.writeText(`Subject: ${outreachResults[d.id].subject}\n\n${outreachResults[d.id].body}`)} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>Copy</button>
+                            <span style={{ fontSize:9, color:"var(--text-muted)" }}>Follow up in {outreachResults[d.id].follow_up_timing}d</span>
+                            <button onClick={() => navigator.clipboard?.writeText(`Subject: ${outreachResults[d.id].subject}\n\n${outreachResults[d.id].body}`)} style={{ fontSize:9, color:"var(--text-muted)", background:"transparent", border:"1px solid var(--border-color)", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>Copy</button>
                           </div>
                         </div>
                       )}
@@ -415,7 +435,7 @@ const handleGenerateOutreach = async (deal) => {
                 </div>
               )}
               {/* Agent 1 — Generate Proposal button */}
-              <div style={{ marginTop:d.stage==="cold"?4:8, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+              <div style={{ marginTop:d.stage==="cold"?4:8, paddingTop:8, borderTop:"1px solid var(--border-color)" }}>
                 {ps === 'done' && <div style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
                 {ps === 'error' && <div style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error — check agent logs</div>}
                 {ps === 'nomock' && <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M }}>⚡ Live data needed (Task 17)</div>}
@@ -609,8 +629,8 @@ function ClientsTab({ onShowForm, canEdit = true }) {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
-          <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Client Health</h2>
-          <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>{CLIENTS.length} clients · Agent 5 analysis available</p>
+          <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Client Health</h2>
+          <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>{CLIENTS.length} clients · Agent 5 analysis available</p>
         </div>
         {onShowForm && <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Client</button>}
       </div>
@@ -640,10 +660,10 @@ function ClientsTab({ onShowForm, canEdit = true }) {
               <div style={{ display:"grid", gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1fr auto", gap:8, alignItems:"center", fontSize:12 }}>
                 <div>
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                    <span style={{ fontWeight:600, color:"#e5e7eb" }}>{c.name}</span>
+                    <span style={{ fontWeight:600, color:"var(--text-primary)" }}>{c.name}</span>
                     {isAtRisk&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M }}>AT RISK</span>}
                   </div>
-                  <div style={{ fontSize:10, color:"#6b7280", marginTop:1 }}>T{c.tier} · {c.ehr}</div>
+                  <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:1 }}>T{c.tier} · {c.ehr}</div>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:4 }}>
                   <span style={{ width:5, height:5, borderRadius:"50%", background:stc[c.status]||"#6b7280" }}/>
@@ -654,11 +674,11 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                   <span style={{ fontSize:11, color:trendColor }}>{trendIcon}</span>
                 </div>
                 <div style={{ fontFamily:M }}>
-                  <span style={{ color:"#f0f0f0" }}>{c.noShowCurrent}%</span>
+                  <span style={{ color:"var(--text-primary)" }}>{c.noShowCurrent}%</span>
                   {noShowImprovement>0&&<span style={{ color:"#4ade80", fontSize:9, marginLeft:3 }}>↓{noShowImprovement.toFixed(1)}</span>}
                 </div>
-                <span style={{ fontFamily:M, color:"#f0f0f0" }}>${c.monthlyFee.toLocaleString()}</span>
-                <span style={{ fontSize:10.5, color:"#9ca3af" }}>{c.nextMilestone}</span>
+                <span style={{ fontFamily:M, color:"var(--text-primary)" }}>${c.monthlyFee.toLocaleString()}</span>
+                <span style={{ fontSize:10.5, color:"var(--text-secondary)" }}>{c.nextMilestone}</span>
                 {/* Analyze + Report buttons */}
                 <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
                   {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
@@ -683,35 +703,35 @@ function ClientsTab({ onShowForm, canEdit = true }) {
 
               {/* Analysis result panel */}
               {as==="done"&&ar&&(
-  <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.05)", display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, animation:"fu 0.3s ease both" }}>
-    <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
-      <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Health Score</div>
+  <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid var(--border-color)", display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, animation:"fu 0.3s ease both" }}>
+    <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7, textAlign:"center" }}>
+      <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Health Score</div>
       <div style={{ fontSize:20, fontWeight:800, color:ar.health_score>=70?"#4ade80":ar.health_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{ar.health_score}</div>
       <div style={{ fontSize:9, color: ar.risk_level==="high"?"#f87171":ar.risk_level==="medium"?"#fbbf24":"#4ade80", fontWeight:600, textTransform:"uppercase", marginTop:2 }}>{ar.risk_level} risk</div>
     </div>
-    <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
+    <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
       <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Risk Factors</div>
-      {ar.risk_factors?.slice(0,2).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
+      {ar.risk_factors?.slice(0,2).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {p}</div>)}
     </div>
-    <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
+    <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
       <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Interventions</div>
-      {ar.recommended_interventions?.slice(0,2).map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
+      {ar.recommended_interventions?.slice(0,2).map((s,si)=><div key={si} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {s}</div>)}
     </div>
     {ar.renewal_talking_points?.length>0&&(
       <div style={{ padding:"8px 10px", background:"rgba(251,191,36,0.04)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:7 }}>
         <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Outlook: {ar.renewal_outlook}</div>
-        {ar.renewal_talking_points.slice(0,2).map((t,ti)=><div key={ti} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {t}</div>)}
+        {ar.renewal_talking_points.slice(0,2).map((t,ti)=><div key={ti} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {t}</div>)}
       </div>
     )}
     {ar.upsell_opportunity&&(
       <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
         <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Upsell Opportunity</div>
-        <div style={{ fontSize:10, color:"#e5e7eb" }}>{ar.upsell_opportunity}</div>
+        <div style={{ fontSize:10, color:"var(--text-primary)" }}>{ar.upsell_opportunity}</div>
       </div>
     )}
     <div style={{ gridColumn:"1/-1", padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-      <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
-      <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{ar.agent_summary}</div>
+      <div style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+      <div style={{ fontSize:11, color:"var(--text-secondary)", lineHeight:1.4 }}>{ar.agent_summary}</div>
     </div>
   </div>
 )}
@@ -734,27 +754,27 @@ function ClientsTab({ onShowForm, canEdit = true }) {
                       { label:"Annual Benefit", value:`$${(reportResults[c.id].metrics?.totalBenefit||0).toLocaleString()}`, color:"#fbbf24" },
                       { label:"Year 1 ROI", value:`${reportResults[c.id].metrics?.roi}%`, color:"#4ade80" },
                     ].map((kpi,ki) => (
-                      <div key={ki} style={{ padding:"8px", background:"rgba(0,0,0,0.2)", borderRadius:6, textAlign:"center" }}>
+                      <div key={ki} style={{ padding:"8px", background:"var(--bg-input)", borderRadius:6, textAlign:"center" }}>
                         <div style={{ fontSize:14, fontWeight:700, color:kpi.color, fontFamily:M }}>{kpi.value}</div>
-                        <div style={{ fontSize:9, color:"#6b7280", marginTop:2 }}>{kpi.label}</div>
+                        <div style={{ fontSize:9, color:"var(--text-muted)", marginTop:2 }}>{kpi.label}</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:7, marginBottom:8 }}>
-                    <div style={{ fontSize:10, color:"#94a3b8", marginBottom:4 }}>Executive Summary</div>
-                    <div style={{ fontSize:11, color:"#e2e8f0", lineHeight:1.5 }}>{reportResults[c.id].executive_summary}</div>
+                  <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:7, marginBottom:8 }}>
+                    <div style={{ fontSize:10, color:"var(--text-secondary)", marginBottom:4 }}>Executive Summary</div>
+                    <div style={{ fontSize:11, color:"var(--text-primary)", lineHeight:1.5 }}>{reportResults[c.id].executive_summary}</div>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                     <div style={{ padding:"10px 12px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
                       <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Highlights</div>
                       {reportResults[c.id].performance_highlights?.slice(0,3).map((h,hi) => (
-                        <div key={hi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:3 }}>✓ {h}</div>
+                        <div key={hi} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:3 }}>✓ {h}</div>
                       ))}
                     </div>
                     <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                      <div style={{ fontSize:10, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommendations</div>
+                      <div style={{ fontSize:10, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommendations</div>
                       {reportResults[c.id].recommendations?.slice(0,3).map((r,ri) => (
-                        <div key={ri} style={{ fontSize:10, color:"#e5e7eb", marginBottom:3 }}>→ {r}</div>
+                        <div key={ri} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:3 }}>→ {r}</div>
                       ))}
                     </div>
                   </div>
@@ -809,22 +829,22 @@ function InvoicingTab() {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Invoicing & Billing</h2>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Invoicing & Billing</h2>
         <button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"invoice"}))} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Invoice</button>
       </div>
 
       {/* Collections summary bar */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, padding:"12px 16px", background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:10 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, padding:"12px 16px", background:"var(--bg-card)", border:"1px solid var(--border-color)", borderRadius:10 }}>
         <div>
-          <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Total A/R Outstanding</div>
+          <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Total A/R Outstanding</div>
           <div style={{ fontSize:18, fontWeight:700, color:"#fbbf24", fontFamily:M }}>${totalAR.toLocaleString()}</div>
         </div>
         <div>
-          <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}># Overdue</div>
+          <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}># Overdue</div>
           <div style={{ fontSize:18, fontWeight:700, color:overdue.length>0?"#f87171":"#4ade80", fontFamily:M }}>{overdue.length}</div>
         </div>
         <div>
-          <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Oldest Outstanding</div>
+          <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Oldest Outstanding</div>
           <div style={{ fontSize:14, fontWeight:700, color:"#f87171", fontFamily:M }}>{oldestOverdue ? `${oldestOverdue.client} — Due ${oldestOverdue.due}` : "None"}</div>
         </div>
       </div>
@@ -837,8 +857,8 @@ function InvoicingTab() {
       </div>
 
       {/* Invoice rows */}
-      <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:12, overflow:"hidden" }}>
-        <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.06)", fontSize:9.5, fontWeight:600, color:"#6b7280", textTransform:"uppercase", fontFamily:M }}>
+      <div style={{ background:"var(--bg-card)", border:"1px solid var(--border-color)", borderRadius:12, overflow:"hidden" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, padding:"10px 16px", borderBottom:"1px solid var(--border-color)", fontSize:9.5, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", fontFamily:M }}>
           <span>Invoice</span><span>Client</span><span>Type</span><span>Amount</span><span>Usage</span><span>Total</span><span>Status</span><span>Action</span>
         </div>
         {INVOICES.map((inv,i)=>{
@@ -848,18 +868,18 @@ function InvoicingTab() {
           const daysOverdue = isOverdue ? Math.round((Date.now()-new Date(inv.due))/864e5) : 0;
           return (
             <div key={inv.id}>
-              <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, alignItems:"center", padding:"10px 16px", borderBottom:"1px solid rgba(255,255,255,0.03)", fontSize:12, animation:`fu 0.3s ease ${i*30}ms both`, background:isOverdue?"rgba(248,113,113,0.03)":"transparent" }}>
-                <span style={{ fontFamily:M, color:"#9ca3af", fontSize:11 }}>{inv.id}</span>
-                <span style={{ fontWeight:600, color:"#e5e7eb" }}>{inv.client}</span>
-                <span style={{ fontSize:11, color:"#9ca3af" }}>{inv.type}</span>
-                <span style={{ fontFamily:M, color:"#f0f0f0" }}>${inv.amount.toLocaleString()}</span>
-                <span style={{ fontFamily:M, color:"#6b7280" }}>${inv.usageCost}</span>
-                <span style={{ fontFamily:M, color:"#f0f0f0", fontWeight:600 }}>${inv.total.toLocaleString()}</span>
+              <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, alignItems:"center", padding:"10px 16px", borderBottom:"1px solid var(--border-color)", fontSize:12, animation:`fu 0.3s ease ${i*30}ms both`, background:isOverdue?"rgba(248,113,113,0.03)":"transparent" }}>
+                <span style={{ fontFamily:M, color:"var(--text-secondary)", fontSize:11 }}>{inv.id}</span>
+                <span style={{ fontWeight:600, color:"var(--text-primary)" }}>{inv.client}</span>
+                <span style={{ fontSize:11, color:"var(--text-secondary)" }}>{inv.type}</span>
+                <span style={{ fontFamily:M, color:"var(--text-primary)" }}>${inv.amount.toLocaleString()}</span>
+                <span style={{ fontFamily:M, color:"var(--text-muted)" }}>${inv.usageCost}</span>
+                <span style={{ fontFamily:M, color:"var(--text-primary)", fontWeight:600 }}>${inv.total.toLocaleString()}</span>
                 <div style={{ display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
                   <span style={{ fontSize:10, fontWeight:600, color:stColors[inv.status], textTransform:"uppercase" }}>{inv.status}</span>
                   {isOverdue&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.15)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>{daysOverdue}d</span>}
                   {inv.stripe_invoice_id&&inv.status==="paid"&&(
-                    <span style={{ fontSize:8, fontWeight:700, color:"#818cf8", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>
+                    <span style={{ fontSize:8, fontWeight:700, color:"var(--accent)", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>
                       ⚡ Stripe
                     </span>
                   )}
@@ -873,23 +893,23 @@ function InvoicingTab() {
               </div>
               {/* Agent-drafted email panel */}
               {fs==="done"&&fr&&expandedEmail[inv.id]&&(
-  <div style={{ padding:"12px 16px", background:"rgba(99,102,241,0.04)", borderBottom:"1px solid rgba(255,255,255,0.03)", animation:"fu 0.3s ease both" }}>
+  <div style={{ padding:"12px 16px", background:"rgba(99,102,241,0.04)", borderBottom:"1px solid var(--border-color)", animation:"fu 0.3s ease both" }}>
     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <span style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M }}>🤖 AGENT-DRAFTED FOLLOW-UP EMAIL</span>
+        <span style={{ fontSize:10, fontWeight:700, color:"var(--accent)", fontFamily:M }}>🤖 AGENT-DRAFTED FOLLOW-UP EMAIL</span>
         {fr.escalation_level&&<span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color:fr.escalation_level==="final"?"#f87171":fr.escalation_level==="firm"?"#fbbf24":"#4ade80", background:fr.escalation_level==="final"?"rgba(248,113,113,0.1)":fr.escalation_level==="firm"?"rgba(251,191,36,0.1)":"rgba(74,222,128,0.1)", border:`1px solid ${fr.escalation_level==="final"?"rgba(248,113,113,0.2)":fr.escalation_level==="firm"?"rgba(251,191,36,0.2)":"rgba(74,222,128,0.2)"}`, borderRadius:4, padding:"1px 6px" }}>{fr.escalation_level}</span>}
         {fr.flag_for_service_pause&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:4, padding:"1px 6px" }}>⚠ FLAG: SERVICE PAUSE</span>}
       </div>
-      <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
+      <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"var(--text-muted)", background:"transparent", border:"1px solid var(--border-color)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
     </div>
-    {fr.subject&&<div style={{ fontSize:10, fontWeight:600, color:"#e5e7eb", marginBottom:8, padding:"6px 10px", background:"rgba(255,255,255,0.03)", borderRadius:5 }}>Subject: {fr.subject}</div>}
-    <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.6, padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:7, whiteSpace:"pre-wrap" }}>
+    {fr.subject&&<div style={{ fontSize:10, fontWeight:600, color:"var(--text-primary)", marginBottom:8, padding:"6px 10px", background:"var(--bg-card)", borderRadius:5 }}>Subject: {fr.subject}</div>}
+    <div style={{ fontSize:11, color:"var(--text-secondary)", lineHeight:1.6, padding:"10px 12px", background:"var(--bg-input)", borderRadius:7, whiteSpace:"pre-wrap" }}>
       {fr.body}
     </div>
     {fr.recommended_action&&(
       <div style={{ marginTop:8, padding:"6px 10px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:5 }}>
-        <span style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600 }}>Next Action: </span>
-        <span style={{ fontSize:10, color:"#e5e7eb" }}>{fr.recommended_action}</span>
+        <span style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600 }}>Next Action: </span>
+        <span style={{ fontSize:10, color:"var(--text-primary)" }}>{fr.recommended_action}</span>
       </div>
     )}
   </div>
@@ -964,8 +984,8 @@ function OnboardingTab() {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <div>
-        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Onboarding Tracker</h2>
-        <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>Agent 3 — Onboarding Orchestrator available per project</p>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Onboarding Tracker</h2>
+        <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>Agent 3 — Onboarding Orchestrator available per project</p>
       </div>
 
       {ONBOARDING.map((proj,pi)=>{
@@ -989,8 +1009,8 @@ function OnboardingTab() {
                 <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
                   <div style={{ height:6, borderRadius:3, background:ph.status==="complete"?"#4ade80":ph.status==="in-progress"?"linear-gradient(90deg,#fbbf24 60%,rgba(255,255,255,0.06) 60%)":"rgba(255,255,255,0.04)" }}/>
                   <span style={{ fontSize:9, fontWeight:600, color:phaseColors[ph.status], fontFamily:M, textTransform:"uppercase" }}>{ph.name}</span>
-                  <span style={{ fontSize:9, color:"#6b7280" }}>{ph.start} – {ph.end}</span>
-                  {ph.notes&&<span style={{ fontSize:10, color:"#9ca3af", lineHeight:1.3 }}>{ph.notes}</span>}
+                  <span style={{ fontSize:9, color:"var(--text-muted)" }}>{ph.start} – {ph.end}</span>
+                  {ph.notes&&<span style={{ fontSize:10, color:"var(--text-secondary)", lineHeight:1.3 }}>{ph.notes}</span>}
                 </div>
               ))}
             </div>
@@ -999,30 +1019,30 @@ function OnboardingTab() {
             {proj.risks.length>0&&(
               <div style={{ padding:"10px 14px", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:8, marginBottom:12 }}>
                 <div style={{ fontSize:10, fontWeight:600, color:"#fbbf24", fontFamily:M, marginBottom:4 }}>RISKS</div>
-                {proj.risks.map((r,i)=><div key={i} style={{ fontSize:11, color:"#e5e7eb", marginBottom:2 }}>• {r}</div>)}
+                {proj.risks.map((r,i)=><div key={i} style={{ fontSize:11, color:"var(--text-primary)", marginBottom:2 }}>• {r}</div>)}
               </div>
             )}
 
             {/* Agent 3 result panel */}
             {ps==="done"&&pr&&(
-              <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", paddingTop:12, display:"flex", flexDirection:"column", gap:10, animation:"fu 0.3s ease both" }}>
-                <div style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
+              <div style={{ borderTop:"1px solid var(--border-color)", paddingTop:12, display:"flex", flexDirection:"column", gap:10, animation:"fu 0.3s ease both" }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
                   🤖 Agent 3 — Onboarding Orchestrator
                 </div>
 
                 {/* Summary */}
                 <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderLeft:"3px solid #6366f1", borderRadius:7 }}>
-                  <div style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.5 }}>{pr.summary || pr.qualification_summary}</div>
+                  <div style={{ fontSize:11, color:"var(--text-primary)", lineHeight:1.5 }}>{pr.summary || pr.qualification_summary}</div>
                 </div>
 
                 {/* Task list */}
                {(pr.task_list||pr.next_steps)?.length>0&&(
-                  <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                  <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:7 }}>
                     <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Generated Task List ({(pr.task_list||pr.next_steps).length} tasks)</div>
                     {(pr.task_list||pr.next_steps).map((s,si)=>(
                       <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:5 }}>
                         <span style={{ width:16, height:16, borderRadius:4, border:"1.5px solid rgba(99,102,241,0.3)", flexShrink:0, marginTop:1 }}/>
-                        <span style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.4 }}>{typeof s === 'object' ? `[${s.phase}] ${s.task} — ${s.owner} (${s.duration})` : s}</span>
+                        <span style={{ fontSize:11, color:"var(--text-primary)", lineHeight:1.4 }}>{typeof s === 'object' ? `[${s.phase}] ${s.task} — ${s.owner} (${s.duration})` : s}</span>
                       </div>
                     ))}
                   </div>
@@ -1037,12 +1057,12 @@ function OnboardingTab() {
                       {expandedKickoff[proj.id] ? "Hide Kickoff Email" : "📧 View Kickoff Email Draft"}
                     </button>
                     {expandedKickoff[proj.id]&&(
-                      <div style={{ padding:"12px 14px", background:"rgba(0,0,0,0.2)", borderRadius:8, animation:"fu 0.2s ease both" }}>
+                      <div style={{ padding:"12px 14px", background:"var(--bg-input)", borderRadius:8, animation:"fu 0.2s ease both" }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                          <span style={{ fontSize:10, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>Kickoff Email Draft</span>
-                          <button onClick={()=>navigator.clipboard?.writeText(pr.pain_points.join("\n"))} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
+                          <span style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>Kickoff Email Draft</span>
+                          <button onClick={()=>navigator.clipboard?.writeText(pr.pain_points.join("\n"))} style={{ fontSize:9, color:"var(--text-muted)", background:"transparent", border:"1px solid var(--border-color)", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
                         </div>
-                     <div style={{ fontSize:11, color:"#d1d5db", lineHeight:1.6 }}>{pr.kickoff_email?.body || (Array.isArray(pr.pain_points) ? pr.pain_points.join("\n") : pr.pain_points)}</div>
+                     <div style={{ fontSize:11, color:"var(--text-primary)", lineHeight:1.6 }}>{pr.kickoff_email?.body || (Array.isArray(pr.pain_points) ? pr.pain_points.join("\n") : pr.pain_points)}</div>
                       </div>
                     )}
                   </div>
@@ -1050,13 +1070,13 @@ function OnboardingTab() {
               </div>
             )}
          {/* Progress Update Log */}
-            <div style={{ marginTop:16, borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:16 }}>
-              <p style={{ color:"#94a3b8", fontSize:11, fontWeight:600, marginBottom:10, textTransform:"uppercase", letterSpacing:"0.05em" }}>Progress Log</p>
+            <div style={{ marginTop:16, borderTop:"1px solid var(--border-color)", paddingTop:16 }}>
+              <p style={{ color:"var(--text-secondary)", fontSize:11, fontWeight:600, marginBottom:10, textTransform:"uppercase", letterSpacing:"0.05em" }}>Progress Log</p>
               <div style={{ display:"flex", gap:8, marginBottom:12 }}>
                 <select
                   value={onboardingUpdateStatus}
                   onChange={e => setOnboardingUpdateStatus(e.target.value)}
-                  style={{ background:"#1e293b", color:"#94a3b8", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 8px", fontSize:12 }}
+                  style={{ background:"#1e293b", color:"var(--text-secondary)", border:"1px solid var(--border-color)", borderRadius:6, padding:"6px 8px", fontSize:12 }}
                 >
                   <option value="note">📝 Note</option>
                   <option value="milestone">🏆 Milestone</option>
@@ -1067,12 +1087,12 @@ function OnboardingTab() {
                   value={onboardingUpdateText}
                   onChange={e => setOnboardingUpdateText(e.target.value)}
                   placeholder="Log a progress update..."
-                  style={{ flex:1, background:"#1e293b", color:"#e2e8f0", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 12px", fontSize:13 }}
+                  style={{ flex:1, background:"#1e293b", color:"var(--text-primary)", border:"1px solid var(--border-color)", borderRadius:6, padding:"6px 12px", fontSize:13 }}
                 />
                 <button
                   onClick={() => saveOnboardingUpdate(proj)}
                   disabled={savingUpdate || !onboardingUpdateText.trim()}
-                  style={{ background:"#6366f1", color:"white", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
+                  style={{ background:"#6366f1", color:"var(--text-primary)", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
                 >
                   {savingUpdate ? "..." : "Log"}
                 </button>
@@ -1083,8 +1103,8 @@ function OnboardingTab() {
                     {u.status === "milestone" ? "🏆" : u.status === "blocker" ? "🚧" : u.status === "resolved" ? "✅" : "📝"}
                   </span>
                   <div>
-                    <p style={{ color:"#e2e8f0", fontSize:13, margin:0 }}>{u.update_text}</p>
-                    <p style={{ color:"#475569", fontSize:11, margin:"2px 0 0" }}>
+                    <p style={{ color:"var(--text-primary)", fontSize:13, margin:0 }}>{u.update_text}</p>
+                    <p style={{ color:"var(--text-label)", fontSize:11, margin:"2px 0 0" }}>
                       {u.phase_name && `${u.phase_name} · `}
                       {new Date(u.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric' })}
                     </p>
@@ -1092,7 +1112,7 @@ function OnboardingTab() {
                 </div>
               ))}
               {(onboardingUpdates[proj.id] || []).length === 0 && (
-                <p style={{ color:"#475569", fontSize:12, fontStyle:"italic" }}>No updates logged yet.</p>
+                <p style={{ color:"var(--text-label)", fontSize:12, fontStyle:"italic" }}>No updates logged yet.</p>
               )}
             </div>
           </Panel>
@@ -1108,7 +1128,7 @@ function ProfitabilityTab() {
   const bestRate = Math.max(...active.map(c=>c.p.effectiveRate));
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-      <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Client Profitability</h2>
+      <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Client Profitability</h2>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
         <KPI label="Avg Effective Rate" value={Math.round(active.reduce((s,c)=>s+c.p.effectiveRate,0)/active.length)} prefix="$" suffix="/hr" spark={[120,140,155,165,175,180]} sparkColor="#4ade80"/>
         <KPI label="Avg Margin" value={Math.round(active.reduce((s,c)=>s+c.p.margin,0)/active.length)} suffix="%" spark={[60,65,68,70,72,74]} sparkColor="#818cf8" delay={80}/>
@@ -1118,12 +1138,12 @@ function ProfitabilityTab() {
         const barW = c.p.effectiveRate > 0 ? (c.p.effectiveRate / bestRate) * 100 : 0;
         const rateColor = c.p.effectiveRate >= 200 ? "#4ade80" : c.p.effectiveRate >= 100 ? "#fbbf24" : "#f87171";
         return (
-          <div key={c.id} style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:10, padding:"16px 18px", animation:`fu 0.4s ease ${i*60}ms both` }}>
+          <div key={c.id} style={{ background:"var(--bg-card)", border:"1px solid var(--border-color)", borderRadius:10, padding:"16px 18px", animation:`fu 0.4s ease ${i*60}ms both` }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
-              <div><span style={{ fontSize:13, fontWeight:600, color:"#e5e7eb" }}>{c.name}</span><span style={{ fontSize:11, color:"#6b7280", marginLeft:8 }}>Tier {c.tier} · {c.ehr}</span></div>
+              <div><span style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>{c.name}</span><span style={{ fontSize:11, color:"var(--text-muted)", marginLeft:8 }}>Tier {c.tier} · {c.ehr}</span></div>
               <span style={{ fontSize:20, fontWeight:800, color:rateColor, fontFamily:M }}>${Math.round(c.p.effectiveRate)}<span style={{ fontSize:11, fontWeight:400 }}>/hr</span></span>
             </div>
-            <div style={{ height:8, borderRadius:4, background:"rgba(255,255,255,0.04)", marginBottom:10 }}>
+            <div style={{ height:8, borderRadius:4, background:"var(--bg-card)", marginBottom:10 }}>
               <div style={{ height:"100%", borderRadius:4, background:rateColor, width:`${barW}%`, transition:"width 0.8s" }}/>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8, fontSize:11 }}>
@@ -1134,7 +1154,7 @@ function ProfitabilityTab() {
                 { l:"Monthly Profit", v:`$${Math.round(c.p.monthlyProfit).toLocaleString()}`, cl:"#4ade80" },
                 { l:"Margin", v:`${Math.round(c.p.margin)}%`, cl:c.p.margin>=70?"#4ade80":"#fbbf24" },
               ].map((m,j)=>(
-                <div key={j}><div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>{m.l}</div><div style={{ fontSize:13, fontWeight:600, color:m.cl, fontFamily:M, marginTop:2 }}>{m.v}</div></div>
+                <div key={j}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>{m.l}</div><div style={{ fontSize:13, fontWeight:600, color:m.cl, fontFamily:M, marginTop:2 }}>{m.v}</div></div>
               ))}
             </div>
           </div>
@@ -1213,7 +1233,7 @@ const handleResearchProspect = async () => {
   };
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16, maxWidth:800 }}>
-      <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Sales Discovery Prep</h2>
+      <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Sales Discovery Prep</h2>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
         {prospects.map(p=>(<button key={p.id} onClick={()=>setSelected(p)} style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${selected.id===p.id?"#6366f1":"rgba(255,255,255,0.06)"}`, background:selected.id===p.id?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:selected.id===p.id?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>{p.practice}</button>))}
       </div>
@@ -1228,19 +1248,19 @@ const handleResearchProspect = async () => {
               { l:"Contact", v:selected.contact },
               { l:"Pipeline Stage", v:STAGE_LABELS[selected.stage] },
               { l:"Days in Stage", v:selected.daysInStage },
-            ].map((r,i)=>(<div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid rgba(255,255,255,0.03)" }}>
-              <span style={{ fontSize:11.5, color:"#6b7280" }}>{r.l}</span>
-              <span style={{ fontSize:11.5, fontWeight:600, color:"#e5e7eb" }}>{r.v}</span>
+            ].map((r,i)=>(<div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"4px 0", borderBottom:"1px solid var(--border-color)" }}>
+              <span style={{ fontSize:11.5, color:"var(--text-muted)" }}>{r.l}</span>
+              <span style={{ fontSize:11.5, fontWeight:600, color:"var(--text-primary)" }}>{r.v}</span>
             </div>))}
           </div>
         </Panel>
         <Panel title="EHR Integration Intel">
-          <div style={{ padding:"12px 14px", background:"rgba(0,0,0,0.2)", borderRadius:8, marginBottom:10 }}>
+          <div style={{ padding:"12px 14px", background:"var(--bg-input)", borderRadius:8, marginBottom:10 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-              <span style={{ fontSize:16, fontWeight:700, color:"#f0f0f0" }}>{selected.ehr}</span>
+              <span style={{ fontSize:16, fontWeight:700, color:"var(--text-primary)" }}>{selected.ehr}</span>
               <span style={{ fontSize:11, fontWeight:600, color:selected.ehrDifficulty.startsWith("2")?"#4ade80":selected.ehrDifficulty.startsWith("3")?"#fbbf24":"#fb923c", fontFamily:M }}>Difficulty {selected.ehrDifficulty}</span>
             </div>
-            <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.5 }}>{selected.ehrNotes}</div>
+            <div style={{ fontSize:11, color:"var(--text-secondary)", lineHeight:1.5 }}>{selected.ehrNotes}</div>
             <div style={{ fontSize:11, fontWeight:600, color:"#38bdf8", marginTop:6, fontFamily:M }}>Timeline: {selected.ehrTimeline}</div>
           </div>
         </Panel>
@@ -1254,10 +1274,10 @@ const handleResearchProspect = async () => {
             { l:"Revenue Recovered/yr", v:`$${Math.round(annualRev).toLocaleString()}`, sub:"At $65 avg visit", c:"#4ade80" },
             { l:"Staff Savings/yr", v:`$${Math.round(annualStaff).toLocaleString()}`, sub:"~10h/wk at $18/hr", c:"#38bdf8" },
             { l:"Projected ROI", v:`${Math.round(roi)}%`, sub:"Year 1", c:roi>0?"#4ade80":"#f87171" },
-          ].map((m,i)=>(<div key={i} style={{ padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:8 }}>
-            <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>{m.l}</div>
+          ].map((m,i)=>(<div key={i} style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8 }}>
+            <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>{m.l}</div>
             <div style={{ fontSize:18, fontWeight:700, color:m.c, fontFamily:M, margin:"3px 0 1px" }}>{m.v}</div>
-            <div style={{ fontSize:10, color:"#6b7280" }}>{m.sub}</div>
+            <div style={{ fontSize:10, color:"var(--text-muted)" }}>{m.sub}</div>
           </div>))}
         </div>
       </Panel>
@@ -1265,8 +1285,8 @@ const handleResearchProspect = async () => {
       <div style={{ background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:12, padding:"16px 18px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
           <div>
-            <div style={{ fontSize:13, fontWeight:600, color:"#e5e7eb" }}>🤖 Discovery Call Analyzer</div>
-            <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>Paste a transcript to get BANT score, pain points, and next steps</div>
+            <div style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>🤖 Discovery Call Analyzer</div>
+            <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:2 }}>Paste a transcript to get BANT score, pain points, and next steps</div>
           </div>
           <button onClick={()=>setShowTranscriptInput(p=>!p)} style={{ fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>
             {showTranscriptInput ? "Hide" : "Paste Transcript"}
@@ -1278,7 +1298,7 @@ const handleResearchProspect = async () => {
               value={transcriptText}
               onChange={e=>setTranscriptText(e.target.value)}
               placeholder="Paste call transcript here..."
-              style={{ width:"100%", minHeight:120, padding:"10px 12px", borderRadius:8, border:"1px solid rgba(255,255,255,0.08)", background:"rgba(0,0,0,0.3)", color:"#e5e7eb", fontSize:11.5, fontFamily:"inherit", outline:"none", resize:"vertical" }}
+              style={{ width:"100%", minHeight:120, padding:"10px 12px", borderRadius:8, border:"1px solid var(--border-color)", background:"var(--bg-input)", color:"var(--text-primary)", fontSize:11.5, fontFamily:"inherit", outline:"none", resize:"vertical" }}
             />
             <button
               onClick={handleAnalyzeCall}
@@ -1299,37 +1319,37 @@ const handleResearchProspect = async () => {
         {analysisState==="done" && analysisResult && (
           <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:10, animation:"fu 0.4s ease both" }}>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
-              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:8, textAlign:"center" }}>
-                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>BANT Score</div>
+              <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8, textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>BANT Score</div>
                 <div style={{ fontSize:24, fontWeight:800, color:analysisResult.bant_score>=70?"#4ade80":analysisResult.bant_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{analysisResult.bant_score}</div>
-                <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
+                <div style={{ fontSize:9, color:"var(--text-muted)" }}>/100</div>
               </div>
-              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:8, textAlign:"center" }}>
-                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Rec. Tier</div>
-                <div style={{ fontSize:24, fontWeight:800, color:"#818cf8", fontFamily:M }}>{analysisResult.recommended_tier}</div>
+              <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8, textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Rec. Tier</div>
+                <div style={{ fontSize:24, fontWeight:800, color:"var(--accent)", fontFamily:M }}>{analysisResult.recommended_tier}</div>
               </div>
-              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.2)", borderRadius:8, textAlign:"center" }}>
-                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Urgency</div>
+              <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8, textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Urgency</div>
                 <div style={{ fontSize:16, fontWeight:700, color:analysisResult.follow_up_urgency==="high"?"#f87171":analysisResult.follow_up_urgency==="medium"?"#fbbf24":"#4ade80", fontFamily:M, textTransform:"uppercase" }}>{analysisResult.follow_up_urgency}</div>
               </div>
             </div>
-            <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:8 }}>
-              <div style={{ fontSize:10, fontWeight:600, color:"#6b7280", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Summary</div>
-              <div style={{ fontSize:11.5, color:"#e5e7eb", lineHeight:1.5 }}>{analysisResult.qualification_summary}</div>
+            <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8 }}>
+              <div style={{ fontSize:10, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Summary</div>
+              <div style={{ fontSize:11.5, color:"var(--text-primary)", lineHeight:1.5 }}>{analysisResult.qualification_summary}</div>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:8 }}>
+              <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8 }}>
                 <div style={{ fontSize:10, fontWeight:600, color:"#f87171", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Pain Points</div>
-                {analysisResult.pain_points?.map((p,i)=><div key={i} style={{ fontSize:11, color:"#e5e7eb", marginBottom:3 }}>• {p}</div>)}
+                {analysisResult.pain_points?.map((p,i)=><div key={i} style={{ fontSize:11, color:"var(--text-primary)", marginBottom:3 }}>• {p}</div>)}
               </div>
-              <div style={{ padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:8 }}>
+              <div style={{ padding:"10px 12px", background:"var(--bg-input)", borderRadius:8 }}>
                 <div style={{ fontSize:10, fontWeight:600, color:"#4ade80", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>Next Steps</div>
-                {analysisResult.next_steps?.map((s,i)=><div key={i} style={{ fontSize:11, color:"#e5e7eb", marginBottom:3 }}>• {s}</div>)}
+                {analysisResult.next_steps?.map((s,i)=><div key={i} style={{ fontSize:11, color:"var(--text-primary)", marginBottom:3 }}>• {s}</div>)}
               </div>
             </div>
             {analysisResult.ic_services_match?.length > 0 && (
               <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:8 }}>
-                <div style={{ fontSize:10, fontWeight:600, color:"#818cf8", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>IC Services Match</div>
+                <div style={{ fontSize:10, fontWeight:600, color:"var(--accent)", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>IC Services Match</div>
                 <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
                   {analysisResult.ic_services_match.map((s,i)=><span key={i} style={{ fontSize:10, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:4, padding:"2px 8px" }}>{s}</span>)}
                 </div>
@@ -1342,50 +1362,50 @@ const handleResearchProspect = async () => {
       <div style={{ background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:12, padding:"16px 18px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
           <div>
-            <div style={{ fontSize:13, fontWeight:600, color:"#e5e7eb" }}>🤖 Competitive Intel Researcher</div>
-            <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>Pain points, objections, talking points, and deal strategy for {selected.practice}</div>
+            <div style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>🤖 Competitive Intel Researcher</div>
+            <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:2 }}>Pain points, objections, talking points, and deal strategy for {selected.practice}</div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             {researchState==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Researching...</span>}
             {researchState==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
             {(!researchState||researchState===null)&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Research Prospect</button>}
-            {researchState==="done"&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"#6b7280", background:"transparent", border:"1px solid rgba(255,255,255,0.06)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Re-run</button>}
+            {researchState==="done"&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"var(--text-muted)", background:"transparent", border:"1px solid var(--border-color)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Re-run</button>}
           </div>
         </div>
         {researchState==="done"&&researchResult&&(
           <div style={{ display:"flex", flexDirection:"column", gap:10, animation:"fu 0.4s ease both" }}>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
-                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Confidence to Close</div>
+              <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7, textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Confidence to Close</div>
                 <div style={{ fontSize:22, fontWeight:800, color:researchResult.confidence_to_close>=70?"#4ade80":researchResult.confidence_to_close>=40?"#fbbf24":"#f87171", fontFamily:M }}>{researchResult.confidence_to_close}</div>
-                <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
+                <div style={{ fontSize:9, color:"var(--text-muted)" }}>/100</div>
               </div>
               <div style={{ gridColumn:"2/4", padding:"8px 10px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Recommended Next Action</div>
-                <div style={{ fontSize:11, color:"#e5e7eb", lineHeight:1.4 }}>{researchResult.recommended_next_action}</div>
+                <div style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Recommended Next Action</div>
+                <div style={{ fontSize:11, color:"var(--text-primary)", lineHeight:1.4 }}>{researchResult.recommended_next_action}</div>
               </div>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+              <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
                 <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Specialty Pain Points</div>
-                {researchResult.specialty_pain_points?.map((p,i)=><div key={i} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
+                {researchResult.specialty_pain_points?.map((p,i)=><div key={i} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {p}</div>)}
               </div>
-              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+              <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
                 <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>IC Advantages</div>
-                {researchResult.ic_competitive_advantages?.map((a,i)=><div key={i} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {a}</div>)}
+                {researchResult.ic_competitive_advantages?.map((a,i)=><div key={i} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {a}</div>)}
               </div>
-              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+              <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
                 <div style={{ fontSize:9, color:"#fbbf24", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Likely Objections</div>
-                {researchResult.likely_objections?.map((o,i)=><div key={i} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {o}</div>)}
+                {researchResult.likely_objections?.map((o,i)=><div key={i} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {o}</div>)}
               </div>
-              <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+              <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
                 <div style={{ fontSize:9, color:"#38bdf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Medicaid Talking Points</div>
-                {researchResult.medicaid_talking_points?.map((t,i)=><div key={i} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {t}</div>)}
+                {researchResult.medicaid_talking_points?.map((t,i)=><div key={i} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {t}</div>)}
               </div>
             </div>
             <div style={{ padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-              <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
-              <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{researchResult.agent_summary}</div>
+              <div style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+              <div style={{ fontSize:11, color:"var(--text-secondary)", lineHeight:1.4 }}>{researchResult.agent_summary}</div>
             </div>
           </div>
         )}
@@ -1478,8 +1498,8 @@ function WeeklyReportTab() {
     <div style={{ display:"flex", flexDirection:"column", gap:16, maxWidth:800 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
-          <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Weekly Business Report</h2>
-          <p style={{ fontSize:11, color:"#6b7280", marginTop:2, fontFamily:M }}>Week of March 17–21, 2026 · IC-BOS Weekly Digest</p>
+          <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Weekly Business Report</h2>
+          <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:2, fontFamily:M }}>Week of March 17–21, 2026 · IC-BOS Weekly Digest</p>
         </div>
         <button
           onClick={handleGenerateDigest}
@@ -1503,7 +1523,7 @@ function WeeklyReportTab() {
           threeThings.map((item,i) => (
             <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:i<threeThings.length-1?8:0 }}>
               <span style={{ fontSize:10, fontWeight:700, color:item.priority==="high"?"#f87171":"#fbbf24", background:item.priority==="high"?"rgba(248,113,113,0.12)":"rgba(251,191,36,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M, flexShrink:0, marginTop:1 }}>{item.priority.toUpperCase()}</span>
-              <span style={{ fontSize:12, color:"#e5e7eb", lineHeight:1.4 }}>{item.text}</span>
+              <span style={{ fontSize:12, color:"var(--text-primary)", lineHeight:1.4 }}>{item.text}</span>
             </div>
           ))
         )}
@@ -1523,10 +1543,10 @@ function WeeklyReportTab() {
       )}
       {digestState==="done" && digestResult && (
         <div style={{ background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.12)", borderLeft:"3px solid #6366f1", borderRadius:12, padding:"16px 18px", animation:"fu 0.4s ease both" }}>
-          <div style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
             🤖 Agent 4 — AI Narrative Digest
           </div>
-         <div style={{ fontSize:12, color:"#e5e7eb", lineHeight:1.7, marginBottom:12 }}>{digestResult.narrative || digestResult.qualification_summary}</div>
+         <div style={{ fontSize:12, color:"var(--text-primary)", lineHeight:1.7, marginBottom:12 }}>{digestResult.narrative || digestResult.qualification_summary}</div>
           {(digestResult.top_priorities||digestResult.next_steps)?.length>0 && (
             <div>
               <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Top Priorities</div>
@@ -1534,8 +1554,8 @@ function WeeklyReportTab() {
                 <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:6 }}>
                   <span style={{ fontSize:9, fontWeight:700, color:typeof s==="object"&&s.priority==="high"?"#f87171":"#fbbf24", background:typeof s==="object"&&s.priority==="high"?"rgba(248,113,113,0.12)":"rgba(251,191,36,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M, flexShrink:0, marginTop:1 }}>{typeof s==="object"?s.priority?.toUpperCase():String(si+1).padStart(2,"0")}</span>
                   <div>
-                    <div style={{ fontSize:11.5, color:"#d1d5db", lineHeight:1.4 }}>{typeof s==="object"?s.action:s}</div>
-                    {typeof s==="object"&&s.reason&&<div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>{s.reason}</div>}
+                    <div style={{ fontSize:11.5, color:"var(--text-primary)", lineHeight:1.4 }}>{typeof s==="object"?s.action:s}</div>
+                    {typeof s==="object"&&s.reason&&<div style={{ fontSize:10, color:"var(--text-muted)", marginTop:2 }}>{s.reason}</div>}
                   </div>
                 </div>
               ))}
@@ -1549,8 +1569,8 @@ function WeeklyReportTab() {
         <Panel key={si} title={sec.title}>
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             {sec.items.map((item,i)=>(
-              <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.03)" }}>
-                <span style={{ fontSize:12, color:"#9ca3af" }}>{item.l}</span>
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
+                <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{item.l}</span>
                 <span style={{ fontSize:12, fontWeight:600, color:item.c, fontFamily:M }}>{item.v}</span>
               </div>
             ))}
@@ -1568,15 +1588,15 @@ function ROITab() {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <div style={{ textAlign:"center", padding:"20px 0 8px", animation:"fu 0.5s ease both" }}>
-        <div style={{ fontSize:10, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:M, marginBottom:6 }}>Total Client Value Recovered</div>
+        <div style={{ fontSize:10, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:M, marginBottom:6 }}>Total Client Value Recovered</div>
         <div style={{ fontSize:44, fontWeight:800, color:"#4ade80", fontFamily:M, lineHeight:1 }}><AnimNum value={Math.round(totalRec)} prefix="$" dur={1800}/></div>
       </div>
       {crs.map((c,i)=>(
         <Panel key={c.id} title={c.name} subtitle={`Tier ${c.tier} · ${c.r.moActive} months · ${c.ehr}`}>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10, fontSize:12 }}>
             {[{ l:"No-Show", v:`${c.noShowBefore}%→${c.noShowCurrent}%`, c:"#4ade80" },{ l:"Recovered", v:`$${Math.round(c.r.totalToDate).toLocaleString()}`, c:"#fbbf24" },{ l:"Hours/wk Saved", v:`${c.weeklyHoursSaved}h`, c:"#38bdf8" },{ l:"ROI", v:`${Math.round(c.r.roiPct)}%`, c:c.r.roiPct>0?"#4ade80":"#f87171" }].map((m,j)=>(
-              <div key={j} style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7 }}>
-                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>{m.l}</div>
+              <div key={j} style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
+                <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>{m.l}</div>
                 <div style={{ fontSize:15, fontWeight:700, color:m.c, fontFamily:M, marginTop:2 }}>{m.v}</div>
               </div>
             ))}
@@ -1629,8 +1649,8 @@ function RenewalsTab() {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <div>
-        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Renewal Radar</h2>
-        <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>Agent 6 — Renewal Risk Predictor available per client</p>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Renewal Radar</h2>
+        <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>Agent 6 — Renewal Risk Predictor available per client</p>
       </div>
 
       {sorted.map((c,i)=>{
@@ -1651,8 +1671,8 @@ function RenewalsTab() {
             {/* Header row */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontSize:13, fontWeight:600, color:"#e5e7eb" }}>{c.name}</span>
-                <span style={{ fontSize:10.5, color:"#6b7280" }}>Tier {c.tier} · ${c.monthlyFee.toLocaleString()}/mo</span>
+                <span style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>{c.name}</span>
+                <span style={{ fontSize:10.5, color:"var(--text-muted)" }}>Tier {c.tier} · ${c.monthlyFee.toLocaleString()}/mo</span>
                 {/* Churn risk badge */}
                 <span style={{ fontSize:9, fontWeight:700, color:churnColor, background:churnBg, padding:"2px 8px", borderRadius:5, fontFamily:M }}>{churnRisk} Risk</span>
               </div>
@@ -1669,57 +1689,57 @@ function RenewalsTab() {
 
             {/* Progress bar */}
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
-              <div style={{ flex:1, height:5, borderRadius:3, background:"rgba(255,255,255,0.04)" }}>
+              <div style={{ flex:1, height:5, borderRadius:3, background:"var(--bg-card)" }}>
                 <div style={{ height:"100%", borderRadius:3, background:bc, width:`${bw}%` }}/>
               </div>
-              <span style={{ fontSize:10, color:"#9ca3af", fontFamily:M }}>{c.renewalDate}</span>
+              <span style={{ fontSize:10, color:"var(--text-secondary)", fontFamily:M }}>{c.renewalDate}</span>
             </div>
 
             {/* Stats row */}
-            <div style={{ display:"flex", gap:14, fontSize:10.5, color:"#9ca3af" }}>
+            <div style={{ display:"flex", gap:14, fontSize:10.5, color:"var(--text-secondary)" }}>
               <span>Health: <span style={{ color:c.healthScore>=80?"#4ade80":c.healthScore>=70?"#fbbf24":"#f87171", fontWeight:600 }}>{c.healthScore}</span></span>
-              <span>No-Show: <span style={{ fontWeight:600, color:"#f0f0f0" }}>{c.noShowCurrent}%</span></span>
-              <span>ARR: <span style={{ fontWeight:600, color:"#f0f0f0" }}>${(c.monthlyFee*12).toLocaleString()}</span></span>
+              <span>No-Show: <span style={{ fontWeight:600, color:"var(--text-primary)" }}>{c.noShowCurrent}%</span></span>
+              <span>ARR: <span style={{ fontWeight:600, color:"var(--text-primary)" }}>${(c.monthlyFee*12).toLocaleString()}</span></span>
               <span>Hours Saved/wk: <span style={{ fontWeight:600, color:"#4ade80" }}>{c.weeklyHoursSaved}h</span></span>
             </div>
 
             {/* Agent 6 result panel */}
             {ps==="done"&&pr&&(
-              <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid rgba(255,255,255,0.05)", display:"flex", flexDirection:"column", gap:8, animation:"fu 0.3s ease both" }}>
+              <div style={{ marginTop:12, paddingTop:12, borderTop:"1px solid var(--border-color)", display:"flex", flexDirection:"column", gap:8, animation:"fu 0.3s ease both" }}>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
-                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
-                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Renewal Score</div>
+                  <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7, textAlign:"center" }}>
+                    <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Renewal Score</div>
                     <div style={{ fontSize:22, fontWeight:800, color:pr.renewal_score>=70?"#4ade80":pr.renewal_score>=40?"#fbbf24":"#f87171", fontFamily:M }}>{pr.renewal_score}</div>
-                    <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
+                    <div style={{ fontSize:9, color:"var(--text-muted)" }}>/100</div>
                   </div>
-                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
-                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Churn Risk</div>
+                  <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7, textAlign:"center" }}>
+                    <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Churn Risk</div>
                     <div style={{ fontSize:14, fontWeight:700, color:pr.churn_probability==="high"?"#f87171":pr.churn_probability==="medium"?"#fbbf24":"#4ade80", fontFamily:M, textTransform:"uppercase" }}>{pr.churn_probability}</div>
                   </div>
-                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.2)", borderRadius:7, textAlign:"center" }}>
-                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Urgency</div>
+                  <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7, textAlign:"center" }}>
+                    <div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase", marginBottom:3 }}>Urgency</div>
                     <div style={{ fontSize:14, fontWeight:700, color:pr.urgency==="high"?"#f87171":pr.urgency==="medium"?"#fbbf24":"#4ade80", fontFamily:M, textTransform:"uppercase" }}>{pr.urgency}</div>
                   </div>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
-                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                  <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
                     <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Churn Signals</div>
-                    {pr.churn_signals?.slice(0,3).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {p}</div>)}
+                    {pr.churn_signals?.slice(0,3).map((p,pi)=><div key={pi} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {p}</div>)}
                   </div>
-                  <div style={{ padding:"8px 10px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
+                  <div style={{ padding:"8px 10px", background:"var(--bg-input)", borderRadius:7 }}>
                     <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Renewal Talking Points</div>
-                    {pr.renewal_talking_points?.slice(0,3).map((s,si)=><div key={si} style={{ fontSize:10, color:"#e5e7eb", marginBottom:2 }}>• {s}</div>)}
+                    {pr.renewal_talking_points?.slice(0,3).map((s,si)=><div key={si} style={{ fontSize:10, color:"var(--text-primary)", marginBottom:2 }}>• {s}</div>)}
                   </div>
                 </div>
                 {pr.upsell_potential&&(
                   <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.04)", border:"1px solid rgba(74,222,128,0.1)", borderRadius:7 }}>
                     <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Upsell Potential</div>
-                    <div style={{ fontSize:10, color:"#e5e7eb" }}>{pr.upsell_potential}</div>
+                    <div style={{ fontSize:10, color:"var(--text-primary)" }}>{pr.upsell_potential}</div>
                   </div>
                 )}
                 <div style={{ padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                  <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
-                  <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.4 }}>{pr.agent_summary}</div>
+                  <div style={{ fontSize:9, color:"var(--accent)", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+                  <div style={{ fontSize:11, color:"var(--text-secondary)", lineHeight:1.4 }}>{pr.agent_summary}</div>
                 </div>
               </div>
             )}
@@ -2124,22 +2144,22 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
 
       {/* ── Agent-Generated Proposals Section ── */}
       <div>
-        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Agent-Generated Proposals</h2>
-        <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>Created by Agent 1 — Proposal Generator</p>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Agent-Generated Proposals</h2>
+        <p style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>Created by Agent 1 — Proposal Generator</p>
       </div>
       {proposalsLoading ? (
-        <p style={{ fontSize:12, color:"#6b7280" }}>Loading proposals...</p>
+        <p style={{ fontSize:12, color:"var(--text-muted)" }}>Loading proposals...</p>
       ) : agentProposals.length === 0 ? (
-        <div style={{ padding:"16px", background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)", borderRadius:8 }}>
-          <p style={{ fontSize:12, color:"#6b7280" }}>No agent-generated proposals yet. Use the Generate Proposal button on a Pipeline deal to create one.</p>
+        <div style={{ padding:"16px", background:"var(--bg-card)", border:"1px solid var(--border-color)", borderRadius:8 }}>
+          <p style={{ fontSize:12, color:"var(--text-muted)" }}>No agent-generated proposals yet. Use the Generate Proposal button on a Pipeline deal to create one.</p>
         </div>
       ) : (
         agentProposals.map(p => (
-          <div key={p.id} style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(99,102,241,0.15)", borderLeft:"3px solid #6366f1", borderRadius:8, padding:"14px 16px" }}>
+          <div key={p.id} style={{ background:"var(--bg-card)", border:"1px solid rgba(99,102,241,0.15)", borderLeft:"3px solid #6366f1", borderRadius:8, padding:"14px 16px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
               <div>
-                <div style={{ fontSize:13, fontWeight:600, color:"#e2e8f0" }}>{p.practice_name}</div>
-                <div style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:"var(--text-primary)" }}>{p.practice_name}</div>
+                <div style={{ fontSize:11, color:"var(--text-muted)", marginTop:2 }}>
                   {p.specialty && `${p.specialty} · `}{p.ehr && `${p.ehr} · `}
                   {p.monthly_fee && `$${Number(p.monthly_fee).toLocaleString()}/mo · `}
                   Tier {p.tier}
@@ -2166,11 +2186,11 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
               </div>
             </div>
             {expandedProposal === p.id && p.proposal_content && (
-              <div style={{ marginTop:12, padding:"12px", background:"rgba(0,0,0,0.2)", borderRadius:7, fontSize:12, color:"#d1d5db", lineHeight:1.7, whiteSpace:"pre-wrap", maxHeight:300, overflowY:"auto" }}>
+              <div style={{ marginTop:12, padding:"12px", background:"var(--bg-input)", borderRadius:7, fontSize:12, color:"var(--text-primary)", lineHeight:1.7, whiteSpace:"pre-wrap", maxHeight:300, overflowY:"auto" }}>
                 {p.proposal_content}
               </div>
             )}
-            <div style={{ fontSize:10, color:"#475569", marginTop:8 }}>
+            <div style={{ fontSize:10, color:"var(--text-label)", marginTop:8 }}>
               🤖 Generated {new Date(p.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' })}
             </div>
           </div>
@@ -2178,8 +2198,8 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
       )}
 
       {/* Divider */}
-      <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:14 }}>
-        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Proposal Builder</h2>
+      <div style={{ borderTop:"1px solid var(--border-color)", paddingTop:14 }}>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Proposal Builder</h2>
       </div>
 
       {/* Prospect selector */}
@@ -2192,7 +2212,7 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
         {[{id:"managed",l:"Managed Package",d:"Monthly retainer"},{id:"individual",l:"Individual Services",d:"One-time / project"},{id:"mixed",l:"Package + Services",d:"Best of both"}].map(m=>(
           <button key={m.id} onClick={()=>setMode(m.id)} style={{ flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${mode===m.id?"#6366f1":"rgba(255,255,255,0.06)"}`, background:mode===m.id?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left" }}>
             <div style={{ fontSize:12, fontWeight:600, color:mode===m.id?"#a5b4fc":"#9ca3af" }}>{m.l}</div>
-            <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>{m.d}</div>
+            <div style={{ fontSize:10, color:"var(--text-muted)", marginTop:2 }}>{m.d}</div>
           </button>
         ))}
       </div>
@@ -2205,25 +2225,25 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
               <button key={n} onClick={()=>setTier(n)} style={{ flex:1, padding:"10px 12px", borderRadius:8, border:`1px solid ${tier===n?"#6366f1":"rgba(255,255,255,0.06)"}`, background:tier===n?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left" }}>
                 <div style={{ fontSize:11, fontWeight:600, color:tier===n?"#a5b4fc":"#9ca3af" }}>Tier {n}: {managedTiers[n].n}</div>
                 <div style={{ fontSize:16, fontWeight:700, color:tier===n?"#f0f0f0":"#6b7280", fontFamily:M, marginTop:2 }}>${managedTiers[n].p.toLocaleString()}<span style={{ fontSize:10, fontWeight:400 }}>/mo</span></div>
-                <div style={{ fontSize:9.5, color:"#6b7280", marginTop:2 }}>{managedTiers[n].desc}</div>
+                <div style={{ fontSize:9.5, color:"var(--text-muted)", marginTop:2 }}>{managedTiers[n].desc}</div>
               </button>
             ))}
           </div>
-          <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.5, padding:"10px 12px", background:"rgba(0,0,0,0.15)", borderRadius:7 }}>
-            <span style={{ fontWeight:600, color:"#e5e7eb" }}>Includes: </span>{managedTiers[tier].includes}
+          <div style={{ fontSize:11, color:"var(--text-secondary)", lineHeight:1.5, padding:"10px 12px", background:"var(--bg-input)", borderRadius:7 }}>
+            <span style={{ fontWeight:600, color:"var(--text-primary)" }}>Includes: </span>{managedTiers[tier].includes}
           </div>
           {/* Web App Add-Ons */}
           <div style={{ marginTop:12 }}>
-            <div style={{ fontSize:11, fontWeight:600, color:"#e5e7eb", marginBottom:8 }}>Web App Add-Ons {tier===3&&<span style={{ color:"#4ade80", fontWeight:400 }}>— included in Tier 3</span>}</div>
+            <div style={{ fontSize:11, fontWeight:600, color:"var(--text-primary)", marginBottom:8 }}>Web App Add-Ons {tier===3&&<span style={{ color:"#4ade80", fontWeight:400 }}>— included in Tier 3</span>}</div>
             {tier < 3 && <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:6 }}>
               {webAppAddOns.map(ao=>{
                 const active = selectedAddOns.includes(ao.id);
                 return (<button key={ao.id} onClick={()=>toggleAddOn(ao.id)} style={{ padding:"8px 10px", borderRadius:7, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.05)"}`, background:active?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.015)", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <span style={{ fontSize:11, fontWeight:active?600:400, color:active?"#a5b4fc":"#9ca3af" }}>{ao.name}</span>
-                    <span style={{ width:14, height:14, borderRadius:4, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.12)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white" }}>{active&&"✓"}</span>
+                    <span style={{ width:14, height:14, borderRadius:4, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.12)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"var(--text-primary)" }}>{active&&"✓"}</span>
                   </div>
-                  <div style={{ fontSize:10, color:"#6b7280", fontFamily:M, marginTop:3 }}>{ao.priceRange} + ${ao.monthly}/mo</div>
+                  <div style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M, marginTop:3 }}>{ao.priceRange} + ${ao.monthly}/mo</div>
                 </button>);
               })}
             </div>}
@@ -2237,9 +2257,9 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             {individualServices.map(svc=>(
               <div key={svc.id}>
-                <div style={{ fontSize:12, fontWeight:600, color:"#e5e7eb", marginBottom:5 }}>
+                <div style={{ fontSize:12, fontWeight:600, color:"var(--text-primary)", marginBottom:5 }}>
                   {svc.name}
-                  <span style={{ fontSize:10, color:"#6b7280", fontWeight:400, marginLeft:6 }}>{svc.type==="one-time"?"One-time":svc.type==="project"?"Project (30/40/30)":"Recurring"}</span>
+                  <span style={{ fontSize:10, color:"var(--text-muted)", fontWeight:400, marginLeft:6 }}>{svc.type==="one-time"?"One-time":svc.type==="project"?"Project (30/40/30)":"Recurring"}</span>
                 </div>
                 <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
                   {svc.options.map((opt, oi)=>{
@@ -2260,57 +2280,57 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
       <Panel title="Proposal Summary" subtitle={`${prospect.practice} · ${prospect.providers} providers · ${prospect.ehr}`} style={{ background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.1)" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {mode !== "individual" && (
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
-              <span style={{ fontSize:12, color:"#9ca3af" }}>Managed — Tier {tier}: {managedTiers[tier].n}</span>
-              <span style={{ fontSize:12, fontWeight:600, color:"#818cf8", fontFamily:M }}>${managedTiers[tier].p.toLocaleString()}/mo</span>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
+              <span style={{ fontSize:12, color:"var(--text-secondary)" }}>Managed — Tier {tier}: {managedTiers[tier].n}</span>
+              <span style={{ fontSize:12, fontWeight:600, color:"var(--accent)", fontFamily:M }}>${managedTiers[tier].p.toLocaleString()}/mo</span>
             </div>
           )}
           {selectedAddOns.map(id=>{const ao=webAppAddOns.find(a=>a.id===id);return ao&&(
-            <div key={id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
-              <span style={{ fontSize:12, color:"#9ca3af" }}>Add-On: {ao.name}</span>
-              <span style={{ fontSize:12, color:"#f0f0f0", fontFamily:M }}>${ao.price.toLocaleString()} + ${ao.monthly}/mo</span>
+            <div key={id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
+              <span style={{ fontSize:12, color:"var(--text-secondary)" }}>Add-On: {ao.name}</span>
+              <span style={{ fontSize:12, color:"var(--text-primary)", fontFamily:M }}>${ao.price.toLocaleString()} + ${ao.monthly}/mo</span>
             </div>
           );})}
           {selectedServices.map(sel=>{const svc=individualServices.find(x=>x.id===sel.svcId);const opt=svc?.options[sel.optIdx];return opt&&(
-            <div key={sel.key} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
-              <span style={{ fontSize:12, color:"#9ca3af" }}>{svc.name}: {opt.n}</span>
-              <span style={{ fontSize:12, color:"#f0f0f0", fontFamily:M }}>${opt.p.toLocaleString()}</span>
+            <div key={sel.key} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
+              <span style={{ fontSize:12, color:"var(--text-secondary)" }}>{svc.name}: {opt.n}</span>
+              <span style={{ fontSize:12, color:"var(--text-primary)", fontFamily:M }}>${opt.p.toLocaleString()}</span>
             </div>
           );})}
           {bundleDiscount > 0 && (
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
               <span style={{ fontSize:12, color:"#4ade80" }}>Bundle Discount (10% — 2+ individual services)</span>
               <span style={{ fontSize:12, fontWeight:600, color:"#4ade80", fontFamily:M }}>-${bundleDiscount.toLocaleString()}</span>
             </div>
           )}
           {onboardingCredit > 0 && (
-            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid var(--border-color)" }}>
               <span style={{ fontSize:12, color:"#4ade80" }}>Onboarding Credit (individual → managed)</span>
               <span style={{ fontSize:12, fontWeight:600, color:"#4ade80", fontFamily:M }}>-$500</span>
             </div>
           )}
         </div>
         {/* Totals */}
-        <div style={{ display:"grid", gridTemplateColumns:totalMonthly>0?"repeat(3,1fr)":"repeat(2,1fr)", gap:10, marginTop:14, padding:"14px", background:"rgba(0,0,0,0.25)", borderRadius:8 }}>
-          {totalOneTime > 0 && <div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>One-Time / Project</div><div style={{ fontSize:22, fontWeight:800, color:"#f0f0f0", fontFamily:M, marginTop:2 }}>${totalOneTime.toLocaleString()}</div></div>}
-          {totalMonthly > 0 && <div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>Monthly Recurring</div><div style={{ fontSize:22, fontWeight:800, color:"#818cf8", fontFamily:M, marginTop:2 }}>${totalMonthly.toLocaleString()}<span style={{fontSize:11}}>/mo</span></div></div>}
-          <div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>Year 1 Total</div><div style={{ fontSize:22, fontWeight:800, color:"#fbbf24", fontFamily:M, marginTop:2 }}>${totalYear1.toLocaleString()}</div></div>
+        <div style={{ display:"grid", gridTemplateColumns:totalMonthly>0?"repeat(3,1fr)":"repeat(2,1fr)", gap:10, marginTop:14, padding:"14px", background:"var(--bg-input)", borderRadius:8 }}>
+          {totalOneTime > 0 && <div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>One-Time / Project</div><div style={{ fontSize:22, fontWeight:800, color:"var(--text-primary)", fontFamily:M, marginTop:2 }}>${totalOneTime.toLocaleString()}</div></div>}
+          {totalMonthly > 0 && <div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>Monthly Recurring</div><div style={{ fontSize:22, fontWeight:800, color:"var(--accent)", fontFamily:M, marginTop:2 }}>${totalMonthly.toLocaleString()}<span style={{fontSize:11}}>/mo</span></div></div>}
+          <div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M, textTransform:"uppercase" }}>Year 1 Total</div><div style={{ fontSize:22, fontWeight:800, color:"#fbbf24", fontFamily:M, marginTop:2 }}>${totalYear1.toLocaleString()}</div></div>
         </div>
       </Panel>
 
       {/* ROI (for managed/mixed) */}
       {mode !== "individual" && (
         <div style={{ display:"flex", gap:10, padding:"12px 14px", background:roi>0?"rgba(74,222,128,0.04)":"rgba(248,113,113,0.04)", borderRadius:8, border:`1px solid ${roi>0?"rgba(74,222,128,0.08)":"rgba(248,113,113,0.08)"}` }}>
-          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>PROJ. REVENUE RECOVERED/YR</div><div style={{ fontSize:18, fontWeight:700, color:"#4ade80", fontFamily:M, marginTop:2 }}>${Math.round(aRev).toLocaleString()}</div><div style={{ fontSize:9, color:"#6b7280" }}>{Math.round(rec)} appts/wk × $65</div></div>
-          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>STAFF SAVINGS/YR</div><div style={{ fontSize:18, fontWeight:700, color:"#38bdf8", fontFamily:M, marginTop:2 }}>${Math.round(aStaff).toLocaleString()}</div><div style={{ fontSize:9, color:"#6b7280" }}>~10h/wk × $18/hr</div></div>
-          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>YEAR 1 ROI</div><div style={{ fontSize:18, fontWeight:700, color:roi>0?"#4ade80":"#f87171", fontFamily:M, marginTop:2 }}>{Math.round(roi)}%</div></div>
-          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>3-YEAR NET BENEFIT</div><div style={{ fontSize:18, fontWeight:700, color:"#fbbf24", fontFamily:M, marginTop:2 }}>${Math.round((aBen*3)-(totalYear1+(totalMonthly*24))).toLocaleString()}</div></div>
+          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>PROJ. REVENUE RECOVERED/YR</div><div style={{ fontSize:18, fontWeight:700, color:"#4ade80", fontFamily:M, marginTop:2 }}>${Math.round(aRev).toLocaleString()}</div><div style={{ fontSize:9, color:"var(--text-muted)" }}>{Math.round(rec)} appts/wk × $65</div></div>
+          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>STAFF SAVINGS/YR</div><div style={{ fontSize:18, fontWeight:700, color:"#38bdf8", fontFamily:M, marginTop:2 }}>${Math.round(aStaff).toLocaleString()}</div><div style={{ fontSize:9, color:"var(--text-muted)" }}>~10h/wk × $18/hr</div></div>
+          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>YEAR 1 ROI</div><div style={{ fontSize:18, fontWeight:700, color:roi>0?"#4ade80":"#f87171", fontFamily:M, marginTop:2 }}>{Math.round(roi)}%</div></div>
+          <div style={{ flex:1 }}><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>3-YEAR NET BENEFIT</div><div style={{ fontSize:18, fontWeight:700, color:"#fbbf24", fontFamily:M, marginTop:2 }}>${Math.round((aBen*3)-(totalYear1+(totalMonthly*24))).toLocaleString()}</div></div>
         </div>
       )}
 
       {/* Payment terms note */}
-      <div style={{ fontSize:10.5, color:"#6b7280", lineHeight:1.5, padding:"10px 14px", background:"rgba(255,255,255,0.015)", borderRadius:7 }}>
-        <span style={{ fontWeight:600, color:"#9ca3af" }}>Payment Terms: </span>
+      <div style={{ fontSize:10.5, color:"var(--text-muted)", lineHeight:1.5, padding:"10px 14px", background:"var(--bg-card)", borderRadius:7 }}>
+        <span style={{ fontWeight:600, color:"var(--text-secondary)" }}>Payment Terms: </span>
         {mode === "managed" && "Monthly subscription, billed on the 1st. No long-term contract — cancel anytime with 30 days notice."}
         {mode === "individual" && "One-time/project services: 30% at start / 40% at midpoint / 30% upon completion. Flat-fee services paid upfront."}
         {mode === "mixed" && "Package: monthly billing. Individual services: 30/40/30 or flat fee. $500 onboarding credit applied when enrolling in managed tier."}
@@ -2353,7 +2373,7 @@ function AutoTab() {
   const crit=AUTOMATIONS.filter(a=>a.status==="critical");
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Automation Health</h2>
+      <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Automation Health</h2>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
         <KPI label="Automations" value={AUTOMATIONS.length} spark={[4,5,5,6,7,7]} sparkColor="#818cf8"/>
         <KPI label="Execs Today" value={AUTOMATIONS.reduce((s,a)=>s+a.execsToday,0)} spark={[320,410,480,530,560,569]} sparkColor="#4ade80" delay={60}/>
@@ -2362,14 +2382,14 @@ function AutoTab() {
       </div>
       {crit.length>0&&<div style={{ background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.12)", borderRadius:10, padding:"12px 16px" }}>
         <div style={{ fontSize:10, fontWeight:700, color:"#f87171", fontFamily:M, marginBottom:6 }}>⚠ CRITICAL</div>
-        {crit.map(a=><div key={a.id} style={{ fontSize:12, color:"#e5e7eb" }}><strong>{a.client}</strong> → {a.name}: {a.successRate}% success</div>)}
+        {crit.map(a=><div key={a.id} style={{ fontSize:12, color:"var(--text-primary)" }}><strong>{a.client}</strong> → {a.name}: {a.successRate}% success</div>)}
       </div>}
-      {AUTOMATIONS.map((a,i)=>(<div key={a.id} style={{ display:"grid", gridTemplateColumns:"2fr 1fr 0.7fr 0.7fr 0.7fr 0.5fr", alignItems:"center", gap:6, padding:"10px 16px", background:"rgba(255,255,255,0.02)", border:`1px solid ${a.status==="critical"?"rgba(248,113,113,0.1)":"rgba(255,255,255,0.04)"}`, borderRadius:8, animation:`fu 0.3s ease ${i*40}ms both`, fontSize:12 }}>
-        <div><div style={{ fontWeight:600, color:"#e5e7eb" }}>{a.client}</div><div style={{ fontSize:10, color:"#6b7280" }}>{a.name}</div></div>
+      {AUTOMATIONS.map((a,i)=>(<div key={a.id} style={{ display:"grid", gridTemplateColumns:"2fr 1fr 0.7fr 0.7fr 0.7fr 0.5fr", alignItems:"center", gap:6, padding:"10px 16px", background:"var(--bg-card)", border:`1px solid ${a.status==="critical"?"rgba(248,113,113,0.1)":"rgba(255,255,255,0.04)"}`, borderRadius:8, animation:`fu 0.3s ease ${i*40}ms both`, fontSize:12 }}>
+        <div><div style={{ fontWeight:600, color:"var(--text-primary)" }}>{a.client}</div><div style={{ fontSize:10, color:"var(--text-muted)" }}>{a.name}</div></div>
         <div style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:6, height:6, borderRadius:"50%", background:stc[a.status] }}/><span style={{ color:stc[a.status], fontSize:10, fontWeight:600, textTransform:"uppercase" }}>{a.status}</span></div>
-        <span style={{ fontFamily:M, color:"#f0f0f0" }}>{a.successRate}%</span>
-        <span style={{ fontFamily:M, color:"#f0f0f0" }}>{a.execsToday}</span>
-        <span style={{ fontFamily:M, color:"#f0f0f0" }}>${a.costToday.toFixed(2)}</span>
+        <span style={{ fontFamily:M, color:"var(--text-primary)" }}>{a.successRate}%</span>
+        <span style={{ fontFamily:M, color:"var(--text-primary)" }}>{a.execsToday}</span>
+        <span style={{ fontFamily:M, color:"var(--text-primary)" }}>${a.costToday.toFixed(2)}</span>
        <span style={{
           padding:"2px 8px", borderRadius:10, fontSize:11,
           background: a.status==="critical" ? "rgba(239,68,68,0.15)" : a.status==="warning" ? "rgba(251,191,36,0.1)" : "rgba(100,116,139,0.15)",
@@ -2492,13 +2512,13 @@ function TeamTab({ webhookSecret }) {
       </div>
 
       {/* ── Section 1: App Access ─────────────────────────────────── */}
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: "16px 18px" }}>
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", borderRadius: 12, padding: "16px 18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>App Access</div>
             <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>Invite team members and manage their IC-BOS access level</div>
           </div>
-          <button onClick={loadUsers} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 5, padding: "3px 8px", cursor: "pointer" }}>↻ Refresh</button>
+          <button onClick={loadUsers} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid var(--border-color)", borderRadius: 5, padding: "3px 8px", cursor: "pointer" }}>↻ Refresh</button>
         </div>
 
         {/* Invite form */}
@@ -2507,12 +2527,12 @@ function TeamTab({ webhookSecret }) {
             value={inviteEmail}
             onChange={e => setInviteEmail(e.target.value)}
             placeholder="Email address to invite..."
-            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 11, fontFamily: "inherit", outline: "none" }}
+            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 11, fontFamily: "inherit", outline: "none" }}
           />
           <select
             value={inviteRole}
             onChange={e => setInviteRole(e.target.value)}
-            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 11, fontFamily: "inherit", outline: "none", cursor: "pointer" }}
+            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 11, fontFamily: "inherit", outline: "none", cursor: "pointer" }}
           >
             <option value="consultant">Consultant</option>
             <option value="viewer">Viewer</option>
@@ -2540,7 +2560,7 @@ function TeamTab({ webhookSecret }) {
               <span>Email</span><span>Role</span><span>Last Sign In</span><span>Status</span>
             </div>
             {appUsers.map(u => (
-              <div key={u.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8, alignItems: "center", padding: "8px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 7 }}>
+              <div key={u.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8, alignItems: "center", padding: "8px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", borderRadius: 7 }}>
                 <span style={{ fontSize: 11, color: "#e5e7eb", fontFamily: M }}>{u.email}</span>
                 <select
                   value={u.role}
@@ -2561,7 +2581,7 @@ function TeamTab({ webhookSecret }) {
       </div>
 
       {/* ── Section 2: HR Records ──────────────────────────────────── */}
-      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 12, padding: "16px 18px" }}>
+      <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", borderRadius: 12, padding: "16px 18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>Team Members</div>
@@ -2588,12 +2608,12 @@ function TeamTab({ webhookSecret }) {
                   value={newMember[f.key]}
                   onChange={e => setNewMember(prev => ({ ...prev, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))}
                   placeholder={f.placeholder}
-                  style={{ width: "100%", padding: "6px 8px", borderRadius: 5, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 11, fontFamily: "inherit", outline: "none" }}
+                  style={{ width: "100%", padding: "6px 8px", borderRadius: 5, border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 11, fontFamily: "inherit", outline: "none" }}
                 />
               </div>
             ))}
             <div style={{ gridColumn: "1/-1", display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-              <button onClick={() => setShowAddMember(false)} style={{ fontSize: 11, color: "#6b7280", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={() => setShowAddMember(false)} style={{ fontSize: 11, color: "#6b7280", background: "transparent", border: "1px solid var(--border-color)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>Cancel</button>
               <button onClick={addTeamMember} style={{ fontSize: 11, fontWeight: 600, color: "white", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", border: "none", borderRadius: 6, padding: "5px 16px", cursor: "pointer" }}>Add Member</button>
             </div>
           </div>
@@ -2605,7 +2625,7 @@ function TeamTab({ webhookSecret }) {
             <span>Name</span><span>Title</span><span>Type</span><span>Hrs/Wk</span><span>Mo. Cost</span><span></span>
           </div>
           {team.map(t => (
-            <div key={t.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, alignItems: "center", padding: "10px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: 7 }}>
+            <div key={t.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, alignItems: "center", padding: "10px 10px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border-color)", borderRadius: 7 }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#e5e7eb" }}>{t.name}</div>
                {t.notes && <div style={{ fontSize: 9, color: "#a5b4fc" }}>{t.notes}</div>}
@@ -2615,7 +2635,7 @@ function TeamTab({ webhookSecret }) {
               <span style={{ fontSize: 11, fontWeight: 600, color: "#f0f0f0", fontFamily: M }}>{t.hoursPerWeek}h</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: t.monthlyCost > 0 ? "#f87171" : "#4ade80", fontFamily: M }}>{t.monthlyCost > 0 ? `$${Number(t.monthlyCost).toLocaleString()}` : "—"}</span>
               {t.id !== 1 ? (
-                <button onClick={() => removeTeamMember(t.id)} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}>Remove</button>
+                <button onClick={() => removeTeamMember(t.id)} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid var(--border-color)", borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}>Remove</button>
               ) : <span/>}
             </div>
           ))}
@@ -2709,11 +2729,11 @@ function CapTab() {
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
             <div>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Name</div>
-              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 12, fontFamily: "inherit", outline: "none" }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Role</div>
-              <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 12, fontFamily: "inherit", outline: "none" }}>
+              <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 12, fontFamily: "inherit", outline: "none" }}>
                 <option value="Consultant">Consultant</option>
                 <option value="Jr. Consultant">Jr. Consultant</option>
                 <option value="Contractor">Contractor</option>
@@ -2722,11 +2742,11 @@ function CapTab() {
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Hours/wk</div>
-              <input type="number" value={newHours} onChange={e => setNewHours(Number(e.target.value))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 12, fontFamily: "var(--mono)", outline: "none" }} />
+              <input type="number" value={newHours} onChange={e => setNewHours(Number(e.target.value))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 12, fontFamily: "var(--mono)", outline: "none" }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>$/month</div>
-              <input type="number" value={newCost} onChange={e => setNewCost(Number(e.target.value))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 12, fontFamily: "var(--mono)", outline: "none" }} />
+              <input type="number" value={newCost} onChange={e => setNewCost(Number(e.target.value))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border-color)", background: "rgba(0,0,0,0.3)", color: "#e5e7eb", fontSize: 12, fontFamily: "var(--mono)", outline: "none" }} />
             </div>
             <button onClick={addConsultant} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: "#6366f1", color: "white", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit" }}>Add</button>
           </div>
@@ -2761,7 +2781,7 @@ function CapTab() {
             const free = t.hoursAvail - used;
             const color = pct > 85 ? "#f87171" : pct > 70 ? "#fbbf24" : "#4ade80";
             return (
-              <div key={t.id} style={{ padding: "12px 0", borderBottom: ti < team.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none", animation: `fu 0.3s ease ${ti * 60}ms both` }}>
+              <div key={t.id} style={{ padding: "12px 0", borderBottom: ti < team.length - 1 ? "1px solid var(--border-color)" : "none", animation: `fu 0.3s ease ${ti * 60}ms both` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div>
                     <span style={{ fontSize: 13, fontWeight: 600, color: "#e5e7eb" }}>{t.name}</span>
@@ -2812,7 +2832,7 @@ function CapTab() {
           <Panel title="New Client Scenarios">
             {scenarios.map((s, i) => {
               const np = Math.round(((teamHoursUsed + s.h) / teamHoursAvail) * 100); const fits = np <= 100;
-              return (<div key={i} style={{ padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, marginBottom: 5, border: `1px solid ${!fits ? "rgba(248,113,113,0.1)" : "rgba(255,255,255,0.03)"}` }}>
+              return (<div key={i} style={{ padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, marginBottom: 5, border: `1px solid ${!fits ? "rgba(248,113,113,0.1)" : "var(--bg-card)"}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 11.5, fontWeight: 600, color: "#e5e7eb" }}>{s.l}</span><span style={{ fontSize: 10.5, fontWeight: 600, color: fits ? "#4ade80" : "#f87171", fontFamily: M }}>{np}%{!fits && " ⚠"}</span></div>
                 <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>+{s.h}h/wk · +${s.r.toLocaleString()}/mo · {fits ? `${teamFree - s.h}h remaining` : "Over capacity — hire first"}</div>
               </div>);
@@ -2875,7 +2895,7 @@ function CommsTab({ onTabNav }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, maxWidth:680 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f0f0" }}>Communication Log</h2>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"var(--text-primary)" }}>Communication Log</h2>
         <div style={{ display:"flex", gap:8 }}>
           {/* Recording upload shortcut */}
           <button
@@ -2894,12 +2914,12 @@ function CommsTab({ onTabNav }) {
       </div>
 
       {/* Agent activity note */}
-      <div style={{ fontSize:10, color:"#4b5563", padding:"6px 10px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
+      <div style={{ fontSize:10, color:"var(--text-label)", padding:"6px 10px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
         🤖 Entries with an indigo border were written by an IC-BOS agent. Upload a recording to auto-generate call entries.
       </div>
 
       <div style={{ position:"relative", paddingLeft:20 }}>
-        <div style={{ position:"absolute", left:6, top:0, bottom:0, width:2, background:"rgba(255,255,255,0.04)" }}/>
+        <div style={{ position:"absolute", left:6, top:0, bottom:0, width:2, background:"var(--bg-card)" }}/>
         {all.map((c,i) => {
           const isAgentEntry = agentEntries.has(c.date);
           return (
@@ -2908,22 +2928,22 @@ function CommsTab({ onTabNav }) {
               <div style={{
                 background: isAgentEntry ? "rgba(99,102,241,0.04)" : "rgba(255,255,255,0.02)",
                 border: `1px solid ${isAgentEntry ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)"}`,
-                borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid rgba(255,255,255,0.04)",
+                borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid var(--border-color)",
                 borderRadius:8,
                 padding:"8px 14px"
               }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                    <span style={{ fontSize:12, fontWeight:600, color:"#e5e7eb" }}>{c.client}</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:"var(--text-primary)" }}>{c.client}</span>
                     {isAgentEntry && (
-                      <span style={{ fontSize:8, fontWeight:700, color:"#818cf8", background:"rgba(99,102,241,0.12)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>🤖 AGENT</span>
+                      <span style={{ fontSize:8, fontWeight:700, color:"var(--accent)", background:"rgba(99,102,241,0.12)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>🤖 AGENT</span>
                     )}
                   </div>
-                  <span style={{ fontSize:10, color:"#6b7280", fontFamily:M }}>{c.date}</span>
+                  <span style={{ fontSize:10, color:"var(--text-muted)", fontFamily:M }}>{c.date}</span>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                   <span style={{ fontSize:9, color:tc[c.type], fontWeight:600, textTransform:"uppercase", fontFamily:M }}>{c.type}</span>
-                  <span style={{ fontSize:11, color:"#9ca3af" }}>{c.note}</span>
+                  <span style={{ fontSize:11, color:"var(--text-secondary)" }}>{c.note}</span>
                 </div>
                 {/* View Transcript / View Analysis buttons for call entries */}
                 {c.type === "call" && (
@@ -3044,18 +3064,18 @@ export default function ICBOS() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pr{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.3);opacity:0}}
-        *{box-sizing:border-box;margin:0;padding:0;scrollbar-width:thin;scrollbar-color:#1f2937 transparent}
-        ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#1f2937;border-radius:3px}
+        *{box-sizing:border-box;margin:0;padding:0;scrollbar-width:thin;scrollbar-color:var(--border-color) transparent}
+        ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:var(--border-color);border-radius:3px}
         button{font-family:inherit}
       `}</style>
 
-      <div style={{ position:"fixed", inset:0, zIndex:0, pointerEvents:"none", background:"radial-gradient(ellipse at 15% 0%,rgba(99,102,241,0.04) 0%,transparent 55%),radial-gradient(ellipse at 85% 100%,rgba(139,92,246,0.03) 0%,transparent 45%)" }}/>
+      <div style={{ position:"fixed", inset:0, zIndex:0, pointerEvents:"none", background:"transparent" }}/>
 
       {/* Header */}
       <header style={{ position:"sticky", top:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 24px", background:"var(--header-bg)", backdropFilter:"blur(20px)", borderBottom:"1px solid var(--header-border)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:30, height:30, borderRadius:8, background:"linear-gradient(135deg,#6366f1,#8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"white" }}>IC</div>
-          <div><div style={{ fontSize:13, fontWeight:700, color:"#f0f0f0" }}>IC-BOS</div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>Immaculate Consulting Business Operating System</div></div>
+          <div style={{ width:30, height:30, borderRadius:8, background:"#2ab6d7", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"var(--text-primary)" }}>IC</div>
+          <div><div style={{ fontSize:13, fontWeight:700, color:"var(--text-primary)" }}>IC-BOS</div><div style={{ fontSize:9, color:"var(--text-muted)", fontFamily:M }}>Immaculate Consulting Business Operating System</div></div>
         </div>
         <nav style={{ display:"flex", gap:1, flexWrap:"wrap", justifyContent:"center", maxWidth:820 }}>
           {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"5px 9px", borderRadius:6, border:"none", cursor:"pointer", fontSize:10.5, fontWeight:500, background:tab===t.id?"rgba(99,102,241,0.15)":"transparent", color:tab===t.id?"#a5b4fc":"#6b7280", transition:"all 0.15s", position:"relative" }}>
@@ -3091,8 +3111,8 @@ export default function ICBOS() {
               {isAnyAgentRunning && <span style={{ position:"absolute", width:14, height:14, borderRadius:"50%", background:"rgba(56,189,248,0.3)", animation:"pr 1.2s ease-out infinite" }}/>}
             </button>
             {showPulsePopover && (
-              <div style={{ position:"absolute", top:36, right:0, width:220, background:"#111118", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"12px 14px", zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both" }}>
-                <div style={{ fontSize:10, fontWeight:700, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:M, marginBottom:8 }}>Agent Pulse</div>
+              <div style={{ position:"absolute", top:36, right:0, width:220, background:"var(--bg-surface)", border:"1px solid var(--border-color)", borderRadius:10, padding:"12px 14px", zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both" }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.08em", fontFamily:M, marginBottom:8 }}>Agent Pulse</div>
                 {isAnyAgentRunning ? (
                   runningAgents.map(name => (
                     <div key={name} style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
@@ -3101,7 +3121,7 @@ export default function ICBOS() {
                     </div>
                   ))
                 ) : (
-                  <div style={{ fontSize:11, color:"#4b5563", display:"flex", alignItems:"center", gap:6 }}>
+                  <div style={{ fontSize:11, color:"var(--text-label)", display:"flex", alignItems:"center", gap:6 }}>
                     <span style={{ width:7, height:7, borderRadius:"50%", background:"#374151", flexShrink:0 }}/>
                     All agents idle
                   </div>
@@ -3122,34 +3142,34 @@ export default function ICBOS() {
             >
               🔔
               {unreadCount > 0 && (
-                <span style={{ position:"absolute", top:-3, right:-3, minWidth:14, height:14, borderRadius:7, background:"#f87171", border:"2px solid #0a0a0f", fontSize:8, fontWeight:800, color:"white", fontFamily:M, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 2px" }}>
+                <span style={{ position:"absolute", top:-3, right:-3, minWidth:14, height:14, borderRadius:7, background:"#f87171", border:"2px solid #0a0a0f", fontSize:8, fontWeight:800, color:"var(--text-primary)", fontFamily:M, display:"flex", alignItems:"center", justifyContent:"center", padding:"0 2px" }}>
                   {unreadCount}
                 </span>
               )}
             </button>
             {showNotifs && (
-              <div style={{ position:"absolute", top:36, right:0, width:300, background:"#111118", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both", overflow:"hidden" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px 8px", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
-                  <span style={{ fontSize:11, fontWeight:700, color:"#e5e7eb" }}>Notifications</span>
+              <div style={{ position:"absolute", top:36, right:0, width:300, background:"var(--bg-surface)", border:"1px solid var(--border-color)", borderRadius:10, zIndex:200, boxShadow:"0 8px 32px rgba(0,0,0,0.5)", animation:"fu 0.15s ease both", overflow:"hidden" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 14px 8px", borderBottom:"1px solid var(--border-color)" }}>
+                  <span style={{ fontSize:11, fontWeight:700, color:"var(--text-primary)" }}>Notifications</span>
                   {allNotifs.length > 0 && (
-                    <button onClick={() => setDismissedNotifs(prev => [...prev, ...allNotifs.map(n => n.id)])} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"none", cursor:"pointer" }}>Clear all</button>
+                    <button onClick={() => setDismissedNotifs(prev => [...prev, ...allNotifs.map(n => n.id)])} style={{ fontSize:9, color:"var(--text-muted)", background:"transparent", border:"none", cursor:"pointer" }}>Clear all</button>
                   )}
                 </div>
                 <div style={{ maxHeight:320, overflowY:"auto" }}>
                   {allNotifs.length === 0 ? (
-                    <div style={{ padding:"20px 14px", fontSize:11, color:"#4b5563", textAlign:"center" }}>No new notifications</div>
+                    <div style={{ padding:"20px 14px", fontSize:11, color:"var(--text-label)", textAlign:"center" }}>No new notifications</div>
                   ) : (
                     allNotifs.map(n => (
-                      <div key={n.id} style={{ display:"flex", alignItems:"flex-start", gap:9, padding:"10px 14px", borderBottom:"1px solid rgba(255,255,255,0.03)", cursor:"pointer" }}
+                      <div key={n.id} style={{ display:"flex", alignItems:"flex-start", gap:9, padding:"10px 14px", borderBottom:"1px solid var(--border-color)", cursor:"pointer" }}
                         onClick={() => { setTab(n.tab); setShowNotifs(false); }}
-                        onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"}
+                        onMouseEnter={e => e.currentTarget.style.background = "var(--bg-card)"}
                         onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                       >
                         <span style={{ fontSize:14, flexShrink:0, marginTop:1 }}>{n.icon}</span>
-                        <span style={{ fontSize:11, color:"#9ca3af", flex:1, lineHeight:1.4 }}>{n.text}</span>
+                        <span style={{ fontSize:11, color:"var(--text-secondary)", flex:1, lineHeight:1.4 }}>{n.text}</span>
                         <button
                           onClick={e => { e.stopPropagation(); setDismissedNotifs(prev => [...prev, n.id]); }}
-                          style={{ fontSize:12, color:"#4b5563", background:"transparent", border:"none", cursor:"pointer", flexShrink:0, padding:"0 2px" }}
+                          style={{ fontSize:12, color:"var(--text-label)", background:"transparent", border:"none", cursor:"pointer", flexShrink:0, padding:"0 2px" }}
                         >×</button>
                       </div>
                     ))
@@ -3161,7 +3181,7 @@ export default function ICBOS() {
 
           {/* Sign Out */}
          <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color: isPrincipal?"#a5b4fc":isConsultant?"#4ade80":"#9ca3af", background: isPrincipal?"rgba(99,102,241,0.1)":isConsultant?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.04)", border:`1px solid ${isPrincipal?"rgba(99,102,241,0.2)":isConsultant?"rgba(74,222,128,0.2)":"rgba(255,255,255,0.08)"}`, borderRadius:5, padding:"3px 8px", fontFamily:M }}>{userRole}</span>
-          <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} style={{ fontSize:10, color:"#9ca3af", background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>Sign Out</button>
+          <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} style={{ fontSize:10, color:"var(--text-secondary)", background:"var(--bg-card)", border:"1px solid var(--border-color)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>Sign Out</button>
 
         </div>
       </header>
@@ -3172,7 +3192,7 @@ export default function ICBOS() {
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* ROI Banner */}
             <div style={{ background:"linear-gradient(135deg,rgba(74,222,128,0.05),rgba(56,189,248,0.03))", border:"1px solid rgba(74,222,128,0.08)", borderRadius:12, padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", animation:"fu 0.5s ease both" }}>
-              <div><div style={{ fontSize:9, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:M }}>Total Client Value Recovered</div>
+              <div><div style={{ fontSize:9, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:M }}>Total Client Value Recovered</div>
               <div style={{ fontSize:30, fontWeight:800, color:"#4ade80", fontFamily:M, lineHeight:1, marginTop:3 }}><AnimNum value={Math.round(totalROI)} prefix="$" dur={1800}/></div></div>
               <button onClick={()=>setTab("roi")} style={{ fontSize:10, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>View →</button>
             </div>
@@ -3186,11 +3206,11 @@ export default function ICBOS() {
             {(critCount>0||overdueInvs.length>0)&&<div style={{ display:"flex", gap:10 }}>
               {critCount>0&&<div onClick={()=>setTab("automations")} style={{ flex:1, background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"10px 14px", cursor:"pointer", animation:"fu 0.4s ease both" }}>
                 <div style={{ fontSize:11, fontWeight:600, color:"#f87171" }}>⚠️ {critCount} critical automation</div>
-                <div style={{ fontSize:10, color:"#9ca3af", marginTop:2 }}>{AUTOMATIONS.filter(a=>a.status==="critical").map(a=>`${a.client}: ${a.name}`).join(" · ")}</div>
+                <div style={{ fontSize:10, color:"var(--text-secondary)", marginTop:2 }}>{AUTOMATIONS.filter(a=>a.status==="critical").map(a=>`${a.client}: ${a.name}`).join(" · ")}</div>
               </div>}
               {overdueInvs.length>0&&<div onClick={()=>setTab("invoicing")} style={{ flex:1, background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"10px 14px", cursor:"pointer", animation:"fu 0.4s ease 100ms both" }}>
                 <div style={{ fontSize:11, fontWeight:600, color:"#f87171" }}>💰 {overdueInvs.length} overdue invoice</div>
-                <div style={{ fontSize:10, color:"#9ca3af", marginTop:2 }}>{overdueInvs.map(i=>`${i.client}: $${i.total.toLocaleString()}`).join(" · ")}</div>
+                <div style={{ fontSize:10, color:"var(--text-secondary)", marginTop:2 }}>{overdueInvs.map(i=>`${i.client}: $${i.total.toLocaleString()}`).join(" · ")}</div>
               </div>}
             </div>}
             <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:12 }}>
@@ -3203,12 +3223,12 @@ export default function ICBOS() {
           </div>
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit}/></>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"var(--text-primary)"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"var(--text-muted)",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            <h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Financial Overview</h2>
+            <h2 style={{fontSize:17,fontWeight:700,color:"var(--text-primary)"}}>Financial Overview</h2>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
               <KPI label="MRR" value={FINANCIALS.mrr} prefix="$" change={12.2} spark={FINANCIALS.revenueHistory.map(r=>r.revenue)} sparkColor="#818cf8"/>
               <KPI label="ARR" value={FINANCIALS.arr} prefix="$" spark={FINANCIALS.revenueHistory.map(r=>r.revenue*12)} sparkColor="#4ade80" delay={60}/>
@@ -3217,7 +3237,7 @@ export default function ICBOS() {
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <Panel title="Revenue Trend"><RevChart data={FINANCIALS.revenueHistory}/></Panel>
-              <Panel title="Monthly P&L">{[{l:"Revenue",v:"$27,500",c:"#818cf8"},{l:"Expenses",v:"-$8,400",c:"#f87171"},{l:"Net",v:"$19,100",c:"#4ade80"},{l:"A/R",v:"$13,000",c:"#fbbf24"}].map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid rgba(255,255,255,0.03)"}}><span style={{fontSize:12,color:"#9ca3af"}}>{m.l}</span><span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span></div>))}</Panel>
+              <Panel title="Monthly P&L">{[{l:"Revenue",v:"$27,500",c:"#818cf8"},{l:"Expenses",v:"-$8,400",c:"#f87171"},{l:"Net",v:"$19,100",c:"#4ade80"},{l:"A/R",v:"$13,000",c:"#fbbf24"}].map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid var(--border-color)"}}><span style={{fontSize:12,color:"var(--text-secondary)"}}>{m.l}</span><span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span></div>))}</Panel>
             </div>
           </div>
         )}
@@ -3230,7 +3250,7 @@ export default function ICBOS() {
         {tab==="renewals"&&<RenewalsTab/>}
         {tab==="proposal"&&<ProposalTab/>}
         {tab==="salesprep"&&<SalesPrepTab/>}
-        {tab==="tasks"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>Action Items</h2><button onClick={()=>setShowForm("task")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Task</button></div><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS].sort((a,b)=>({high:0,medium:1,low:2})[a.priority]-({high:0,medium:1,low:2})[b.priority]).map((t,i)=><TaskItem key={t.id} task={t} delay={i*30}/>)}</div></>}
+        {tab==="tasks"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"var(--text-primary)"}}>Action Items</h2><button onClick={()=>setShowForm("task")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Task</button></div><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS].sort((a,b)=>({high:0,medium:1,low:2})[a.priority]-({high:0,medium:1,low:2})[b.priority]).map((t,i)=><TaskItem key={t.id} task={t} delay={i*30}/>)}</div></>}
         {tab==="comms"&&<CommsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
