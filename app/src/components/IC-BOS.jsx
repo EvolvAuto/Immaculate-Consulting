@@ -2500,7 +2500,7 @@ function TeamTab({ webhookSecret }) {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {/* Header */}
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8, padding: "4px 10px", fontSize: 9, color: "#4b5563", fontFamily: M, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: 8, padding: "4px 10px", fontSize: 9, color: "#94a3b8", fontFamily: M, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               <span>Email</span><span>Role</span><span>Last Sign In</span><span>Status</span>
             </div>
             {appUsers.map(u => (
@@ -2516,7 +2516,7 @@ function TeamTab({ webhookSecret }) {
                   <option value="consultant">Consultant</option>
                   <option value="viewer">Viewer</option>
                 </select>
-                <span style={{ fontSize: 10, color: "#6b7280", fontFamily: M }}>{u.last_sign_in ? new Date(u.last_sign_in).toLocaleDateString() : "Never"}</span>
+                <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: M }}>{u.last_sign_in ? new Date(u.last_sign_in).toLocaleDateString() : "Never"}</span>
                 <span style={{ fontSize: 9, fontWeight: 700, color: u.confirmed ? "#4ade80" : "#fbbf24", background: u.confirmed ? "rgba(74,222,128,0.1)" : "rgba(251,191,36,0.1)", borderRadius: 4, padding: "2px 7px", fontFamily: M, textTransform: "uppercase", display: "inline-block" }}>{u.confirmed ? "Active" : "Pending"}</span>
               </div>
             ))}
@@ -2565,7 +2565,7 @@ function TeamTab({ webhookSecret }) {
 
         {/* Team table */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, padding: "4px 10px", fontSize: 9, color: "#4b5563", fontFamily: M, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, padding: "4px 10px", fontSize: 9, color: "#94a3b8", fontFamily: M, textTransform: "uppercase", letterSpacing: "0.05em" }}>
             <span>Name</span><span>Title</span><span>Type</span><span>Hrs/Wk</span><span>Mo. Cost</span><span></span>
           </div>
           {team.map(t => (
@@ -2575,7 +2575,7 @@ function TeamTab({ webhookSecret }) {
                 {t.notes && <div style={{ fontSize: 9, color: "#6b7280" }}>{t.notes}</div>}
               </div>
               <span style={{ fontSize: 11, color: "#9ca3af" }}>{t.title}</span>
-              <span style={{ fontSize: 10, color: "#6b7280", fontFamily: M }}>{t.type}</span>
+              <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: M }}>{t.type}</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: "#f0f0f0", fontFamily: M }}>{t.hoursPerWeek}h</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: t.monthlyCost > 0 ? "#f87171" : "#4ade80", fontFamily: M }}>{t.monthlyCost > 0 ? `$${Number(t.monthlyCost).toLocaleString()}` : "—"}</span>
               {t.id !== 1 ? (
