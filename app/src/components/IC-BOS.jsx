@@ -1965,6 +1965,18 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
   );
 }
 
+// ── Automation last-run badge helper ─────────────────────────────────
+function timeSinceRun(lastRun) {
+  if (!lastRun) return "Never";
+  if (typeof lastRun === "string" && !lastRun.includes("T")) return lastRun;
+  const diff = Date.now() - new Date(lastRun).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 // Automations Tab (Feature 4)
 function AutoTab() {
   const stc={healthy:"#4ade80",warning:"#fbbf24",critical:"#f87171"};
@@ -1988,7 +2000,13 @@ function AutoTab() {
         <span style={{ fontFamily:M, color:"#f0f0f0" }}>{a.successRate}%</span>
         <span style={{ fontFamily:M, color:"#f0f0f0" }}>{a.execsToday}</span>
         <span style={{ fontFamily:M, color:"#f0f0f0" }}>${a.costToday.toFixed(2)}</span>
-        <span style={{ fontSize:10, color:"#6b7280" }}>{a.lastRun}</span>
+       <span style={{
+          padding:"2px 8px", borderRadius:10, fontSize:11,
+          background: a.status==="critical" ? "rgba(239,68,68,0.15)" : a.status==="warning" ? "rgba(251,191,36,0.1)" : "rgba(100,116,139,0.15)",
+          color: a.status==="critical" ? "#fca5a5" : a.status==="warning" ? "#fbbf24" : "#94a3b8",
+        }}>
+          🕐 {timeSinceRun(a.lastRun)}
+        </span>
       </div>))}
     </div>
   );
