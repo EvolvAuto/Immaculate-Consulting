@@ -69,7 +69,6 @@ const S = {
     fontFamily: "inherit", outline: "none", boxSizing: "border-box",
     appearance: "none", cursor: "pointer", colorScheme: "dark",
   },
-  },
   textarea: {
     width: "100%", background: "rgba(255,255,255,0.04)",
     border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7,
