@@ -1511,61 +1511,49 @@ function ProposalTab() {
     <button onClick={onClick} style={{ padding:"5px 11px", borderRadius:6, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.06)"}`, background:active?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:active?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:10.5, fontFamily:"inherit", transition:"all 0.15s" }}>{children}</button>
   );
 // ── Proposal PDF Print helper ────────────────────────────────────────────
-const printProposal = (proposal) => {
+const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aRev, aStaff, aBen) => {
   const win = window.open('', '_blank');
-  win.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Proposal - ${proposal.practice || proposal.client}</title>
-      <style>
-        body { font-family: 'Segoe UI', sans-serif; color: #1e293b; max-width: 800px; margin: 40px auto; padding: 0 24px; }
-        h1 { color: #6366f1; font-size: 28px; margin-bottom: 4px; }
-        .subtitle { color: #64748b; font-size: 14px; margin-bottom: 32px; }
-        .section { margin-bottom: 24px; }
-        .section h2 { font-size: 16px; color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px; }
-        .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 16px 0; }
-        .kpi { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
-        .kpi .value { font-size: 24px; font-weight: 700; color: #6366f1; }
-        .kpi .label { font-size: 12px; color: #64748b; margin-top: 4px; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th { background: #f1f5f9; text-align: left; padding: 10px 12px; font-weight: 600; }
-        td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
-        .footer { margin-top: 40px; padding-top: 16px; border-top: 2px solid #e2e8f0; color: #64748b; font-size: 12px; }
-        @media print { body { margin: 0; } }
-      </style>
-    </head>
-    <body>
-      <h1>Immaculate Consulting</h1>
-      <div class="subtitle">Healthcare Automation Proposal | ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</div>
-      
-      <div class="section">
-        <h2>Proposed For</h2>
-        <p><strong>${proposal.practice || proposal.client}</strong>${proposal.specialty ? ' &mdash; ' + proposal.specialty : ''}</p>
-        ${proposal.ehr ? `<p>EHR System: ${proposal.ehr}</p>` : ''}
-        ${proposal.tier ? `<p>Service Tier: Tier ${proposal.tier}</p>` : ''}
-      </div>
-
-      <div class="section">
-        <h2>Projected ROI</h2>
-        <div class="kpi-grid">
-          <div class="kpi"><div class="value">$${proposal.roiProjections?.annualBenefit ? Math.round(proposal.roiProjections.annualBenefit).toLocaleString() : '—'}</div><div class="label">Annual Benefit</div></div>
-          <div class="kpi"><div class="value">${proposal.roiProjections?.roiPct ? Math.round(proposal.roiProjections.roiPct) + '%' : '—'}</div><div class="label">ROI</div></div>
-          <div class="kpi"><div class="value">$${proposal.monthlyFee ? proposal.monthlyFee.toLocaleString() : '—'}</div><div class="label">Monthly Fee</div></div>
-        </div>
-      </div>
-
-      ${proposal.body ? `<div class="section"><h2>Proposal Details</h2><div style="white-space:pre-wrap;line-height:1.7;">${proposal.body}</div></div>` : ''}
-
-      ${proposal.followUpEmail ? `<div class="section"><h2>Follow-up Email Draft</h2><div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;white-space:pre-wrap;">${proposal.followUpEmail}</div></div>` : ''}
-
-      <div class="footer">
-        <p>Immaculate Consulting | immaculate-consulting.org | Leonard Croom</p>
-        <p>This proposal is confidential and intended solely for the named recipient.</p>
-      </div>
-    </body>
-    </html>
-  `);
+  win.document.write(`<!DOCTYPE html><html><head><title>Proposal - ${prospect.practice}</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;color:#1e293b;max-width:800px;margin:40px auto;padding:0 24px}
+    h1{color:#6366f1;font-size:28px;margin-bottom:4px}
+    .subtitle{color:#64748b;font-size:14px;margin-bottom:32px}
+    .section{margin-bottom:24px}
+    .section h2{font-size:16px;color:#334155;border-bottom:2px solid #e2e8f0;padding-bottom:8px;margin-bottom:12px}
+    .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:16px 0}
+    .kpi{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px;text-align:center}
+    .kpi .value{font-size:22px;font-weight:700;color:#6366f1}
+    .kpi .label{font-size:12px;color:#64748b;margin-top:4px}
+    .footer{margin-top:40px;padding-top:16px;border-top:2px solid #e2e8f0;color:#64748b;font-size:12px}
+    @media print{body{margin:0}}
+  </style></head><body>
+  <h1>Immaculate Consulting</h1>
+  <div class="subtitle">Healthcare Automation Proposal | ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
+  <div class="section"><h2>Proposed For</h2>
+    <p><strong>${prospect.practice}</strong> &mdash; ${prospect.specialty}</p>
+    <p>EHR: ${prospect.ehr} | Providers: ${prospect.providers} | Payer Mix: ${prospect.payer}</p>
+    <p>No-Show Baseline: ${prospect.noShowBaseline}% | EHR Integration: ${prospect.ehrDifficulty} difficulty (${prospect.ehrTimeline})</p>
+  </div>
+  <div class="section"><h2>Investment Summary</h2>
+    <div class="kpi-grid">
+      ${totalMonthly > 0 ? `<div class="kpi"><div class="value">$${totalMonthly.toLocaleString()}/mo</div><div class="label">Monthly Recurring</div></div>` : ''}
+      ${totalOneTime > 0 ? `<div class="kpi"><div class="value">$${totalOneTime.toLocaleString()}</div><div class="label">One-Time / Project</div></div>` : ''}
+      <div class="kpi"><div class="value">$${totalYear1.toLocaleString()}</div><div class="label">Year 1 Total</div></div>
+    </div>
+  </div>
+  <div class="section"><h2>Projected ROI</h2>
+    <div class="kpi-grid">
+      ${aRev ? `<div class="kpi"><div class="value">$${Math.round(aRev).toLocaleString()}</div><div class="label">Revenue Recovered/Yr</div></div>` : ''}
+      ${aStaff ? `<div class="kpi"><div class="value">$${Math.round(aStaff).toLocaleString()}</div><div class="label">Staff Savings/Yr</div></div>` : ''}
+      ${aBen ? `<div class="kpi"><div class="value">$${Math.round(aBen).toLocaleString()}</div><div class="label">Total Annual Benefit</div></div>` : ''}
+      <div class="kpi"><div class="value" style="color:${roi > 0 ? '#16a34a' : '#dc2626'}">${Math.round(roi)}%</div><div class="label">Year 1 ROI</div></div>
+      ${aBen && totalMonthly ? `<div class="kpi"><div class="value">$${Math.round((aBen*3)-(totalYear1+(totalMonthly*24))).toLocaleString()}</div><div class="label">3-Year Net Benefit</div></div>` : ''}
+    </div>
+  </div>
+  <div class="footer">
+    <p>Immaculate Consulting | immaculate-consulting.org | Leonard Croom</p>
+    <p>This proposal is confidential and intended solely for the named recipient.</p>
+  </div></body></html>`);
   win.document.close();
   setTimeout(() => { win.print(); }, 500);
 };
@@ -1711,7 +1699,7 @@ const printProposal = (proposal) => {
       {/* Download PDF button */}
       <div style={{ display:"flex", justifyContent:"flex-end", marginTop:4 }}>
         <button
-          onClick={() => printProposal(prospect, totalOneTime, totalMonthly, totalYear1, roi)}
+         onClick={() => printProposal(prospect, totalOneTime, totalMonthly, totalYear1, roi, aRev, aStaff, aBen)}
           style={{
             background:"rgba(99,102,241,0.12)", color:"#818cf8",
             border:"1px solid rgba(99,102,241,0.3)", borderRadius:"6px",
