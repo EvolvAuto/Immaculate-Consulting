@@ -4,6 +4,42 @@ import { AddClientPanel, AddDealPanel, AddTaskPanel, AddInvoicePanel, AddCommPan
 import AgentsTab from "./AgentsTab";
 import { supabase } from "../lib/supabaseClient";
 
+// ── Theme CSS Variables ───────────────────────────────────────────────────────
+const THEME_STYLE = `
+  [data-theme="dark"] {
+    --bg-page: #0a0a0f;
+    --bg-surface: #13131a;
+    --bg-card: rgba(255,255,255,0.02);
+    --border-color: rgba(255,255,255,0.05);
+    --text-primary: #f0f0f0;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --text-label: #475569;
+    --header-bg: rgba(10,10,15,0.9);
+    --header-border: rgba(255,255,255,0.04);
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+  }
+  [data-theme="light"] {
+    --bg-page: #eef6fb;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --border-color: #cce4f0;
+    --text-primary: #0d2b4e;
+    --text-secondary: #2d5f80;
+    --text-muted: #5a8aaa;
+    --text-label: #7aaacb;
+    --header-bg: #0d2b4e;
+    --header-border: rgba(42,182,215,0.2);
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+  }
+`;
+
+// ═══════════════════════════════════════════════════════════════════════
+
 // ═══════════════════════════════════════════════════════════════════════
 // IC-BOS — Immaculate Consulting Business Operating System
 // Complete Business Operations System with Voice Layer
@@ -2914,7 +2950,13 @@ function CommsTab({ onTabNav }) {
 // ═══════════════════════════════════════════════════════════════════════
 export default function ICBOS() {
   const [tab, setTab] = useState("overview");
-  const [showForm, setShowForm] = useState(null); // 'client'|'deal'|'task'|'invoice'|'comm'
+  const [theme, setTheme] = useState(() => localStorage.getItem("icbos-theme") || "dark");
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    localStorage.setItem("icbos-theme", next);
+  };
+  const [showForm, setShowForm] = useState(null);
   const [showPulsePopover, setShowPulsePopover] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const [dismissedNotifs, setDismissedNotifs] = useState([]);
@@ -2996,8 +3038,9 @@ export default function ICBOS() {
   const isAnyAgentRunning = runningAgents.length > 0;
   
   return (
-    <div style={{ minHeight:"100vh", background:"#0a0a0f", color:"#e5e7eb", fontFamily:"'Inter',-apple-system,sans-serif", "--mono":"'JetBrains Mono',monospace" }}>
+   <div data-theme={theme} style={{ minHeight:"100vh", background:"var(--bg-page)", color:"var(--text-primary)", fontFamily:"'Inter',-apple-system,sans-serif", "--mono":"'JetBrains Mono',monospace" }}>
       <style>{`
+        ${THEME_STYLE}
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes fu{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pr{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.3);opacity:0}}
@@ -3009,7 +3052,7 @@ export default function ICBOS() {
       <div style={{ position:"fixed", inset:0, zIndex:0, pointerEvents:"none", background:"radial-gradient(ellipse at 15% 0%,rgba(99,102,241,0.04) 0%,transparent 55%),radial-gradient(ellipse at 85% 100%,rgba(139,92,246,0.03) 0%,transparent 45%)" }}/>
 
       {/* Header */}
-      <header style={{ position:"sticky", top:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 24px", background:"rgba(10,10,15,0.9)", backdropFilter:"blur(20px)", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+      <header style={{ position:"sticky", top:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 24px", background:"var(--header-bg)", backdropFilter:"blur(20px)", borderBottom:"1px solid var(--header-border)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <div style={{ width:30, height:30, borderRadius:8, background:"linear-gradient(135deg,#6366f1,#8b5cf6)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"white" }}>IC</div>
           <div><div style={{ fontSize:13, fontWeight:700, color:"#f0f0f0" }}>IC-BOS</div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>Immaculate Consulting Business Operating System</div></div>
@@ -3022,6 +3065,15 @@ export default function ICBOS() {
           </button>))}
         </nav>
         <div style={{ display:"flex", alignItems:"center", gap:10, position:"relative" }}>
+
+         {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            style={{ background:"rgba(42,182,215,0.1)", border:"1px solid rgba(42,182,215,0.2)", borderRadius:6, padding:"4px 10px", cursor:"pointer", fontSize:12, color:"#2ab6d7", display:"flex", alignItems:"center", gap:5 }}
+          >
+            {theme === "dark" ? "☀" : "◑"}
+          </button>
 
           {/* LIVE badge */}
           <span style={{ fontSize:9, color:"#4ade80", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}>
