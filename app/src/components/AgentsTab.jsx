@@ -284,16 +284,12 @@ function AgentCard({ agent, onRun, onTabNav }) {
     <div
       style={{
         background: isError
-          ? "rgba(248,113,113,0.04)"
-          : isRunning
-          ? "rgba(56,189,248,0.04)"
-          : "rgba(255,255,255,0.025)",
+          ? "rgba(248,113,113,0.06)"
+          : "#0d2b4e",
         border: `1px solid ${
           isError
-            ? "rgba(248,113,113,0.12)"
-            : isRunning
-            ? "rgba(56,189,248,0.14)"
-            : "rgba(255,255,255,0.06)"
+            ? "rgba(248,113,113,0.22)"
+            : "rgba(42,182,215,0.15)"
         }`,
         borderRadius: 12,
         padding: "14px 16px",
@@ -324,7 +320,7 @@ function AgentCard({ agent, onRun, onTabNav }) {
       </div>
 
       {/* Last result */}
-      <div style={{ background: "rgba(0,0,0,0.2)", borderRadius: 7, padding: "8px 10px" }}>
+      <div style={{ background: "rgba(5,20,45,0.5)", borderRadius: 7, padding: "8px 10px" }}>
         <div style={{ fontSize: 9, color: "#4b5563", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: M, marginBottom: 3 }}>Last Run · {agent.lastRun}</div>
         <div style={{ fontSize: 10.5, color: isError ? "#f87171" : "#9ca3af", lineHeight: 1.4 }}>{agent.lastResult}</div>
       </div>
