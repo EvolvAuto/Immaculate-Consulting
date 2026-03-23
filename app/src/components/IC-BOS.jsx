@@ -3018,6 +3018,7 @@ export default function ICBOS() {
             <div style={{ fontSize:14, fontWeight:600, color:"#f0f8ff", letterSpacing:"-0.3px" }}>Immaculate Consulting</div>
             <span style={{ fontSize:9, fontWeight:700, color:"#2ab6d7", background:"rgba(42,182,215,0.12)", border:"1px solid rgba(42,182,215,0.25)", borderRadius:4, padding:"2px 7px", letterSpacing:"0.5px" }}>IC-BOS</span>
           </div>
+        </div>
         <nav style={{ display:"flex", gap:1, flexWrap:"wrap", justifyContent:"center", maxWidth:820 }}>
           {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"5px 9px", borderRadius:6, border:"none", cursor:"pointer", fontSize:10.5, fontWeight:500, background:tab===t.id?"rgba(42,182,215,0.15)":"transparent", color:tab===t.id?"#2ab6d7":"#f0f8ff", transition:"all 0.15s", position:"relative" }}>
             {t.l}
