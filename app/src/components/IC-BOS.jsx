@@ -3014,11 +3014,12 @@ export default function ICBOS() {
       {/* Header */}
       <header style={{ position:"sticky", top:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 24px", background:"#0d2b4e", backdropFilter:"blur(20px)", borderBottom:"1px solid rgba(42,182,215,0.15)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:30, height:30, borderRadius:8, background:"#2ab6d7", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, fontWeight:800, color:"white" }}>IC</div>
-          <div><div style={{ fontSize:13, fontWeight:700, color:"#f0f8ff" }}>IC-BOS</div><div style={{ fontSize:9, color:"#7aaacb", fontFamily:M }}>Immaculate Consulting Business Operating System</div></div>
-        </div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ fontSize:14, fontWeight:600, color:"#f0f8ff", letterSpacing:"-0.3px" }}>Immaculate Consulting</div>
+            <span style={{ fontSize:9, fontWeight:700, color:"#2ab6d7", background:"rgba(42,182,215,0.12)", border:"1px solid rgba(42,182,215,0.25)", borderRadius:4, padding:"2px 7px", letterSpacing:"0.5px" }}>IC-BOS</span>
+          </div>
         <nav style={{ display:"flex", gap:1, flexWrap:"wrap", justifyContent:"center", maxWidth:820 }}>
-          {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"5px 9px", borderRadius:6, border:"none", cursor:"pointer", fontSize:10.5, fontWeight:500, background:tab===t.id?"rgba(99,102,241,0.15)":"transparent", color:tab===t.id?"#a5b4fc":"#6b7280", transition:"all 0.15s", position:"relative" }}>
+          {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"5px 9px", borderRadius:6, border:"none", cursor:"pointer", fontSize:10.5, fontWeight:500, background:tab===t.id?"rgba(42,182,215,0.15)":"transparent", color:tab===t.id?"#2ab6d7":"#f0f8ff", transition:"all 0.15s", position:"relative" }}>
             {t.l}
             {t.id==="automations"&&critCount>0&&<span style={{ position:"absolute", top:2, right:2, width:5, height:5, borderRadius:"50%", background:"#f87171" }}/>}
             {t.id==="invoicing"&&overdueInvs.length>0&&<span style={{ position:"absolute", top:2, right:2, width:5, height:5, borderRadius:"50%", background:"#f87171" }}/>}
