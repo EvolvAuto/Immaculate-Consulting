@@ -3014,8 +3014,11 @@ export default function ICBOS() {
       {/* Header */}
       <header style={{ position:"sticky", top:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 24px", background:"#0d2b4e", backdropFilter:"blur(20px)", borderBottom:"1px solid rgba(42,182,215,0.15)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div style={{ fontSize:14, fontWeight:600, color:"#f0f8ff", letterSpacing:"-0.3px" }}>Immaculate Consulting</div>
+         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div>
+              <div style={{ fontSize:14, fontWeight:600, color:"#f0f8ff", letterSpacing:"-0.3px" }}>Immaculate Consulting</div>
+              <div style={{ fontSize:9, color:"#7aaacb", letterSpacing:"0.5px" }}>Business Operating System</div>
+            </div>
             <span style={{ fontSize:9, fontWeight:700, color:"#2ab6d7", background:"rgba(42,182,215,0.12)", border:"1px solid rgba(42,182,215,0.25)", borderRadius:4, padding:"2px 7px", letterSpacing:"0.5px" }}>IC-BOS</span>
           </div>
         </div>
