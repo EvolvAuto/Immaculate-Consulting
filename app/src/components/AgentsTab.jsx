@@ -261,7 +261,7 @@ function statusDot(status) {
 
 function StatusBadge({ status }) {
   const cfg = {
-    idle:    { bg: "rgba(75,85,99,0.15)",    border: "rgba(75,85,99,0.25)",    color: "#6b7280", label: "Idle" },
+   idle:    { bg: "rgba(251,191,36,0.1)",   border: "rgba(251,191,36,0.2)",   color: "#fbbf24", label: "Idle" },
     running: { bg: "rgba(56,189,248,0.10)",  border: "rgba(56,189,248,0.25)",  color: "#38bdf8", label: "Running" },
     done:    { bg: "rgba(74,222,128,0.08)",  border: "rgba(74,222,128,0.18)",  color: "#4ade80", label: "Done" },
     error:   { bg: "rgba(248,113,113,0.08)", border: "rgba(248,113,113,0.18)", color: "#f87171", label: "Error" },
@@ -320,14 +320,14 @@ function AgentCard({ agent, onRun, onTabNav }) {
       </div>
 
       {/* Last result */}
-      <div style={{ background: "rgba(5,20,45,0.5)", borderRadius: 7, padding: "8px 10px" }}>
-        <div style={{ fontSize: 9, color: "#4b5563", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: M, marginBottom: 3 }}>Last Run · {agent.lastRun}</div>
-        <div style={{ fontSize: 10.5, color: isError ? "#f87171" : "#9ca3af", lineHeight: 1.4 }}>{agent.lastResult}</div>
+      <div style={{ background: "rgba(5,20,45,0.5)", borderRadius: 7, padding: "8px 10px", border: "1px solid rgba(42,182,215,0.08)" }}>
+      <div style={{ fontSize: 9, color: "#93d4e8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: M, marginBottom: 3 }}>Last Run · {agent.lastRun}</div>
+        <div style={{ fontSize: 10.5, color: isError ? "#f87171" : "#ddeef8", lineHeight: 1.4 }}>{agent.lastResult}</div>
       </div>
 
       {/* Footer: runtime + action */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 9, color: "#4b5563", fontFamily: M }}>Runtime {agent.runtime}</span>
+        <span style={{ fontSize: 9, color: "#4ade80", fontFamily: M }}>Runtime {agent.runtime}</span>
         <div style={{ display: "flex", gap: 6 }}>
           {/* Navigate to the relevant tab */}
           <button
@@ -898,7 +898,7 @@ export default function AgentsTab({ onTabNav }) {
           )}
 
           {/* On-demand agents */}
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: M, marginBottom: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "#2ab6d7", textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: M, marginBottom: 8, borderLeft: "2px solid #2ab6d7", paddingLeft: 8 }}>
             On-Demand — Manual Trigger
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 12, marginBottom: 20 }}>
@@ -908,7 +908,7 @@ export default function AgentsTab({ onTabNav }) {
           </div>
 
           {/* Scheduled agents */}
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#4b5563", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: M, marginBottom: 8 }}>
+         <div style={{ fontSize: 10, fontWeight: 700, color: "#2ab6d7", textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: M, marginBottom: 8, borderLeft: "2px solid #2ab6d7", paddingLeft: 8 }}>
             Scheduled — Auto-Trigger via Make.com
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 12 }}>
