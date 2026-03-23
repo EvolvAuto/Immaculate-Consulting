@@ -2860,7 +2860,7 @@ function CommsTab({ onTabNav }) {
       </div>
 
       {/* Agent activity note */}
-      <div style={{ fontSize:10, color:"#4a6a8a", padding:"6px 10px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
+     <div style={{ fontSize:10, color:"#818cf8", padding:"6px 10px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
         🤖 Entries with an indigo border were written by an IC-BOS agent. Upload a recording to auto-generate call entries.
       </div>
 
