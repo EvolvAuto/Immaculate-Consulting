@@ -315,7 +315,7 @@ function AgentCard({ agent, onRun, onTabNav }) {
               <span style={{ fontSize: 9, color: "#6b7280", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 4, padding: "1px 5px", fontFamily: M }}>⏱ Scheduled</span>
             )}
           </div>
-          <p style={{ fontSize: 10, color: "#6b7280", marginTop: 3, lineHeight: 1.4 }}>{agent.description}</p>
+          <p style={{ fontSize: 10, color: "#7aaacb", marginTop: 3, lineHeight: 1.4 }}>{agent.description}</p>
         </div>
       </div>
 
