@@ -982,6 +982,14 @@ function SalesPrepTab({ canEdit = true }) {
       setSelected(PIPELINE.find(p=>p.stage==="discovery") || PIPELINE[0]);
     }
   }, [PIPELINE]);
+  // All hooks must be before any conditional return
+  const [analysisState, setAnalysisState] = useState(null);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [transcriptText, setTranscriptText] = useState("");
+  const [showTranscriptInput, setShowTranscriptInput] = useState(false);
+  const [researchState, setResearchState] = useState(null);
+  const [researchResult, setResearchResult] = useState(null);
+
   const prospects = PIPELINE.filter(p=>p.stage!=="closed-won");
   if (!selected) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>Loading...</div>;
   const weeklyAppts = selected.providers * 25;
@@ -990,12 +998,6 @@ function SalesPrepTab({ canEdit = true }) {
   const annualStaff = 10 * 18 * 52 * 0.8;
   const tierPrice = { 1:3500, 2:6500, 3:10000 }[selected.tier];
   const roi = ((annualRev + annualStaff - tierPrice*12) / (tierPrice*12)) * 100;
- const [analysisState, setAnalysisState] = useState(null);
-  const [analysisResult, setAnalysisResult] = useState(null);
-  const [transcriptText, setTranscriptText] = useState("");
-  const [showTranscriptInput, setShowTranscriptInput] = useState(false);
-  const [researchState, setResearchState] = useState(null);
-  const [researchResult, setResearchResult] = useState(null);
 
   const handleAnalyzeCall = async () => {
     if (!transcriptText.trim()) return;
@@ -2931,7 +2933,8 @@ export default function ICBOS() {
   const isPrincipal = userRole === "principal";
   const isConsultant = userRole === "consultant";
   const canEdit = isPrincipal || isConsultant; // can use agent buttons and add buttons
-  const canViewFinancials = isPrincipal; // financials, profitability, capacity
+  const canInvoice = isPrincipal;             // create invoices, draft collections follow-ups
+  const canViewFinancials = isPrincipal;      // financials, profitability, capacity
 
   useEffect(()=>{const h=(e)=>setShowForm(e.detail);document.addEventListener("ic-show-form",h);return()=>document.removeEventListener("ic-show-form",h);},[]);
   const allTabs = [
@@ -3178,7 +3181,7 @@ export default function ICBOS() {
             </div>
           </div>
         )}
-        {tab==="invoicing"&&<InvoicingTab/>}
+        {tab==="invoicing"&&<InvoicingTab canInvoice={canInvoice} canEdit={canEdit}/>}
         {tab==="automations"&&<AutoTab/>}
         {tab==="onboarding"&&<OnboardingTab/>}
         {tab==="capacity"&&<CapTab/>}
