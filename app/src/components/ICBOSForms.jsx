@@ -649,8 +649,8 @@ export function AddTaskPanel({ onClose, onSaved, supabase }) {
     setError(""); setSaving(true);
 
     const { error: err } = await supabase.from("tasks").insert([{
-      text:      fields.text.trim(),
-      due:       fields.due || null,
+     text:      fields.text.trim(),
+      due_date:  fields.due || null,
       priority:  fields.priority,
       category:  fields.category,
       completed: false,
