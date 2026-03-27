@@ -513,7 +513,7 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
       next_action_date:  fields.next_action_date || null,
       providers:         Number(fields.providers) || 1,
       payer_mix:         fields.payer_mix || null,
-      no_show_baseline:  Number(fields.no_show_baseline) || 0,
+      no_show_baseline:  Number(fields.no_show_baseline) / 100 || 0,
       ehr_difficulty:    fields.ehr_difficulty || null,
       ehr_timeline:      fields.ehr_timeline || null,
       ehr_notes:         fields.ehr_notes || null,
