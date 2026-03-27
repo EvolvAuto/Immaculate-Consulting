@@ -507,7 +507,6 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
       estimated_value:   Number(fields.estimated_value) || 0,
       close_probability: Number(fields.close_probability) || 0,
       contact_name:      fields.contact_name || null,
-      contact_title:     fields.contact_title || null,
       next_action:       fields.next_action || null,
       next_action_date:  fields.next_action_date || null,
       providers:         Number(fields.providers) || 1,
