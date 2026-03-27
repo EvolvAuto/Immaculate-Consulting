@@ -3242,7 +3242,7 @@ export default function ICBOS() {
         {tab==="renewals"&&<RenewalsTab/>}
         {tab==="proposal"&&<ProposalTab/>}
         {tab==="salesprep"&&<SalesPrepTab/>}
-        {tab==="tasks"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f8ff"}}>Action Items</h2><button onClick={()=>setShowForm("task")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Task</button></div><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS].sort((a,b)=>{const p={high:0,medium:1,low:2};return (p[a.priority]??1)-(p[b.priority]??1);}).map((t,i)=><TaskItem key={t.id} task={t} delay={i*30}/>)}
+        {tab==="tasks"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f8ff"}}>Action Items</h2><button onClick={()=>setShowForm("task")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Task</button></div><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS]..sort((a,b)=>{const p={high:0,medium:1,low:2};return (p[a.priority]??1)-(p[b.priority]??1);})
         {tab==="comms"&&<CommsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
