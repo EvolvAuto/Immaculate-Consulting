@@ -775,8 +775,8 @@ function OnboardingTab() {
           ehr: proj.ehr,
           kickoff_date: proj.kickoff,
           target_go_live: proj.targetGoLive,
-          risks: proj.risks.join(", "),
-          providers: proj.phases.length
+          risks: Array.isArray(proj.risks) ? proj.risks.join(", ") : "",
+          providers: (proj.phases || []).length
         })
       });
       const data = await res.json();
@@ -812,7 +812,7 @@ function OnboardingTab() {
           >
             {/* Phase progress bar */}
             <div style={{ display:"flex", gap:4, marginBottom:16 }}>
-              {proj.phases.map((ph,i)=>(
+              {(proj.phases||[]).map((ph,i)=>(
                 <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
                   <div style={{ height:6, borderRadius:3, background:ph.status==="complete"?"#4ade80":ph.status==="in-progress"?"linear-gradient(90deg,#fbbf24 60%,rgba(255,255,255,0.06) 60%)":"rgba(255,255,255,0.04)" }}/>
                   <span style={{ fontSize:9, fontWeight:600, color:phaseColors[ph.status], fontFamily:M, textTransform:"uppercase" }}>{ph.name}</span>
@@ -823,10 +823,10 @@ function OnboardingTab() {
             </div>
 
             {/* Risks */}
-            {proj.risks.length>0&&(
+            {(proj.risks||[]).length>0&&(
               <div style={{ padding:"10px 14px", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:8, marginBottom:12 }}>
                 <div style={{ fontSize:10, fontWeight:600, color:"#fbbf24", fontFamily:M, marginBottom:4 }}>RISKS</div>
-                {proj.risks.map((r,i)=><div key={i} style={{ fontSize:11, color:"#f0f8ff", marginBottom:2 }}>• {r}</div>)}
+                {(proj.risks||[]).map((r,i)=><div key={i} style={{ fontSize:11, color:"#f0f8ff", marginBottom:2 }}>• {r}</div>)}
               </div>
             )}
 
@@ -975,14 +975,13 @@ function ProfitabilityTab() {
 // SALES PREP (Feature 11)
 function SalesPrepTab({ canEdit = true }) {
   const { PIPELINE } = useData();
-  const [selected, setSelected] = useState(null);
-  // Sync selected when PIPELINE loads (first non-empty render)
-  useEffect(() => {
-    if (PIPELINE.length > 0 && !selected) {
-      setSelected(PIPELINE.find(p=>p.stage==="discovery") || PIPELINE[0]);
-    }
-  }, [PIPELINE]);
-  // All hooks must be before any conditional return
+  // Derive selected directly — no useState/useEffect needed, always in sync
+  const prospects = PIPELINE.filter(p=>p.stage!=="closed-won");
+  const selected = useMemo(
+    () => PIPELINE.find(p=>p.stage==="discovery") || PIPELINE[0] || null,
+    [PIPELINE]
+  );
+  // All hooks before any conditional return
   const [analysisState, setAnalysisState] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [transcriptText, setTranscriptText] = useState("");
@@ -990,8 +989,7 @@ function SalesPrepTab({ canEdit = true }) {
   const [researchState, setResearchState] = useState(null);
   const [researchResult, setResearchResult] = useState(null);
 
-  const prospects = PIPELINE.filter(p=>p.stage!=="closed-won");
-  if (!selected) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>Loading...</div>;
+  if (!selected) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>No pipeline deals found — add a deal to use Sales Prep.</div>;
   const weeklyAppts = selected.providers * 25;
   const recovered = ((selected.noShowBaseline - 8) / 100) * weeklyAppts;
   const annualRev = recovered * 65 * 52;
@@ -1662,16 +1660,17 @@ function ProposalTab() {
     win.document.close();
     setTimeout(() => { win.print(); }, 500);
   };
+  // Prospect selector — derive directly, no useState/useEffect needed
   const [pid, setPid] = useState(null);
   const [tier, setTier] = useState(2);
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedAddOns, setSelectedAddOns] = useState([]);
 
-  // Set default pid once PIPELINE loads
-  useEffect(() => { if (!pid && PIPELINE.length > 0) setPid(PIPELINE[0].id); }, [PIPELINE]);
-
-  const prospect = PIPELINE.find(p=>p.id===pid) || PIPELINE[0] || null;
-  if (!prospect) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>Loading proposals...</div>;
+  const prospect = useMemo(
+    () => PIPELINE.find(p => p.id === pid) || PIPELINE[0] || null,
+    [PIPELINE, pid]
+  );
+  if (!prospect) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>No pipeline deals found — add a deal to use the Proposal Builder.</div>;
 
   // ── Service catalogs ──
   const managedTiers = {
