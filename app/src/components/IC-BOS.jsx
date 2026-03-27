@@ -507,7 +507,7 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
                   onClick={() => handleDeleteClient(c)}
                   disabled={deleteLoading === c.id}
                   title={deleteConfirm === c.id ? "Click again to confirm delete" : "Remove client"}
-                  style={{ position:"absolute", top:10, right:10, width:18, height:18, borderRadius:4, border:`1px solid ${deleteConfirm===c.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===c.id?"rgba(248,113,113,0.15)":"rgba(0,0,0,0.4)", color:"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
+                  style={{ position:"absolute", top:10, left:10, width:18, height:18, borderRadius:4, border:`1px solid ${deleteConfirm===c.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===c.id?"rgba(248,113,113,0.15)":"rgba(0,0,0,0.4)", color:"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
                 >
                   {deleteLoading===c.id ? "…" : deleteConfirm===c.id ? "!" : "×"}
                 </button>
