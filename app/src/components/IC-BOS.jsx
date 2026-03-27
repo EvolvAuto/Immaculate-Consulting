@@ -1,9 +1,15 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from "react";
 import VapiAssistant from "./VapiAssistant";
 import { AddClientPanel, AddDealPanel, AddTaskPanel, AddInvoicePanel, AddCommPanel } from "./ICBOSForms";
 import AgentsTab from "./AgentsTab";
 import { supabase } from "../lib/supabaseClient";
 import { useICBosData } from "../hooks/useSupabaseData";
+
+// ─── Data Context ─────────────────────────────────────────────────────
+// All sub-components read live data via useData() instead of module-level globals.
+// ICBOS() populates the provider after running useICBosData() + field adapters.
+const ICBOSCtx = createContext(null);
+const useData = () => useContext(ICBOSCtx);
 
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -17,9 +23,8 @@ import { useICBosData } from "../hooks/useSupabaseData";
 
 // ─── Data Store ──────────────────────────────────────────────────────
 // Mock constants removed in Task 18.
-// All data now loaded live from Supabase via useICBosData() inside ICBOS().
-// Field-mapping adapters (snake_case -> camelCase) are defined there too.
-// CAPACITY remains local state — CapTab manages consultant team locally.
+// Live data provided via ICBOSCtx — see useICBosData() in ICBOS() below.
+// CAPACITY stays local — CapTab manages consultant team state internally.
 
 const STAGES = ["cold", "discovery", "proposal", "negotiation", "closed-won"];
 const STAGE_LABELS = { cold: "Cold", discovery: "Discovery", proposal: "Proposal", negotiation: "Negotiation", "closed-won": "Closed Won" };
@@ -52,11 +57,9 @@ function calcProfitability(c) {
   const effectiveRate = c.weeklyHoursSpent > 0 ? monthlyProfit / (c.weeklyHoursSpent * 4.33) : 0;
   const margin = c.monthlyFee > 0 ? (monthlyProfit / c.monthlyFee) * 100 : 0;
   return { monthlyProfit, effectiveRate, margin, monthlyTimeValue, monthlyCost };
-}
-
 // ─── Voice Engine ────────────────────────────────────────────────────
 // processVoice() removed in Task 18 — replaced by live Vapi SDK (VapiAssistant.jsx).
-// All voice commands are now handled server-side via the DigitalOcean webhook.
+// All voice commands handled server-side via DigitalOcean webhook.
 
 // ═══════════════════════════════════════════════════════════════════════
 // SHARED UI
@@ -110,7 +113,7 @@ function TaskItem({ task, delay=0 }) {
 }
 
 function RevChart({ data }) {
-  if (!data || data.length < 2) return <div style={{ height:120, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#4a6a8a" }}>No revenue data yet</div>;
+  if (!data || data.length < 2) return <div style={{height:120,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,color:"#4a6a8a"}}>No data yet</div>;
   const mx=Math.max(...data.map(d=>d.revenue));
   return (
     <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:120, padding:"0 4px" }}>
@@ -126,6 +129,7 @@ function RevChart({ data }) {
 }
 
 function PipelineBoard({ canEdit = true }) {
+  const { PIPELINE } = useData();
   const [proposalStates, setProposalStates] = useState({});
   const [outreachStates, setOutreachStates] = useState({});
   const [outreachResults, setOutreachResults] = useState({});
@@ -265,6 +269,7 @@ const handleGenerateOutreach = async (deal) => {
 // ═══════════════════════════════════════════════════════════════════════
 // CLIENTS TAB (with Agent 5 inline UI)
 function ClientsTab({ onShowForm, canEdit = true }) {
+  const { CLIENTS } = useData();
   const [analyzeStates, setAnalyzeStates] = useState({});
   const [analyzeResults, setAnalyzeResults] = useState({});
   const [reportStates, setReportStates] = useState({});
@@ -587,7 +592,8 @@ function ClientsTab({ onShowForm, canEdit = true }) {
   );
 }
 // INVOICING (Feature 8) — with Agent 8 collections inline UI
-function InvoicingTab() {
+function InvoicingTab({ canInvoice = true, canEdit = true }) {
+  const { INVOICES } = useData();
   const [followUpStates, setFollowUpStates] = useState({});
   const [followUpResults, setFollowUpResults] = useState({});
   const [expandedEmail, setExpandedEmail] = useState({});
@@ -722,6 +728,7 @@ function InvoicingTab() {
 }
 // ONBOARDING TRACKER (Feature 9) — with Agent 3 inline UI
 function OnboardingTab() {
+  const { ONBOARDING } = useData();
   const [planStates, setPlanStates] = useState({});
   const [planResults, setPlanResults] = useState({});
   const [expandedKickoff, setExpandedKickoff] = useState({});
@@ -923,6 +930,7 @@ function OnboardingTab() {
 
 // PROFITABILITY (Feature 10)
 function ProfitabilityTab() {
+  const { CLIENTS } = useData();
   const active = CLIENTS.filter(c=>c.status==="active").map(c=>({...c, p:calcProfitability(c)})).sort((a,b)=>b.p.effectiveRate-a.p.effectiveRate);
   const bestRate = Math.max(...active.map(c=>c.p.effectiveRate));
   return (
@@ -964,9 +972,17 @@ function ProfitabilityTab() {
 }
 
 // SALES PREP (Feature 11)
-function SalesPrepTab() {
-  const [selected, setSelected] = useState(PIPELINE.find(p=>p.stage==="discovery") || PIPELINE[0]);
+function SalesPrepTab({ canEdit = true }) {
+  const { PIPELINE } = useData();
+  const [selected, setSelected] = useState(null);
+  // Sync selected when PIPELINE loads (first non-empty render)
+  useEffect(() => {
+    if (PIPELINE.length > 0 && !selected) {
+      setSelected(PIPELINE.find(p=>p.stage==="discovery") || PIPELINE[0]);
+    }
+  }, [PIPELINE]);
   const prospects = PIPELINE.filter(p=>p.stage!=="closed-won");
+  if (!selected) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>Loading...</div>;
   const weeklyAppts = selected.providers * 25;
   const recovered = ((selected.noShowBaseline - 8) / 100) * weeklyAppts;
   const annualRev = recovered * 65 * 52;
@@ -1217,6 +1233,7 @@ const handleResearchProspect = async () => {
 
 // WEEKLY REPORT (Feature 12) — with Agent 4 digest + 3 Things to Act On
 function WeeklyReportTab() {
+  const { CLIENTS, PIPELINE, AUTOMATIONS, INVOICES, TASKS, FINANCIALS, ONBOARDING, CAPACITY } = useData();
   const [digestState, setDigestState] = useState(null); // null | loading | done | error
   const [digestResult, setDigestResult] = useState(null);
 
@@ -1382,6 +1399,7 @@ function WeeklyReportTab() {
 
 // ROI Tab (Feature 1)
 function ROITab() {
+  const { CLIENTS } = useData();
   const crs = CLIENTS.filter(c=>c.status==="active").map(c=>({...c,r:calcClientROI(c)}));
   const totalRec = crs.reduce((s,c)=>s+c.r.totalToDate,0);
   return (
@@ -1407,7 +1425,8 @@ function ROITab() {
 }
 
 // Renewals Tab (Feature 2) — with Agent 6 inline UI
-function RenewalsTab() {
+function RenewalsTab({ canEdit = true }) {
+  const { CLIENTS } = useData();
   const [predictStates, setPredictStates] = useState({});
   const [predictResults, setPredictResults] = useState({});
 
@@ -1551,6 +1570,7 @@ function RenewalsTab() {
 
 // Proposal Builder (Feature 3) — Full service catalog
 function ProposalTab() {
+  const { PIPELINE } = useData();
   const [mode, setMode] = useState("managed");
   // ── Agent-generated proposals from Supabase ──────────────────────
   const [agentProposals, setAgentProposals] = useState([]);
@@ -1639,12 +1659,16 @@ function ProposalTab() {
     win.document.close();
     setTimeout(() => { win.print(); }, 500);
   };
-  const [pid, setPid] = useState(PIPELINE[0].id);
+  const [pid, setPid] = useState(null);
   const [tier, setTier] = useState(2);
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedAddOns, setSelectedAddOns] = useState([]);
 
-  const prospect = PIPELINE.find(p=>p.id===pid) || PIPELINE[0];
+  // Set default pid once PIPELINE loads
+  useEffect(() => { if (!pid && PIPELINE.length > 0) setPid(PIPELINE[0].id); }, [PIPELINE]);
+
+  const prospect = PIPELINE.find(p=>p.id===pid) || PIPELINE[0] || null;
+  if (!prospect) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>Loading proposals...</div>;
 
   // ── Service catalogs ──
   const managedTiers = {
@@ -2168,6 +2192,7 @@ function timeSinceRun(lastRun) {
 
 // Automations Tab (Feature 4)
 function AutoTab() {
+  const { AUTOMATIONS } = useData();
   const stc={healthy:"#4ade80",warning:"#fbbf24",critical:"#f87171"};
   const crit=AUTOMATIONS.filter(a=>a.status==="critical");
   return (
@@ -2445,6 +2470,7 @@ function TeamTab({ webhookSecret }) {
 }
 // Capacity Tab (Feature 5) — Team-aware with hiring forecaster
 function CapTab() {
+  const { FINANCIALS, CLIENTS } = useData();
   const [team, setTeam] = useState([
     { id: 1, name: "Leonard", role: "Principal", hoursAvail: 50, delivery: 22, sales: 10, admin: 6, rate: 175, monthlyCost: 0, clients: ["Greenville Primary Care", "Chapel Hill Family Med", "Fayetteville Urgent Care", "Asheville Cardiology"] },
   ]);
@@ -2685,6 +2711,7 @@ function CapTab() {
 
 // Comms Tab (Feature 7) — with agent visual tokens + recording upload shortcut
 function CommsTab({ onTabNav }) {
+  const { CLIENTS } = useData();
   const all = CLIENTS.flatMap(c => c.contactLog.map(l => ({ ...l, client: c.name }))).sort((a,b) => new Date(b.date) - new Date(a.date));
   const tc = { email:"#38bdf8", call:"#4ade80", meeting:"#c084fc", sms:"#fbbf24" };
 
@@ -2792,23 +2819,15 @@ export default function ICBOS() {
   }, []);
 
   // ─── Live Supabase Data ───────────────────────────────────────────────
-  // useICBosData() composes all per-tab hooks from useSupabaseData.js.
-  // Each section returns { data, loading, error, refetch }.
   const icbos = useICBosData();
 
-  // ─── Field-name adapters ─────────────────────────────────────────────
-  // Supabase columns are snake_case; the rest of this file uses camelCase.
-  // These normalizers let every sub-component and calc function run
-  // unchanged — only this block needs updating when the DB schema changes.
-
+  // ─── Field-name adapters (Supabase snake_case -> UI camelCase) ────────
   const PIPELINE = (icbos.pipeline.data ?? []).map(d => ({
     ...d,
-    // keep original id (UUID from Supabase) — used by Generate Proposal button
     supabase_id:    d.id,
     practice:       d.practice_name       ?? "",
     specialty:      d.specialty           ?? "",
     ehr:            d.ehr                 ?? "",
-    // DB stores "Closed Won" with a space; UI uses "closed-won" with a hyphen
     stage:          (d.stage ?? "cold").toLowerCase().replace(/\s+/g, "-"),
     value:          Number(d.estimated_value  ?? 0),
     contact:        d.contact_name        ?? "",
@@ -2825,9 +2844,6 @@ export default function ICBOS() {
 
   const CLIENTS = (icbos.clients.data ?? []).map(c => ({
     ...c,
-    name:             c.name                      ?? "",
-    tier:             c.tier                      ?? 1,
-    // DB stores "Active" (PascalCase); UI compares against "active" (lowercase)
     status:           (c.status ?? "active").toLowerCase(),
     healthScore:      Number(c.health_score       ?? 0),
     goLive:           c.go_live_date              ?? null,
@@ -2839,14 +2855,10 @@ export default function ICBOS() {
     weeklyHoursSpent: Number(c.weekly_hours_spent ?? 0),
     renewalDate:      c.renewal_date              ?? null,
     nextMilestone:    c.notes                     ?? "",
-    ehr:              c.ehr                       ?? "",
     providers:        Number(c.providers          ?? 1),
     apptsPerWeek:     Number(c.appts_per_week     ?? 0),
     avgVisitValue:    Number(c.avg_visit_value    ?? 65),
     staffHourlyRate:  Number(c.staff_hourly_rate  ?? 18),
-    // automations list and contactLog come from separate tables;
-    // they are not on the clients row — default to empty arrays so
-    // every .join() and .map() call in sub-components never throws.
     automations: [],
     contactLog:  [],
   }));
@@ -2854,41 +2866,29 @@ export default function ICBOS() {
   const _fin = icbos.financials.data ?? {};
   const _cur = _fin.current ?? {};
   const FINANCIALS = {
-    mrr:                Number(_cur.mrr                  ?? 0),
-    arr:                Number(_cur.arr                  ?? 0),
-    cashOnHand:         Number(_cur.cash_on_hand         ?? 0),
-    accountsReceivable: Number(_cur.accounts_receivable  ?? 0),
-    monthlyExpenses:    Number(_cur.monthly_expenses     ?? 0),
-    pipelineValue:      Number(_cur.pipeline_value       ?? 0),
-    // revenueHistory drives RevChart — needs { month, revenue, expenses }
+    mrr:                Number(_cur.mrr                 ?? 0),
+    arr:                Number(_cur.arr                 ?? 0),
+    cashOnHand:         Number(_cur.cash_on_hand        ?? 0),
+    accountsReceivable: Number(_cur.accounts_receivable ?? 0),
+    monthlyExpenses:    Number(_cur.monthly_expenses    ?? 0),
+    pipelineValue:      Number(_cur.pipeline_value      ?? 0),
     revenueHistory: (_fin.snapshots ?? []).map(s => ({
       month:    new Date(s.date + "T00:00:00").toLocaleString("en-US", { month: "short" }),
-      revenue:  Number(s.mrr               ?? 0),
-      expenses: Number(s.monthly_expenses  ?? 0),
+      revenue:  Number(s.mrr              ?? 0),
+      expenses: Number(s.monthly_expenses ?? 0),
     })),
   };
 
   const INVOICES = (icbos.invoices.data ?? []).map(i => ({
     ...i,
-    // i.clients is the joined clients row from Supabase (select clients(id,name,tier))
     client:    i.clients?.name ?? "",
-    type:      i.type          ?? "",
     amount:    Number(i.base_amount  ?? 0),
     usageCost: Number(i.usage_cost   ?? 0),
     total:     Number(i.total        ?? 0),
-    // Format dates from ISO (2026-03-01) to short string ("Mar 01") to match
-    // existing .startsWith("Mar") and display logic throughout InvoicingTab.
-    issued:   i.issued_date
-      ? new Date(i.issued_date + "T00:00:00").toLocaleString("en-US", { month: "short", day: "2-digit" })
-      : "",
-    due:      i.due_date
-      ? new Date(i.due_date + "T00:00:00").toLocaleString("en-US", { month: "short", day: "2-digit" })
-      : "",
-    // DB stores "Paid" / "Pending" / "Overdue" (PascalCase); UI uses lowercase
-    status:   (i.status ?? "pending").toLowerCase(),
-    paidDate: i.paid_date
-      ? new Date(i.paid_date + "T00:00:00").toLocaleString("en-US", { month: "short", day: "2-digit" })
-      : null,
+    issued:    i.issued_date ? new Date(i.issued_date + "T00:00:00").toLocaleString("en-US", { month: "short", day: "2-digit" }) : "",
+    due:       i.due_date   ? new Date(i.due_date   + "T00:00:00").toLocaleString("en-US", { month: "short", day: "2-digit" }) : "",
+    status:    (i.status ?? "pending").toLowerCase(),
+    paidDate:  i.paid_date  ? new Date(i.paid_date  + "T00:00:00").toLocaleString("en-US", { month: "short", day: "2-digit" }) : null,
   }));
 
   const AUTOMATIONS = (icbos.automations.data ?? []).map((a, idx) => ({
@@ -2896,21 +2896,16 @@ export default function ICBOS() {
     id:          a.id          ?? idx,
     client:      a.client_name ?? "",
     name:        a.automation_name ?? "",
-    // DB health_flag: "healthy" | "warning" | "critical"
     status:      (a.status ?? a.health_flag ?? "healthy").toLowerCase(),
     successRate: Number(a.success_rate ?? 100),
     execsToday:  Number(a.execs_today  ?? 0),
-    lastRun:     a.last_run_at
-      ? new Date(a.last_run_at).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-      : "No data",
-    costToday:   Number(a.cost_today  ?? 0),
-    errors24h:   Number(a.errors_24h  ?? 0),
+    lastRun:     a.last_run_at ? new Date(a.last_run_at).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "No data",
+    costToday:   Number(a.cost_today   ?? 0),
+    errors24h:   Number(a.errors_24h   ?? 0),
   }));
 
   const TASKS = (icbos.tasks.data ?? []).map(t => ({
     ...t,
-    text:      t.text      ?? "",
-    due:       t.due       ?? "",
     priority:  (t.priority ?? "medium").toLowerCase(),
     category:  t.category  ?? "general",
     completed: t.completed ?? false,
@@ -2918,22 +2913,18 @@ export default function ICBOS() {
 
   const ONBOARDING = (icbos.onboarding.data ?? []).map(o => ({
     ...o,
-    // o.clients is the joined clients row
     client:       o.clients?.name ?? o.client_name ?? "",
     tier:         o.clients?.tier ?? o.tier        ?? 1,
     ehr:          o.clients?.ehr  ?? o.ehr         ?? "",
     kickoff:      o.kickoff_date   ?? null,
     targetGoLive: o.target_go_live ?? null,
-    daysToGoLive: o.target_go_live
-      ? Math.ceil((new Date(o.target_go_live) - Date.now()) / 86400000)
-      : 0,
+    daysToGoLive: o.target_go_live ? Math.ceil((new Date(o.target_go_live) - Date.now()) / 86400000) : 0,
     phases:   o.phases   ?? [],
     risks:    o.risks    ?? [],
     blockers: o.blockers ?? [],
   }));
 
-  // CAPACITY stays as local-only state — CapTab manages its consultant
-  // team with useState internally and does not need Supabase reads here.
+  // CAPACITY stays local — CapTab manages consultant team state internally
   const CAPACITY = { weeklyHoursAvailable: 50, currentUtilization: 38, deliveryHours: 22, salesHours: 10, adminHours: 6 };
 
   const isPrincipal = userRole === "principal";
@@ -2955,7 +2946,6 @@ export default function ICBOS() {
   ];
   const tabs = allTabs.filter(t => !t.principalOnly || canViewFinancials);
 
-  // Re-compute whenever live CLIENTS data loads or changes
   const totalROI = useMemo(()=>CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0),[CLIENTS]);
   const critCount = AUTOMATIONS.filter(a=>a.status==="critical").length;
   const highTasks = TASKS.filter(t=>t.priority==="high").length;
@@ -2998,6 +2988,7 @@ export default function ICBOS() {
   const isAnyAgentRunning = runningAgents.length > 0;
   
   return (
+   <ICBOSCtx.Provider value={{ PIPELINE, CLIENTS, FINANCIALS, INVOICES, AUTOMATIONS, TASKS, ONBOARDING, CAPACITY }}>
    <div style={{ minHeight:"100vh", background:"#071830", color:"#f0f8ff", fontFamily:"'Inter',-apple-system,sans-serif",  }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -3128,9 +3119,9 @@ export default function ICBOS() {
       <main style={{ padding:"18px 24px 108px", position:"relative", zIndex:1 }}>
         {tab==="overview"&&(
           icbos.isBootstrapping ? (
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:200, gap:12 }}>
-              <span style={{ width:8, height:8, borderRadius:"50%", background:"#6366f1", animation:"pr 1.2s ease-out infinite" }}/>
-              <span style={{ fontSize:12, color:"#7aaacb", fontFamily:M }}>Loading IC-BOS...</span>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:200,gap:12}}>
+              <span style={{width:8,height:8,borderRadius:"50%",background:"#6366f1",animation:"pr 1.2s ease-out infinite"}}/>
+              <span style={{fontSize:12,color:"#7aaacb",fontFamily:M}}>Loading IC-BOS...</span>
             </div>
           ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -3165,7 +3156,7 @@ export default function ICBOS() {
             </div>
             <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#818cf8", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard/></Panel>
           </div>
-          ) // end isBootstrapping ternary
+          )
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
        {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f8ff"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#7aaacb",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit}/></>}
@@ -3177,7 +3168,7 @@ export default function ICBOS() {
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
               <KPI label="MRR" value={FINANCIALS.mrr} prefix="$" change={12.2} spark={FINANCIALS.revenueHistory.map(r=>r.revenue)} sparkColor="#818cf8"/>
               <KPI label="ARR" value={FINANCIALS.arr} prefix="$" spark={FINANCIALS.revenueHistory.map(r=>r.revenue*12)} sparkColor="#4ade80" delay={60}/>
-              <KPI label="Cash" value={FINANCIALS.cashOnHand} prefix="$" spark={[32e3,35e3,38e3,41e3,45e3,FINANCIALS.cashOnHand]} sparkColor="#38bdf8" delay={120}/>
+              <KPI label="Cash" value={FINANCIALS.cashOnHand} prefix="$" spark={[32e3,35e3,38e3,41e3,45e3,48200]} sparkColor="#38bdf8" delay={120}/>
               <KPI label="Net Margin" value={FINANCIALS.monthlyExpenses>0?Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100):0} suffix="%" spark={[58,60,63,65,67,69]} sparkColor="#4ade80" delay={180}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
@@ -3207,5 +3198,6 @@ export default function ICBOS() {
     {/* Voice Layer — Vapi SDK */}
       <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
   </div>
+  </ICBOSCtx.Provider>
   );
 }
