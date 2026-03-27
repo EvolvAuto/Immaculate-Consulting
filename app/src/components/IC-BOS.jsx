@@ -295,13 +295,28 @@ const handleGenerateOutreach = async (deal) => {
 // FEATURE TABS
 // ═══════════════════════════════════════════════════════════════════════
 // CLIENTS TAB (with Agent 5 inline UI)
-function ClientsTab({ onShowForm, canEdit = true }) {
+function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
   const { CLIENTS } = useData();
   const [analyzeStates, setAnalyzeStates] = useState({});
   const [analyzeResults, setAnalyzeResults] = useState({});
   const [reportStates, setReportStates] = useState({});
   const [reportResults, setReportResults] = useState({});
   const [expandedReport, setExpandedReport] = useState({});
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(null);
+
+  const handleDeleteClient = async (client) => {
+    if (deleteConfirm !== client.id) {
+      setDeleteConfirm(client.id);
+      setTimeout(() => setDeleteConfirm(null), 4000);
+      return;
+    }
+    setDeleteLoading(client.id);
+    setDeleteConfirm(null);
+    const { error } = await supabase.from("clients").delete().eq("id", client.id);
+    setDeleteLoading(null);
+    if (!error && onDeleted) onDeleted();
+  };
 
   const handleGenerateReport = async (client) => {
     setReportStates(prev => ({ ...prev, [client.id]: "loading" }));
@@ -486,7 +501,17 @@ function ClientsTab({ onShowForm, canEdit = true }) {
           const ar = analyzeResults[c.id];
 
           return (
-            <div key={c.id} style={{ background: isAtRisk?"rgba(248,113,113,0.04)":"rgba(255,255,255,0.02)", border:`1px solid ${isAtRisk?"rgba(248,113,113,0.12)":"rgba(255,255,255,0.05)"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both` }}>
+            <div key={c.id} style={{ background: isAtRisk?"rgba(248,113,113,0.04)":"rgba(255,255,255,0.02)", border:`1px solid ${isAtRisk?"rgba(248,113,113,0.12)":"rgba(255,255,255,0.05)"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
+              {canEdit && (
+                <button
+                  onClick={() => handleDeleteClient(c)}
+                  disabled={deleteLoading === c.id}
+                  title={deleteConfirm === c.id ? "Click again to confirm delete" : "Remove client"}
+                  style={{ position:"absolute", top:10, right:10, width:18, height:18, borderRadius:4, border:`1px solid ${deleteConfirm===c.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===c.id?"rgba(248,113,113,0.15)":"rgba(0,0,0,0.4)", color:"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
+                >
+                  {deleteLoading===c.id ? "…" : deleteConfirm===c.id ? "!" : "×"}
+                </button>
+              )}
               {/* Top row */}
               <div style={{ display:"grid", gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1fr auto", gap:8, alignItems:"center", fontSize:12 }}>
                 <div>
@@ -3190,7 +3215,7 @@ export default function ICBOS() {
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
        {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f8ff"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#7aaacb",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
-      {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null}/>}
+      {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
