@@ -221,7 +221,7 @@ const handleGenerateOutreach = async (deal) => {
                   onClick={() => handleDeleteDeal(d)}
                   disabled={deleteLoading === d.id}
                   title={deleteConfirm === d.id ? "Click again to confirm delete" : "Remove deal"}
-                  style={{ position:"absolute", top:6, right:6, width:18, height:18, borderRadius:4, border:`1px solid ${deleteConfirm===d.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===d.id?"rgba(248,113,113,0.15)":"transparent", color:deleteConfirm===d.id?"#f87171":"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
+                  style={{ position:"absolute", top:6, right:6, width:18, height:18, borderRadius:4, border:`1px solid ${deleteConfirm===d.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===d.id?"rgba(248,113,113,0.15)":"rgba(0,0,0,0.4)", color:deleteConfirm===d.id?"#f87171":"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
                 >
                   {deleteLoading===d.id ? "…" : deleteConfirm===d.id ? "!" : "×"}
                 </button>
