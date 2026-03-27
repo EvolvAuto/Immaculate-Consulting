@@ -190,8 +190,8 @@ export const usePipeline = () => {
       supabase
         .from('pipeline_deals')
         .select(`
-          id, practice_name, specialty, ehr, stage, tier,
-          estimated_value, close_probability, contact_name, contact_title,
+         id, practice_name, specialty, ehr, stage, tier,
+          estimated_value, close_probability, contact_name, contact_email, contact_phone,
           next_action, next_action_date, days_in_stage,
           providers, payer_mix, no_show_baseline,
           ehr_difficulty, ehr_timeline, ehr_notes,
