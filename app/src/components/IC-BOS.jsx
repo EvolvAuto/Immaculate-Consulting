@@ -57,6 +57,7 @@ function calcProfitability(c) {
   const effectiveRate = c.weeklyHoursSpent > 0 ? monthlyProfit / (c.weeklyHoursSpent * 4.33) : 0;
   const margin = c.monthlyFee > 0 ? (monthlyProfit / c.monthlyFee) * 100 : 0;
   return { monthlyProfit, effectiveRate, margin, monthlyTimeValue, monthlyCost };
+}
 // ─── Voice Engine ────────────────────────────────────────────────────
 // processVoice() removed in Task 18 — replaced by live Vapi SDK (VapiAssistant.jsx).
 // All voice commands handled server-side via DigitalOcean webhook.
