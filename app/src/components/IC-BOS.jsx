@@ -502,22 +502,22 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
 
           return (
             <div key={c.id} style={{ background: isAtRisk?"rgba(248,113,113,0.04)":"rgba(255,255,255,0.02)", border:`1px solid ${isAtRisk?"rgba(248,113,113,0.12)":"rgba(255,255,255,0.05)"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
-              {canEdit && (
-                <button
-                  onClick={() => handleDeleteClient(c)}
-                  disabled={deleteLoading === c.id}
-                  title={deleteConfirm === c.id ? "Click again to confirm delete" : "Remove client"}
-                  style={{ position:"absolute", top:10, left:10, width:18, height:18, borderRadius:4, border:`1px solid ${deleteConfirm===c.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===c.id?"rgba(248,113,113,0.15)":"rgba(0,0,0,0.4)", color:"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
-                >
-                  {deleteLoading===c.id ? "…" : deleteConfirm===c.id ? "!" : "×"}
-                </button>
-              )}
               {/* Top row */}
               <div style={{ display:"grid", gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1fr auto", gap:8, alignItems:"center", fontSize:12 }}>
-                <div>
+               <div>
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     <span style={{ fontWeight:600, color:"#f0f8ff" }}>{c.name}</span>
                     {isAtRisk&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.12)", padding:"1px 6px", borderRadius:4, fontFamily:M }}>AT RISK</span>}
+                    {canEdit && (
+                      <button
+                        onClick={() => handleDeleteClient(c)}
+                        disabled={deleteLoading === c.id}
+                        title={deleteConfirm === c.id ? "Click again to confirm delete" : "Remove client"}
+                        style={{ width:16, height:16, borderRadius:4, border:`1px solid ${deleteConfirm===c.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===c.id?"rgba(248,113,113,0.15)":"rgba(0,0,0,0.4)", color:"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s", flexShrink:0 }}
+                      >
+                        {deleteLoading===c.id ? "…" : deleteConfirm===c.id ? "!" : "×"}
+                      </button>
+                    )}
                   </div>
                   <div style={{ fontSize:10, color:"#7aaacb", marginTop:1 }}>T{c.tier} · {c.ehr}</div>
                 </div>
