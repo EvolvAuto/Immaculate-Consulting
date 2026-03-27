@@ -129,7 +129,7 @@ function RevChart({ data }) {
   );
 }
 
-function PipelineBoard({ canEdit = true }) {
+function PipelineBoard({ canEdit = true, onRefresh }) {
   const { PIPELINE } = useData();
   const [proposalStates, setProposalStates] = useState({});
   const [outreachStates, setOutreachStates] = useState({});
@@ -153,6 +153,7 @@ function PipelineBoard({ canEdit = true }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Agent error');
       setProposalStates(prev => ({ ...prev, [deal.id]: 'done' }));
+      if (onRefresh) onRefresh();
       setTimeout(() => setProposalStates(prev => ({ ...prev, [deal.id]: null })), 4000);
     } catch (err) {
       setProposalStates(prev => ({ ...prev, [deal.id]: 'error' }));
@@ -775,8 +776,8 @@ function OnboardingTab() {
           ehr: proj.ehr,
           kickoff_date: proj.kickoff,
           target_go_live: proj.targetGoLive,
-          risks: Array.isArray(proj.risks) ? proj.risks.join(", ") : "",
-          providers: (proj.phases || []).length
+          risks: proj.risks.join(", "),
+          providers: proj.phases.length
         })
       });
       const data = await res.json();
@@ -812,7 +813,7 @@ function OnboardingTab() {
           >
             {/* Phase progress bar */}
             <div style={{ display:"flex", gap:4, marginBottom:16 }}>
-              {(proj.phases||[]).map((ph,i)=>(
+              {proj.phases.map((ph,i)=>(
                 <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
                   <div style={{ height:6, borderRadius:3, background:ph.status==="complete"?"#4ade80":ph.status==="in-progress"?"linear-gradient(90deg,#fbbf24 60%,rgba(255,255,255,0.06) 60%)":"rgba(255,255,255,0.04)" }}/>
                   <span style={{ fontSize:9, fontWeight:600, color:phaseColors[ph.status], fontFamily:M, textTransform:"uppercase" }}>{ph.name}</span>
@@ -823,10 +824,10 @@ function OnboardingTab() {
             </div>
 
             {/* Risks */}
-            {(proj.risks||[]).length>0&&(
+            {proj.risks.length>0&&(
               <div style={{ padding:"10px 14px", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:8, marginBottom:12 }}>
                 <div style={{ fontSize:10, fontWeight:600, color:"#fbbf24", fontFamily:M, marginBottom:4 }}>RISKS</div>
-                {(proj.risks||[]).map((r,i)=><div key={i} style={{ fontSize:11, color:"#f0f8ff", marginBottom:2 }}>• {r}</div>)}
+                {proj.risks.map((r,i)=><div key={i} style={{ fontSize:11, color:"#f0f8ff", marginBottom:2 }}>• {r}</div>)}
               </div>
             )}
 
@@ -975,13 +976,14 @@ function ProfitabilityTab() {
 // SALES PREP (Feature 11)
 function SalesPrepTab({ canEdit = true }) {
   const { PIPELINE } = useData();
-  // Derive selected directly — no useState/useEffect needed, always in sync
-  const prospects = PIPELINE.filter(p=>p.stage!=="closed-won");
-  const selected = useMemo(
-    () => PIPELINE.find(p=>p.stage==="discovery") || PIPELINE[0] || null,
-    [PIPELINE]
-  );
-  // All hooks before any conditional return
+  const [selected, setSelected] = useState(null);
+  // Sync selected when PIPELINE loads (first non-empty render)
+  useEffect(() => {
+    if (PIPELINE.length > 0 && !selected) {
+      setSelected(PIPELINE.find(p=>p.stage==="discovery") || PIPELINE[0]);
+    }
+  }, [PIPELINE]);
+  // All hooks must be before any conditional return
   const [analysisState, setAnalysisState] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [transcriptText, setTranscriptText] = useState("");
@@ -989,7 +991,8 @@ function SalesPrepTab({ canEdit = true }) {
   const [researchState, setResearchState] = useState(null);
   const [researchResult, setResearchResult] = useState(null);
 
-  if (!selected) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>No pipeline deals found — add a deal to use Sales Prep.</div>;
+  const prospects = PIPELINE.filter(p=>p.stage!=="closed-won");
+  if (!selected) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>Loading...</div>;
   const weeklyAppts = selected.providers * 25;
   const recovered = ((selected.noShowBaseline - 8) / 100) * weeklyAppts;
   const annualRev = recovered * 65 * 52;
@@ -1660,17 +1663,16 @@ function ProposalTab() {
     win.document.close();
     setTimeout(() => { win.print(); }, 500);
   };
-  // Prospect selector — derive directly, no useState/useEffect needed
   const [pid, setPid] = useState(null);
   const [tier, setTier] = useState(2);
   const [selectedServices, setSelectedServices] = useState([]);
   const [selectedAddOns, setSelectedAddOns] = useState([]);
 
-  const prospect = useMemo(
-    () => PIPELINE.find(p => p.id === pid) || PIPELINE[0] || null,
-    [PIPELINE, pid]
-  );
-  if (!prospect) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>No pipeline deals found — add a deal to use the Proposal Builder.</div>;
+  // Set default pid once PIPELINE loads
+  useEffect(() => { if (!pid && PIPELINE.length > 0) setPid(PIPELINE[0].id); }, [PIPELINE]);
+
+  const prospect = PIPELINE.find(p=>p.id===pid) || PIPELINE[0] || null;
+  if (!prospect) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#4a6a8a"}}>Loading proposals...</div>;
 
   // ── Service catalogs ──
   const managedTiers = {
@@ -3157,12 +3159,12 @@ export default function ICBOS() {
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>{TASKS.filter(t=>t.priority==="high").map((t,i)=><TaskItem key={t.id} task={t} delay={i*40}/>)}</div>
               </Panel>
             </div>
-            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#818cf8", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard/></Panel>
+            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#818cf8", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()}/></Panel>
           </div>
           )
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f8ff"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#7aaacb",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit}/></>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f8ff"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#7aaacb",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
@@ -3193,11 +3195,11 @@ export default function ICBOS() {
         {tab==="comms"&&<CommsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
-{showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>setShowForm(null)}/>}
-      {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>setShowForm(null)}/>}
-      {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>setShowForm(null)}/>}
-      {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>setShowForm(null)}/>}
-      {showForm==="comm"&&<AddCommPanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>setShowForm(null)}/>}
+{showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
+      {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.pipeline.refetch(); }}/>}
+      {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.tasks.refetch(); }}/>}
+      {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.invoices.refetch(); icbos.financials.refetch(); }}/>}
+      {showForm==="comm"&&<AddCommPanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.comms.refetch(); }}/>}
     {/* Voice Layer — Vapi SDK */}
       <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
   </div>
