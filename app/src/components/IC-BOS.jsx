@@ -3,6 +3,7 @@ import VapiAssistant from "./VapiAssistant";
 import { AddClientPanel, AddDealPanel, AddTaskPanel, AddInvoicePanel, AddCommPanel } from "./ICBOSForms";
 import AgentsTab from "./AgentsTab";
 import { supabase } from "../lib/supabaseClient";
+import { useICBosData } from "../hooks/useSupabaseData";
 
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -15,103 +16,10 @@ import { supabase } from "../lib/supabaseClient";
 // ═══════════════════════════════════════════════════════════════════════
 
 // ─── Data Store ──────────────────────────────────────────────────────
-const PIPELINE = [
-  { id: 1, practice: "Sunrise Family Medicine", specialty: "Family Medicine", ehr: "athenahealth", stage: "discovery", value: 6500, contact: "Dr. Patel", nextAction: "Send proposal by Friday", daysInStage: 3, tier: 2, providers: 6, payer: "NC Medicaid + BCBS", noShowBaseline: 19, ehrDifficulty: "2/5", ehrTimeline: "1-2 weeks", ehrNotes: "Cloud-native, excellent API, native insurance verification. Easiest integration." },
-  { id: 2, practice: "Blue Ridge Ortho", specialty: "Orthopedics", ehr: "NextGen", stage: "proposal", value: 10000, contact: "Sarah Chen", nextAction: "Follow up on pricing questions", daysInStage: 7, tier: 3, providers: 14, payer: "Medicare + Commercial", noShowBaseline: 12, ehrDifficulty: "3/5", ehrTimeline: "4-6 weeks", ehrNotes: "FHIR support, moderate integration complexity. Good for specialty practices." },
-  { id: 3, practice: "Triangle Pediatrics", specialty: "Pediatrics", ehr: "eClinicalWorks", stage: "negotiation", value: 5000, contact: "Dr. Williams", nextAction: "Schedule final demo", daysInStage: 2, tier: 1, providers: 3, payer: "NC Medicaid", noShowBaseline: 24, ehrDifficulty: "3/5", ehrTimeline: "4-6 weeks", ehrNotes: "FHIR R4, popular with NC community health centers." },
-  { id: 4, practice: "Coastal Dermatology", specialty: "Dermatology", ehr: "athenahealth", stage: "closed-won", value: 7000, contact: "Maria Santos", nextAction: "Kickoff scheduled Mar 12", daysInStage: 0, tier: 2, providers: 8, payer: "Commercial + Self-pay", noShowBaseline: 10, ehrDifficulty: "2/5", ehrTimeline: "1-2 weeks", ehrNotes: "Same as Greenville — reuse integration patterns." },
-  { id: 5, practice: "Raleigh Women's Health", specialty: "OB/GYN", ehr: "Epic", stage: "discovery", value: 12000, contact: "Dr. Johnson", nextAction: "Discovery call tomorrow 2pm", daysInStage: 1, tier: 3, providers: 11, payer: "All payers", noShowBaseline: 16, ehrDifficulty: "4/5", ehrTimeline: "6-8 weeks", ehrNotes: "Requires Showroom approval (2-4 wk process). SMART on FHIR backend services auth. Most features but longest timeline." },
-  { id: 6, practice: "Durham Community Health", specialty: "Community Health", ehr: "eClinicalWorks", stage: "cold", value: 4500, contact: "James Taylor", nextAction: "Send intro email", daysInStage: 14, tier: 1, providers: 2, payer: "NC Medicaid", noShowBaseline: 28, ehrDifficulty: "3/5", ehrTimeline: "4-6 weeks", ehrNotes: "FHIR R4. Reuse Chapel Hill integration patterns." },
-];
-
-const CLIENTS = [
-  { id: 1, name: "Greenville Primary Care", tier: 2, status: "active", healthScore: 92, goLive: "2026-01-15", monthlyFee: 6500, noShowBefore: 18, noShowCurrent: 7.2, weeklyHoursSaved: 12, weeklyHoursSpent: 6, automations: ["Appointment Reminders", "Insurance Verification", "No-Show Follow-up"], nextMilestone: "Quarterly review Mar 20", ehr: "athenahealth", renewalDate: "2026-07-15", providers: 7, apptsPerWeek: 180, avgVisitValue: 65, staffHourlyRate: 18, platformCost: 48, contactLog: [
-    { date: "Mar 06", type: "email", note: "Sent monthly metrics report" },
-    { date: "Mar 01", type: "call", note: "QBR prep discussion — very positive" },
-    { date: "Feb 22", type: "email", note: "Automation optimization suggestions" },
-    { date: "Feb 15", type: "meeting", note: "Reviewed no-show improvements" },
-  ]},
-  { id: 2, name: "Chapel Hill Family Med", tier: 1, status: "active", healthScore: 78, goLive: "2026-02-01", monthlyFee: 4500, noShowBefore: 22, noShowCurrent: 11.5, weeklyHoursSaved: 8, weeklyHoursSpent: 8, automations: ["Appointment Reminders", "Basic Portal"], nextMilestone: "Add insurance verification", ehr: "eClinicalWorks", renewalDate: "2026-08-01", providers: 3, apptsPerWeek: 90, avgVisitValue: 65, staffHourlyRate: 18, platformCost: 32, contactLog: [
-    { date: "Mar 05", type: "email", note: "Feature request — insurance verification" },
-    { date: "Feb 28", type: "call", note: "Discussed upsell to Tier 2" },
-    { date: "Feb 14", type: "email", note: "Sent optimization recommendations" },
-  ]},
-  { id: 3, name: "Asheville Cardiology", tier: 3, status: "onboarding", healthScore: 65, goLive: "2026-03-25", monthlyFee: 10000, noShowBefore: 15, noShowCurrent: 15, weeklyHoursSaved: 0, weeklyHoursSpent: 15, automations: ["Setup in progress"], nextMilestone: "UAT testing Mar 15", ehr: "NextGen", renewalDate: "2027-03-25", providers: 12, apptsPerWeek: 240, avgVisitValue: 85, staffHourlyRate: 20, platformCost: 0, contactLog: [
-    { date: "Mar 07", type: "call", note: "UAT timeline review — on track" },
-    { date: "Mar 03", type: "meeting", note: "Technical deep dive with IT team" },
-    { date: "Feb 25", type: "email", note: "Sent integration specs document" },
-  ]},
-  { id: 4, name: "Fayetteville Urgent Care", tier: 2, status: "active", healthScore: 88, goLive: "2025-11-01", monthlyFee: 6500, noShowBefore: 25, noShowCurrent: 9.1, weeklyHoursSaved: 14, weeklyHoursSpent: 5, automations: ["Appointment Reminders", "Insurance Verification", "Lab Results Routing"], nextMilestone: "Renewal discussion Apr 1", ehr: "athenahealth", renewalDate: "2026-05-01", providers: 8, apptsPerWeek: 210, avgVisitValue: 72, staffHourlyRate: 18, platformCost: 55, contactLog: [
-    { date: "Mar 04", type: "email", note: "Renewal pricing proposal sent" },
-    { date: "Feb 27", type: "call", note: "Discussed adding claims denial monitoring" },
-    { date: "Feb 20", type: "meeting", note: "Quarterly business review — great ROI" },
-    { date: "Feb 10", type: "email", note: "Automation success report delivered" },
-  ]},
-];
-
-const FINANCIALS = {
-  mrr: 27500, arr: 330000, cashOnHand: 48200, accountsReceivable: 13000,
-  monthlyExpenses: 8400, pipelineValue: 45000,
-  revenueHistory: [
-    { month: "Sep", revenue: 11000, expenses: 6200 },
-    { month: "Oct", revenue: 15500, expenses: 7100 },
-    { month: "Nov", revenue: 18000, expenses: 7400 },
-    { month: "Dec", revenue: 22000, expenses: 7800 },
-    { month: "Jan", revenue: 24500, expenses: 8100 },
-    { month: "Feb", revenue: 27500, expenses: 8400 },
-  ],
-};
-
-const AUTOMATIONS = [
-  { id: 1, client: "Greenville Primary Care", name: "Appointment Reminders", status: "healthy", successRate: 99.2, execsToday: 178, lastRun: "5 min ago", costToday: 1.42, errors24h: 1 },
-  { id: 2, client: "Greenville Primary Care", name: "Insurance Verification", status: "healthy", successRate: 97.8, execsToday: 34, lastRun: "12 min ago", costToday: 6.80, errors24h: 0 },
-  { id: 3, client: "Greenville Primary Care", name: "No-Show Follow-up", status: "healthy", successRate: 100, execsToday: 8, lastRun: "Last night 8pm", costToday: 0.24, errors24h: 0 },
-  { id: 4, client: "Chapel Hill Family Med", name: "Appointment Reminders", status: "warning", successRate: 94.1, execsToday: 86, lastRun: "8 min ago", costToday: 0.69, errors24h: 5 },
-  { id: 5, client: "Fayetteville Urgent Care", name: "Appointment Reminders", status: "healthy", successRate: 99.5, execsToday: 205, lastRun: "3 min ago", costToday: 1.64, errors24h: 0 },
-  { id: 6, client: "Fayetteville Urgent Care", name: "Insurance Verification", status: "healthy", successRate: 98.1, execsToday: 42, lastRun: "18 min ago", costToday: 8.40, errors24h: 1 },
-  { id: 7, client: "Fayetteville Urgent Care", name: "Lab Results Routing", status: "critical", successRate: 87.5, execsToday: 16, lastRun: "45 min ago", costToday: 0.32, errors24h: 2 },
-];
-
-const TASKS = [
-  { id: 1, text: "Send Sunrise Family Medicine proposal", due: "Today", priority: "high", category: "sales" },
-  { id: 2, text: "Asheville Cardiology UAT prep", due: "Mar 15", priority: "high", category: "delivery" },
-  { id: 3, text: "Follow up Blue Ridge Ortho pricing", due: "Tomorrow", priority: "medium", category: "sales" },
-  { id: 4, text: "Chapel Hill quarterly metrics report", due: "Mar 20", priority: "medium", category: "delivery" },
-  { id: 5, text: "Invoice Fayetteville Urgent Care", due: "Mar 10", priority: "low", category: "finance" },
-  { id: 6, text: "Discovery call — Raleigh Women's Health", due: "Tomorrow 2pm", priority: "high", category: "sales" },
-  { id: 7, text: "Greenville Primary Care quarterly review", due: "Mar 20", priority: "medium", category: "delivery" },
-  { id: 8, text: "Fix Fayetteville lab results routing", due: "Today", priority: "high", category: "delivery" },
-  { id: 9, text: "Fayetteville renewal pricing", due: "Apr 1", priority: "medium", category: "sales" },
-];
-
-const INVOICES = [
-  { id: "INV-2026-018", client: "Greenville Primary Care", type: "Managed — Tier 2", amount: 6500, usageCost: 48, total: 6548, issued: "Mar 01", due: "Mar 15", status: "paid", paidDate: "Mar 08" },
-  { id: "INV-2026-019", client: "Chapel Hill Family Med", type: "Managed — Tier 1", amount: 4500, usageCost: 32, total: 4532, issued: "Mar 01", due: "Mar 15", status: "pending", paidDate: null },
-  { id: "INV-2026-020", client: "Asheville Cardiology", type: "Managed — Tier 3", amount: 10000, usageCost: 0, total: 10000, issued: "Mar 01", due: "Mar 15", status: "pending", paidDate: null },
-  { id: "INV-2026-021", client: "Fayetteville Urgent Care", type: "Managed — Tier 2", amount: 6500, usageCost: 55, total: 6555, issued: "Mar 01", due: "Mar 15", status: "overdue", paidDate: null },
-  { id: "INV-2026-015", client: "Greenville Primary Care", type: "Managed — Tier 2", amount: 6500, usageCost: 45, total: 6545, issued: "Feb 01", due: "Feb 15", status: "paid", paidDate: "Feb 12" },
-  { id: "INV-2026-016", client: "Chapel Hill Family Med", type: "Managed — Tier 1", amount: 4500, usageCost: 28, total: 4528, issued: "Feb 01", due: "Feb 15", status: "paid", paidDate: "Feb 14" },
-  { id: "INV-2026-017", client: "Fayetteville Urgent Care", type: "Managed — Tier 2", amount: 6500, usageCost: 52, total: 6552, issued: "Feb 01", due: "Feb 15", status: "paid", paidDate: "Feb 13" },
-];
-
-const ONBOARDING = [
-  { id: 1, client: "Asheville Cardiology", tier: 3, ehr: "NextGen", kickoff: "2026-02-10", targetGoLive: "2026-03-25", daysToGoLive: 17, phases: [
-    { name: "Discovery & Planning", status: "complete", start: "Feb 10", end: "Feb 21", notes: "Requirements gathered, workflows mapped" },
-    { name: "Development", status: "complete", start: "Feb 24", end: "Mar 07", notes: "Automation build complete, EHR integration done" },
-    { name: "Testing & Training", status: "in-progress", start: "Mar 10", end: "Mar 21", notes: "UAT prep underway, training scheduled Mar 18-19" },
-    { name: "Deployment", status: "upcoming", start: "Mar 24", end: "Mar 25", notes: "Go-live support planned" },
-    { name: "Optimization", status: "upcoming", start: "Mar 26", end: "Apr 11", notes: "30-day intensive monitoring" },
-  ], risks: ["NextGen API rate limits during peak hours", "12 providers to train in 2 days — tight schedule"], blockers: [] },
-  { id: 2, client: "Coastal Dermatology", tier: 2, ehr: "athenahealth", kickoff: "2026-03-12", targetGoLive: "2026-04-09", daysToGoLive: 32, phases: [
-    { name: "Discovery & Planning", status: "upcoming", start: "Mar 12", end: "Mar 20", notes: "Kickoff scheduled" },
-    { name: "Development", status: "upcoming", start: "Mar 23", end: "Apr 03", notes: "" },
-    { name: "Testing & Training", status: "upcoming", start: "Apr 04", end: "Apr 07", notes: "" },
-    { name: "Deployment", status: "upcoming", start: "Apr 08", end: "Apr 09", notes: "" },
-    { name: "Optimization", status: "upcoming", start: "Apr 10", end: "May 01", notes: "" },
-  ], risks: ["Low no-show baseline (10%) — ROI story needs to focus on staff efficiency"], blockers: [] },
-];
-
-const CAPACITY = { weeklyHoursAvailable: 50, currentUtilization: 38, deliveryHours: 22, salesHours: 10, adminHours: 6 };
+// Mock constants removed in Task 18.
+// All data now loaded live from Supabase via useICBosData() inside ICBOS().
+// Field-mapping adapters (snake_case -> camelCase) are defined there too.
+// CAPACITY remains local state — CapTab manages consultant team locally.
 
 const STAGES = ["cold", "discovery", "proposal", "negotiation", "closed-won"];
 const STAGE_LABELS = { cold: "Cold", discovery: "Discovery", proposal: "Proposal", negotiation: "Negotiation", "closed-won": "Closed Won" };
@@ -2938,6 +2846,151 @@ export default function ICBOS() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // ─── Live Supabase Data ───────────────────────────────────────────────
+  // useICBosData() composes all per-tab hooks from useSupabaseData.js.
+  // Each section returns { data, loading, error, refetch }.
+  const icbos = useICBosData();
+
+  // ─── Field-name adapters ─────────────────────────────────────────────
+  // Supabase columns are snake_case; the rest of this file uses camelCase.
+  // These normalizers let every sub-component and calc function run
+  // unchanged — only this block needs updating when the DB schema changes.
+
+  const PIPELINE = (icbos.pipeline.data ?? []).map(d => ({
+    ...d,
+    // keep original id (UUID from Supabase) — used by Generate Proposal button
+    supabase_id:    d.id,
+    practice:       d.practice_name       ?? "",
+    specialty:      d.specialty           ?? "",
+    ehr:            d.ehr                 ?? "",
+    // DB stores "Closed Won" with a space; UI uses "closed-won" with a hyphen
+    stage:          (d.stage ?? "cold").toLowerCase().replace(/\s+/g, "-"),
+    value:          Number(d.estimated_value  ?? 0),
+    contact:        d.contact_name        ?? "",
+    nextAction:     d.next_action         ?? "",
+    daysInStage:    d.days_in_stage       ?? 0,
+    tier:           d.tier                ?? 1,
+    providers:      d.providers           ?? 1,
+    payer:          d.payer_mix           ?? "",
+    noShowBaseline: Number(d.no_show_baseline ?? 15),
+    ehrDifficulty:  d.ehr_difficulty      ?? "3/5",
+    ehrTimeline:    d.ehr_timeline        ?? "4-6 weeks",
+    ehrNotes:       d.ehr_notes           ?? "",
+  }));
+
+  const CLIENTS = (icbos.clients.data ?? []).map(c => ({
+    ...c,
+    name:             c.name                      ?? "",
+    tier:             c.tier                      ?? 1,
+    // DB stores "Active" (PascalCase); UI compares against "active" (lowercase)
+    status:           (c.status ?? "active").toLowerCase(),
+    healthScore:      Number(c.health_score       ?? 0),
+    goLive:           c.go_live_date              ?? null,
+    monthlyFee:       Number(c.monthly_fee        ?? 0),
+    platformCost:     Number(c.platform_cost      ?? 0),
+    noShowBefore:     Number(c.no_show_before     ?? 0),
+    noShowCurrent:    Number(c.no_show_current    ?? 0),
+    weeklyHoursSaved: Number(c.weekly_hours_saved ?? 0),
+    weeklyHoursSpent: Number(c.weekly_hours_spent ?? 0),
+    renewalDate:      c.renewal_date              ?? null,
+    nextMilestone:    c.notes                     ?? "",
+    ehr:              c.ehr                       ?? "",
+    providers:        Number(c.providers          ?? 1),
+    apptsPerWeek:     Number(c.appts_per_week     ?? 0),
+    avgVisitValue:    Number(c.avg_visit_value    ?? 65),
+    staffHourlyRate:  Number(c.staff_hourly_rate  ?? 18),
+    // automations list and contactLog come from separate tables;
+    // they are not on the clients row — default to empty arrays so
+    // every .join() and .map() call in sub-components never throws.
+    automations: [],
+    contactLog:  [],
+  }));
+
+  const _fin = icbos.financials.data ?? {};
+  const _cur = _fin.current ?? {};
+  const FINANCIALS = {
+    mrr:                Number(_cur.mrr                  ?? 0),
+    arr:                Number(_cur.arr                  ?? 0),
+    cashOnHand:         Number(_cur.cash_on_hand         ?? 0),
+    accountsReceivable: Number(_cur.accounts_receivable  ?? 0),
+    monthlyExpenses:    Number(_cur.monthly_expenses     ?? 0),
+    pipelineValue:      Number(_cur.pipeline_value       ?? 0),
+    // revenueHistory drives RevChart — needs { month, revenue, expenses }
+    revenueHistory: (_fin.snapshots ?? []).map(s => ({
+      month:    new Date(s.date + "T00:00:00").toLocaleString("en-US", { month: "short" }),
+      revenue:  Number(s.mrr               ?? 0),
+      expenses: Number(s.monthly_expenses  ?? 0),
+    })),
+  };
+
+  const INVOICES = (icbos.invoices.data ?? []).map(i => ({
+    ...i,
+    // i.clients is the joined clients row from Supabase (select clients(id,name,tier))
+    client:    i.clients?.name ?? "",
+    type:      i.type          ?? "",
+    amount:    Number(i.base_amount  ?? 0),
+    usageCost: Number(i.usage_cost   ?? 0),
+    total:     Number(i.total        ?? 0),
+    // Format dates from ISO (2026-03-01) to short string ("Mar 01") to match
+    // existing .startsWith("Mar") and display logic throughout InvoicingTab.
+    issued:   i.issued_date
+      ? new Date(i.issued_date + "T00:00:00").toLocaleString("en-US", { month: "short", day: "2-digit" })
+      : "",
+    due:      i.due_date
+      ? new Date(i.due_date + "T00:00:00").toLocaleString("en-US", { month: "short", day: "2-digit" })
+      : "",
+    // DB stores "Paid" / "Pending" / "Overdue" (PascalCase); UI uses lowercase
+    status:   (i.status ?? "pending").toLowerCase(),
+    paidDate: i.paid_date
+      ? new Date(i.paid_date + "T00:00:00").toLocaleString("en-US", { month: "short", day: "2-digit" })
+      : null,
+  }));
+
+  const AUTOMATIONS = (icbos.automations.data ?? []).map((a, idx) => ({
+    ...a,
+    id:          a.id          ?? idx,
+    client:      a.client_name ?? "",
+    name:        a.automation_name ?? "",
+    // DB health_flag: "healthy" | "warning" | "critical"
+    status:      (a.status ?? a.health_flag ?? "healthy").toLowerCase(),
+    successRate: Number(a.success_rate ?? 100),
+    execsToday:  Number(a.execs_today  ?? 0),
+    lastRun:     a.last_run_at
+      ? new Date(a.last_run_at).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+      : "No data",
+    costToday:   Number(a.cost_today  ?? 0),
+    errors24h:   Number(a.errors_24h  ?? 0),
+  }));
+
+  const TASKS = (icbos.tasks.data ?? []).map(t => ({
+    ...t,
+    text:      t.text      ?? "",
+    due:       t.due       ?? "",
+    priority:  (t.priority ?? "medium").toLowerCase(),
+    category:  t.category  ?? "general",
+    completed: t.completed ?? false,
+  }));
+
+  const ONBOARDING = (icbos.onboarding.data ?? []).map(o => ({
+    ...o,
+    // o.clients is the joined clients row
+    client:       o.clients?.name ?? o.client_name ?? "",
+    tier:         o.clients?.tier ?? o.tier        ?? 1,
+    ehr:          o.clients?.ehr  ?? o.ehr         ?? "",
+    kickoff:      o.kickoff_date   ?? null,
+    targetGoLive: o.target_go_live ?? null,
+    daysToGoLive: o.target_go_live
+      ? Math.ceil((new Date(o.target_go_live) - Date.now()) / 86400000)
+      : 0,
+    phases:   o.phases   ?? [],
+    risks:    o.risks    ?? [],
+    blockers: o.blockers ?? [],
+  }));
+
+  // CAPACITY stays as local-only state — CapTab manages its consultant
+  // team with useState internally and does not need Supabase reads here.
+  const CAPACITY = { weeklyHoursAvailable: 50, currentUtilization: 38, deliveryHours: 22, salesHours: 10, adminHours: 6 };
+
   const isPrincipal = userRole === "principal";
   const isConsultant = userRole === "consultant";
   const canEdit = isPrincipal || isConsultant; // can use agent buttons and add buttons
@@ -2957,7 +3010,8 @@ export default function ICBOS() {
   ];
   const tabs = allTabs.filter(t => !t.principalOnly || canViewFinancials);
 
-  const totalROI = useMemo(()=>CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0),[]);
+  // Re-compute whenever live CLIENTS data loads or changes
+  const totalROI = useMemo(()=>CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0),[CLIENTS]);
   const critCount = AUTOMATIONS.filter(a=>a.status==="critical").length;
   const highTasks = TASKS.filter(t=>t.priority==="high").length;
   const overdueInvs = INVOICES.filter(i=>i.status==="overdue");
@@ -3128,6 +3182,12 @@ export default function ICBOS() {
       {/* Main */}
       <main style={{ padding:"18px 24px 108px", position:"relative", zIndex:1 }}>
         {tab==="overview"&&(
+          icbos.isBootstrapping ? (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:200, gap:12 }}>
+              <span style={{ width:8, height:8, borderRadius:"50%", background:"#6366f1", animation:"pr 1.2s ease-out infinite" }}/>
+              <span style={{ fontSize:12, color:"#7aaacb", fontFamily:M }}>Loading IC-BOS...</span>
+            </div>
+          ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             {/* ROI Banner */}
             <div style={{ background:"linear-gradient(135deg,rgba(74,222,128,0.05),rgba(56,189,248,0.03))", border:"1px solid rgba(74,222,128,0.08)", borderRadius:12, padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", animation:"fu 0.5s ease both" }}>
@@ -3160,6 +3220,7 @@ export default function ICBOS() {
             </div>
             <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#818cf8", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard/></Panel>
           </div>
+          ) // end isBootstrapping ternary
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
        {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f8ff"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#7aaacb",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit}/></>}
@@ -3171,12 +3232,12 @@ export default function ICBOS() {
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
               <KPI label="MRR" value={FINANCIALS.mrr} prefix="$" change={12.2} spark={FINANCIALS.revenueHistory.map(r=>r.revenue)} sparkColor="#818cf8"/>
               <KPI label="ARR" value={FINANCIALS.arr} prefix="$" spark={FINANCIALS.revenueHistory.map(r=>r.revenue*12)} sparkColor="#4ade80" delay={60}/>
-              <KPI label="Cash" value={FINANCIALS.cashOnHand} prefix="$" spark={[32e3,35e3,38e3,41e3,45e3,48200]} sparkColor="#38bdf8" delay={120}/>
-              <KPI label="Net Margin" value={69} suffix="%" spark={[58,60,63,65,67,69]} sparkColor="#4ade80" delay={180}/>
+              <KPI label="Cash" value={FINANCIALS.cashOnHand} prefix="$" spark={[32e3,35e3,38e3,41e3,45e3,FINANCIALS.cashOnHand]} sparkColor="#38bdf8" delay={120}/>
+              <KPI label="Net Margin" value={FINANCIALS.monthlyExpenses>0?Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100):0} suffix="%" spark={[58,60,63,65,67,69]} sparkColor="#4ade80" delay={180}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <Panel title="Revenue Trend"><RevChart data={FINANCIALS.revenueHistory}/></Panel>
-              <Panel title="Monthly P&L">{[{l:"Revenue",v:"$27,500",c:"#818cf8"},{l:"Expenses",v:"-$8,400",c:"#f87171"},{l:"Net",v:"$19,100",c:"#4ade80"},{l:"A/R",v:"$13,000",c:"#fbbf24"}].map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid rgba(42,182,215,0.08)"}}><span style={{fontSize:12,color:"#a8c8e8"}}>{m.l}</span><span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span></div>))}</Panel>
+              <Panel title="Monthly P&L">{[{l:"Revenue",v:`$${FINANCIALS.mrr.toLocaleString()}`,c:"#818cf8"},{l:"Expenses",v:`-$${FINANCIALS.monthlyExpenses.toLocaleString()}`,c:"#f87171"},{l:"Net",v:`$${(FINANCIALS.mrr-FINANCIALS.monthlyExpenses).toLocaleString()}`,c:"#4ade80"},{l:"A/R",v:`$${FINANCIALS.accountsReceivable.toLocaleString()}`,c:"#fbbf24"}].map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid rgba(42,182,215,0.08)"}}><span style={{fontSize:12,color:"#a8c8e8"}}>{m.l}</span><span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span></div>))}</Panel>
             </div>
           </div>
         )}
