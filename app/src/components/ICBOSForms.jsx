@@ -186,7 +186,7 @@ Return: {"name":"Sunrise Pediatrics","tier":"2","ehr":"athenahealth","primary_co
 function getFieldNames(formName) {
   const map = {
     "Add Client":   "name, tier, status, ehr, monthly_fee, providers, primary_contact, contact_email, contact_phone, go_live_date, renewal_date, notes",
-    "Add Deal":     "practice_name, specialty, ehr, stage, tier, estimated_value, contact_name, contact_title, next_action, next_action_date, notes",
+    "Add Deal":     "practice_name, specialty, ehr, stage, tier, estimated_value, contact_name, contact_email, contact_phone, next_action, next_action_date, notes",
     "Add Task":     "text, due, priority, category",
     "Add Invoice":  "client_name, invoice_type, amount, due_date, notes",
     "Log Comms":    "client_name, date, type, note",
@@ -480,7 +480,7 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
   const blank = {
     practice_name: "", specialty: "", ehr: "athenahealth",
     stage: "Cold", tier: "2", estimated_value: "",
-    close_probability: "", contact_name: "", contact_title: "",
+   close_probability: "", contact_name: "", contact_email: "", contact_phone: "",
     next_action: "", next_action_date: "",
     providers: "", payer_mix: "", no_show_baseline: "",
     ehr_difficulty: "", ehr_timeline: "", ehr_notes: "", notes: "",
@@ -507,6 +507,8 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
       estimated_value:   Number(fields.estimated_value) || 0,
       close_probability: Number(fields.close_probability) || 0,
       contact_name:      fields.contact_name || null,
+      contact_email:     fields.contact_email || null,
+      contact_phone:     fields.contact_phone || null,
       next_action:       fields.next_action || null,
       next_action_date:  fields.next_action_date || null,
       providers:         Number(fields.providers) || 1,
@@ -572,12 +574,16 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
         </Field>
       </div>
 
+     <Field label="Contact Name">
+        <Input value={fields.contact_name} onChange={set("contact_name")} placeholder="Dr. Patel" />
+      </Field>
+
       <div style={S.row}>
-        <Field label="Contact Name">
-          <Input value={fields.contact_name} onChange={set("contact_name")} placeholder="Dr. Patel" />
+        <Field label="Contact Email">
+          <Input value={fields.contact_email} onChange={set("contact_email")} placeholder="dr.patel@practice.com" type="email" />
         </Field>
-        <Field label="Contact Title">
-          <Input value={fields.contact_title} onChange={set("contact_title")} placeholder="Medical Director" />
+        <Field label="Contact Phone">
+          <Input value={fields.contact_phone} onChange={set("contact_phone")} placeholder="919-555-0100" type="tel" />
         </Field>
       </div>
 
