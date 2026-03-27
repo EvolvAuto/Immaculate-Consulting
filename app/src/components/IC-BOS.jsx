@@ -55,64 +55,8 @@ function calcProfitability(c) {
 }
 
 // ─── Voice Engine ────────────────────────────────────────────────────
-function processVoice(text) {
-  const l = text.toLowerCase();
-  if (l.match(/brief|morning|standup|daily|status|what.*miss/)) {
-    const crit = AUTOMATIONS.filter(a=>a.status==="critical");
-    const high = TASKS.filter(t=>t.priority==="high");
-    const totalROI = CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0);
-    const overdue = INVOICES.filter(i=>i.status==="overdue");
-   let r = `Good morning, Leonard. IC-BOS daily briefing for ${new Date().toLocaleDateString('en-US', { month:'long', day:'numeric' })}.\n\n`;
-    if (crit.length) r += `⚠️ CRITICAL: ${crit.map(a=>`${a.client} ${a.name} at ${a.successRate}%`).join("; ")}.\n\n`;
-    r += `📋 ${high.length} high-priority tasks: ${high.map(t=>t.text).join("; ")}.\n\n`;
-    r += `💰 Client value recovered: $${Math.round(totalROI).toLocaleString()}. MRR $${FINANCIALS.mrr.toLocaleString()}, cash $${FINANCIALS.cashOnHand.toLocaleString()}.`;
-    if (overdue.length) r += `\n\n⚠️ ${overdue.length} overdue invoice: ${overdue.map(i=>`${i.client} $${i.total.toLocaleString()}`).join(", ")}.`;
-    r += `\n\n📊 Pipeline: ${PIPELINE.length} deals, $${PIPELINE.reduce((s,d)=>s+d.value,0).toLocaleString()}/mo. Capacity ${Math.round((CAPACITY.currentUtilization/CAPACITY.weeklyHoursAvailable)*100)}%.`;
-    return { response: r, tab: "overview" };
-  }
-  if (l.match(/invoice|billing|payment|overdue|who.*paid|collect/)) {
-    const overdue = INVOICES.filter(i=>i.status==="overdue");
-    const pending = INVOICES.filter(i=>i.status==="pending");
-    const marchTotal = INVOICES.filter(i=>i.issued.startsWith("Mar")).reduce((s,i)=>s+i.total,0);
-    return { response: `March invoices total $${marchTotal.toLocaleString()}. ${overdue.length} overdue: ${overdue.map(i=>`${i.client} — $${i.total.toLocaleString()} due ${i.due}`).join("; ")}. ${pending.length} pending payment.`, tab: "invoicing" };
-  }
-  if (l.match(/onboard|implementation|go.?live|uat|deploy/)) {
-    return { response: ONBOARDING.map(o=>`${o.client}: ${o.daysToGoLive} days to go-live. Current phase: ${o.phases.find(p=>p.status==="in-progress")?.name || o.phases.find(p=>p.status==="upcoming")?.name}. Risks: ${o.risks.join("; ") || "None"}.`).join("\n\n"), tab: "onboarding" };
-  }
-  if (l.match(/profit|effective.*rate|margin.*client|cost.*client|which.*client.*best/)) {
-    const active = CLIENTS.filter(c=>c.status==="active").map(c=>({...c, p: calcProfitability(c)})).sort((a,b)=>b.p.effectiveRate-a.p.effectiveRate);
-    return { response: `Client profitability: ${active.map(c=>`${c.name}: $${Math.round(c.p.effectiveRate)}/hr effective rate, ${Math.round(c.p.margin)}% margin`).join(". ")}. Best: ${active[0].name}. Most room for improvement: ${active[active.length-1].name}.`, tab: "profitability" };
-  }
-  if (l.match(/prep.*call|prep.*meeting|prep.*discovery|prep.*raleigh|ready.*for/)) {
-    const prospect = PIPELINE.find(p=>l.includes(p.practice.toLowerCase().split(" ")[0])) || PIPELINE.find(p=>p.stage==="discovery");
-    if (prospect) {
-      const tier = { 1: "$3,500", 2: "$6,500", 3: "$10,000+" }[prospect.tier];
-      const weeklyAppts = prospect.providers * 25;
-      const recovered = ((prospect.noShowBaseline - 8) / 100) * weeklyAppts;
-      const annualRev = recovered * 65 * 52;
-      return { response: `📋 PREP: ${prospect.practice}\n\n👥 ${prospect.providers} providers, ${prospect.specialty}\n🏥 EHR: ${prospect.ehr} — Difficulty ${prospect.ehrDifficulty}, timeline ${prospect.ehrTimeline}\n⚠️ ${prospect.ehrNotes}\n💰 Suggested: Tier ${prospect.tier} (${tier}/mo)\n📊 No-show baseline: ${prospect.noShowBaseline}% → target 8%\n💵 Projected annual revenue recovery: $${Math.round(annualRev).toLocaleString()}\n🎯 Payer mix: ${prospect.payer}`, tab: "salesprep" };
-    }
-    return { response: "Which prospect? I have Sunrise Family Medicine, Raleigh Women's Health, and Durham Community Health in discovery.", tab: null };
-  }
-  if (l.match(/weekly.*report|week.*summary|this.*week/)) { return { response: "Opening weekly report...", tab: "report" }; }
-  if (l.match(/roi|return|value.*recover|impact/)) {
-    const t = CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0);
-    return { response: `Total recovered: $${Math.round(t).toLocaleString()}. ${CLIENTS.filter(c=>c.status==="active").map(c=>{const r=calcClientROI(c);return `${c.name}: $${Math.round(r.totalToDate).toLocaleString()} (${Math.round(r.roiPct)}% ROI)`;}).join(". ")}.`, tab: "roi" };
-  }
-  if (l.match(/pipeline|deals|prospect|sales|lead/)) {
-    const stale = PIPELINE.filter(p=>p.daysInStage>5);
-    return { response: `${PIPELINE.length} deals, $${PIPELINE.reduce((s,d)=>s+d.value,0).toLocaleString()}/mo.${stale.length?` Stale: ${stale.map(p=>`${p.practice} (${p.daysInStage}d in ${STAGE_LABELS[p.stage]})`).join(", ")}.`:""}`, tab: "pipeline" };
-  }
-  if (l.match(/client|health/)) { return { response: CLIENTS.map(c=>`${c.name}: ${c.status}, health ${c.healthScore}`).join(". "), tab: "clients" }; }
-  if (l.match(/financ|revenue|mrr|cash|money/)) { return { response: `MRR $${FINANCIALS.mrr.toLocaleString()}, ARR $${FINANCIALS.arr.toLocaleString()}, Cash $${FINANCIALS.cashOnHand.toLocaleString()}, Net margin ${Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100)}%.`, tab: "financials" }; }
-  if (l.match(/task|todo|priority/)) { const h=TASKS.filter(t=>t.priority==="high"); return { response: `${TASKS.length} tasks, ${h.length} urgent: ${h.map(t=>`${t.text} (${t.due})`).join("; ")}.`, tab: "tasks" }; }
-  if (l.match(/automat|make\.com|scenario|error/)) { const c=AUTOMATIONS.filter(a=>a.status==="critical"); return { response: `${AUTOMATIONS.length} automations. ${c.length?`CRITICAL: ${c.map(a=>`${a.client} ${a.name}`).join("; ")}.`:"All healthy."}`, tab: "automations" }; }
-  if (l.match(/capacity|bandwidth|workload/)) { return { response: `${Math.round((CAPACITY.currentUtilization/CAPACITY.weeklyHoursAvailable)*100)}% — ${CAPACITY.weeklyHoursAvailable-CAPACITY.currentUtilization}h free.`, tab: "capacity" }; }
-  if (l.match(/renewal|churn|retain/)) { return { response: CLIENTS.map(c=>{const d=Math.round((new Date(c.renewalDate)-Date.now())/864e5);return `${c.name}: ${d}d, health ${c.healthScore}${c.healthScore<70&&d<60?" ⚠️ AT RISK":""}`;}).join(". "), tab: "renewals" }; }
-  if (l.match(/proposal|propose|quote/)) { return { response: "Opening proposal builder...", tab: "proposal" }; }
-  if (l.match(/communi|contact|last.*talk/)) { return { response: "Opening communications log...", tab: "comms" }; }
-  return { response: `Try: briefing, pipeline, clients, ROI, financials, tasks, automations, capacity, renewals, invoices, onboarding, profitability, "prep me for [prospect]", or "weekly report".`, tab: null };
-}
+// processVoice() removed in Task 18 — replaced by live Vapi SDK (VapiAssistant.jsx).
+// All voice commands are now handled server-side via the DigitalOcean webhook.
 
 // ═══════════════════════════════════════════════════════════════════════
 // SHARED UI
@@ -166,6 +110,7 @@ function TaskItem({ task, delay=0 }) {
 }
 
 function RevChart({ data }) {
+  if (!data || data.length < 2) return <div style={{ height:120, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, color:"#4a6a8a" }}>No revenue data yet</div>;
   const mx=Math.max(...data.map(d=>d.revenue));
   return (
     <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:120, padding:"0 4px" }}>
