@@ -853,7 +853,7 @@ export const useTasks = () => {
   const fetchTasks = useCallback(async () => {
     const { data: rows, error: err } = await supabase
       .from('tasks')
-      .select('id, text, due_date, priority, category, completed, client_id, created_at')
+      .select('id, text, due_date, priority, category, completed, client_id, notes, created_at')
       .eq('completed', false) // Default view: open tasks only
       .order('priority') // Critical → High → Medium → Low
       .order('due');
