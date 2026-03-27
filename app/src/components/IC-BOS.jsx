@@ -135,6 +135,21 @@ function PipelineBoard({ canEdit = true, onRefresh }) {
   const [outreachStates, setOutreachStates] = useState({});
   const [outreachResults, setOutreachResults] = useState({});
   const [expandedOutreach, setExpandedOutreach] = useState({});
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(null);
+
+  const handleDeleteDeal = async (deal) => {
+    if (deleteConfirm !== deal.id) {
+      setDeleteConfirm(deal.id);
+      setTimeout(() => setDeleteConfirm(null), 4000);
+      return;
+    }
+    setDeleteLoading(deal.id);
+    setDeleteConfirm(null);
+    const { error } = await supabase.from("pipeline_deals").delete().eq("id", deal.supabase_id);
+    setDeleteLoading(null);
+    if (!error && onRefresh) onRefresh();
+  };
 
   const handleGenerateProposal = async (deal) => {
     // Mock deals don't have real Supabase UUIDs — button is wired and ready for Task 17
@@ -200,8 +215,18 @@ const handleGenerateOutreach = async (deal) => {
           </div>
           {deals.map(d=>{
             const ps = proposalStates[d.id];
-            return (<div key={d.id} style={{ background:c.bg, border:`1px solid ${c.border}15`, borderRadius:9, padding:"10px 12px", marginBottom:6 }}>
-              <div style={{ fontSize:12, fontWeight:600, color:"#f0f8ff" }}>{d.practice}</div>
+            return (<div key={d.id} style={{ background:c.bg, border:`1px solid ${c.border}15`, borderRadius:9, padding:"10px 12px", marginBottom:6, position:"relative" }}>
+              {canEdit && (
+                <button
+                  onClick={() => handleDeleteDeal(d)}
+                  disabled={deleteLoading === d.id}
+                  title={deleteConfirm === d.id ? "Click again to confirm delete" : "Remove deal"}
+                  style={{ position:"absolute", top:6, right:6, width:18, height:18, borderRadius:4, border:`1px solid ${deleteConfirm===d.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===d.id?"rgba(248,113,113,0.15)":"transparent", color:deleteConfirm===d.id?"#f87171":"#4a6a8a", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
+                >
+                  {deleteLoading===d.id ? "…" : deleteConfirm===d.id ? "!" : "×"}
+                </button>
+              )}
+              <div style={{ fontSize:12, fontWeight:600, color:"#f0f8ff", paddingRight: canEdit ? 20 : 0 }}>{d.practice}</div>
               <div style={{ fontSize:10, color:"#a8c8e8", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
                 <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
