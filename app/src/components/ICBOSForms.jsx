@@ -942,8 +942,10 @@ export function AddCommPanel({ onClose, onSaved, supabase, clients = [] }) {
         <Textarea value={fields.note} onChange={set("note")}
           placeholder="e.g. Discussed Q2 renewal pricing. Client very positive about ROI results..." />
       </Field>
-    </SlidePanel>
+   </SlidePanel>
   );
+}
+  
   // =============================================================================
 // FORM 6: ADD ONBOARDING PROJECT PANEL
 // =============================================================================
@@ -1039,5 +1041,4 @@ export function AddOnboardingPanel({ onClose, onSaved, supabase, clients = [] })
       </div>
     </SlidePanel>
   );
-}
 }
