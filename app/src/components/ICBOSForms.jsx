@@ -804,8 +804,8 @@ export function AddInvoicePanel({ onClose, onSaved, supabase, clients = [] }) {
 // =============================================================================
 
 export function AddCommPanel({ onClose, onSaved, supabase, clients = [] }) {
-  const blank = {
-    client_id: "", date: new Date().toISOString().split("T")[0],
+ const blank = {
+    client_id: "", comm_date: new Date().toISOString().split("T")[0],
     type: "Call", note: "",
   };
   const [fields, setFields] = useState(blank);
@@ -833,9 +833,9 @@ export function AddCommPanel({ onClose, onSaved, supabase, clients = [] }) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { error: err } = await supabase.from("communications").insert([{
+   const { error: err } = await supabase.from("communications").insert([{
       client_id: fields.client_id,
-      date:      fields.date,
+      comm_date: fields.comm_date,
       type:      fields.type,
       note:      fields.note.trim(),
       user_id:   user?.id ?? null,
@@ -870,7 +870,7 @@ export function AddCommPanel({ onClose, onSaved, supabase, clients = [] }) {
           <Select value={fields.type} onChange={set("type")} options={typeOptions} />
         </Field>
         <Field label="Date">
-          <Input value={fields.date} onChange={set("date")} type="date" />
+          <Input value={fields.comm_date} onChange={set("comm_date")} type="date" />
         </Field>
       </div>
 
