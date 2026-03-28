@@ -152,21 +152,36 @@ function PipelineBoard({ canEdit = true, onRefresh }) {
     if (!error && onRefresh) onRefresh();
   };
 
+  // UI uses lowercase-hyphenated stage names (from the field normalizer).
+  // DB enum requires Title Case with spaces — map between them on write.
   const STAGES_ORDER = ["cold", "discovery", "proposal", "negotiation", "closed-won"];
+  const STAGE_TO_DB  = {
+    "cold":        "Cold",
+    "discovery":   "Discovery",
+    "proposal":    "Proposal",
+    "negotiation": "Negotiation",
+    "closed-won":  "Closed Won",
+  };
 
   const handleAdvanceStage = async (deal, direction) => {
     if (!deal.supabase_id) return;
     const currentIdx = STAGES_ORDER.indexOf(deal.stage);
+    if (currentIdx === -1) return; // unknown stage — bail
     const nextIdx = direction === "forward" ? currentIdx + 1 : currentIdx - 1;
     if (nextIdx < 0 || nextIdx >= STAGES_ORDER.length) return;
-    const newStage = STAGES_ORDER[nextIdx];
+    const newStageUI = STAGES_ORDER[nextIdx];
+    const newStageDB = STAGE_TO_DB[newStageUI]; // Title Case for Supabase enum
     setStageLoading(deal.id);
     const { error } = await supabase
       .from("pipeline_deals")
-      .update({ stage: newStage, days_in_stage: 0 })
+      .update({ stage: newStageDB, days_in_stage: 0, stage_entered_at: new Date().toISOString() })
       .eq("id", deal.supabase_id);
     setStageLoading(null);
-    if (!error && onRefresh) onRefresh();
+    if (error) {
+      console.error("Stage update failed:", error.message);
+    } else if (onRefresh) {
+      onRefresh();
+    }
   };
 
 
