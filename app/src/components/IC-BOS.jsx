@@ -129,7 +129,7 @@ function RevChart({ data }) {
   );
 }
 
-function PipelineBoard({ canEdit = true, onRefresh, onConvert }) {
+function PipelineBoard({ canEdit = true, onRefresh }) {
   const { PIPELINE } = useData();
   const [proposalStates, setProposalStates] = useState({});
   const [outreachStates, setOutreachStates] = useState({});
@@ -137,7 +137,7 @@ function PipelineBoard({ canEdit = true, onRefresh, onConvert }) {
   const [expandedOutreach, setExpandedOutreach] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(null);
-  const [convertingDeal, setConvertingDeal] = useState(null); // tracks deal being converted
+  const [stageLoading, setStageLoading] = useState(null); // deal.id being moved
 
   const handleDeleteDeal = async (deal) => {
     if (deleteConfirm !== deal.id) {
@@ -151,6 +151,24 @@ function PipelineBoard({ canEdit = true, onRefresh, onConvert }) {
     setDeleteLoading(null);
     if (!error && onRefresh) onRefresh();
   };
+
+  const STAGES_ORDER = ["cold", "discovery", "proposal", "negotiation", "closed-won"];
+
+  const handleAdvanceStage = async (deal, direction) => {
+    if (!deal.supabase_id) return;
+    const currentIdx = STAGES_ORDER.indexOf(deal.stage);
+    const nextIdx = direction === "forward" ? currentIdx + 1 : currentIdx - 1;
+    if (nextIdx < 0 || nextIdx >= STAGES_ORDER.length) return;
+    const newStage = STAGES_ORDER[nextIdx];
+    setStageLoading(deal.id);
+    const { error } = await supabase
+      .from("pipeline_deals")
+      .update({ stage: newStage, days_in_stage: 0 })
+      .eq("id", deal.supabase_id);
+    setStageLoading(null);
+    if (!error && onRefresh) onRefresh();
+  };
+
 
   const handleGenerateProposal = async (deal) => {
     // Mock deals don't have real Supabase UUIDs — button is wired and ready for Task 17
@@ -231,10 +249,42 @@ const handleGenerateOutreach = async (deal) => {
               <div style={{ fontSize:10, color:"#374151", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
                 <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
-                <span style={{ fontSize:8, fontWeight:700, color:"#ffffff", background:c.dot, borderRadius:4, padding:"2px 7px" }}>T{d.tier}</span>
+                <span style={{ fontSize:8, fontWeight:600, color:"#111", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
               </div>
               <div style={{ fontSize:10, color:"#6b7280", marginTop:5 }}>→ {d.nextAction}</div>
               {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
+
+              {/* Stage progression controls */}
+              {canEdit && d.supabase_id && (
+                <div style={{ display:"flex", gap:5, marginTop:8, paddingTop:8, borderTop:"1px solid #f0f0f0" }}>
+                  {/* Move back */}
+                  {d.stage !== "cold" && (
+                    <button
+                      onClick={() => handleAdvanceStage(d, "back")}
+                      disabled={stageLoading === d.id}
+                      title="Move to previous stage"
+                      style={{ flex:1, padding:"5px 0", borderRadius:5, border:"1px solid #e5e7eb", background:"#f9fafb", color:"#6b7280", cursor:"pointer", fontSize:9.5, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}
+                    >
+                      ← Back
+                    </button>
+                  )}
+                  {/* Move forward */}
+                  {d.stage !== "closed-won" && (
+                    <button
+                      onClick={() => handleAdvanceStage(d, "forward")}
+                      disabled={stageLoading === d.id}
+                      title={`Move to ${["cold","discovery","proposal","negotiation","closed-won"][["cold","discovery","proposal","negotiation","closed-won"].indexOf(d.stage)+1] || ""}`}
+                      style={{ flex:2, padding:"5px 0", borderRadius:5, border:`1px solid ${c.border}60`, background:c.bg, color:c.text, cursor:"pointer", fontSize:9.5, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:3 }}
+                    >
+                      {stageLoading === d.id ? "Moving..." : `→ ${["Discovery","Proposal","Negotiation","Closed Won"][["cold","discovery","proposal","negotiation"].indexOf(d.stage)] || ""}`}
+                    </button>
+                  )}
+                  {d.stage === "closed-won" && (
+                    <div style={{ flex:1, fontSize:9, color:"#15803d", textAlign:"center", fontWeight:600, padding:"5px 0" }}>✓ Closed Won</div>
+                  )}
+                </div>
+              )}
+
              {/* Agent 7 — Generate Outreach button (Cold stage only) */}
               {d.stage === "cold" && (
                 <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
@@ -265,18 +315,6 @@ const handleGenerateOutreach = async (deal) => {
                   )}
                 </div>
               )}
-              {/* Convert to Client — closed-won only */}
-              {d.stage === "closed-won" && canEdit && onConvert && (
-                <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
-                  <button
-                    onClick={() => onConvert(d)}
-                    style={{ width:"100%", padding:"6px 0", borderRadius:6, border:"1px solid #16a34a", background:"#f0fdf4", color:"#15803d", cursor:"pointer", fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}
-                  >
-                    ✓ Convert to Active Client
-                  </button>
-                </div>
-              )}
-
               {/* Agent 1 — Generate Proposal button */}
               <div style={{ marginTop:d.stage==="cold"?4:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
                 {ps === 'done' && <div style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
@@ -317,7 +355,6 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
   const [expandedReport, setExpandedReport] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(null);
-  const [convertingDeal, setConvertingDeal] = useState(null); // tracks deal being converted
 
   const handleDeleteClient = async (client) => {
     if (deleteConfirm !== client.id) {
@@ -3416,12 +3453,12 @@ export default function ICBOS() {
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>{TASKS.filter(t=>t.priority==="high").map((t,i)=><TaskItem key={t.id} task={t} delay={i*40}/>)}</div>
               </Panel>
             </div>
-            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#374151", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})}/></Panel>
+            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#374151", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()}/></Panel>
           </div>
           )
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})}/></>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
@@ -3452,7 +3489,7 @@ export default function ICBOS() {
         {tab==="comms"&&<CommsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
-{(showForm==="client" || showForm?.type==="client")&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} initialData={showForm?.prefill || null} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
+{showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
       {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.pipeline.refetch(); }}/>}
       {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.tasks.refetch(); }}/>}
       {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.invoices.refetch(); icbos.financials.refetch(); }}/>}
