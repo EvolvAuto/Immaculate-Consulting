@@ -881,7 +881,27 @@ function OnboardingTab({ onRefresh }) {
                     <div style={{ width:80, height:5, borderRadius:3, background:"rgba(255,255,255,0.04)", overflow:"hidden" }}>
                       <div style={{ height:"100%", borderRadius:3, background:isDone?"#4ade80":isActive?"#fbbf24":"transparent", width:isDone?"100%":isActive?"50%":"0%" }}/>
                     </div>
-                    {isDone && <span style={{ fontSize:9, fontWeight:600, color:"#4ade80", background:"rgba(74,222,128,0.1)", padding:"2px 7px", borderRadius:4, fontFamily:M }}>Complete</span>}
+                    {isDone && (
+                      <div style={{ display:"flex", alignItems:"center", gap:5 }}>
+                        <span style={{ fontSize:9, fontWeight:600, color:"#4ade80", background:"rgba(74,222,128,0.1)", padding:"2px 7px", borderRadius:4, fontFamily:M }}>Complete</span>
+                        {proj.phases[i+1] && ["in-progress","upcoming"].includes(proj.phases[i+1]?.status) && (
+                          <button
+                            onClick={async () => {
+                              const updated = proj.phases.map((p,j) => {
+                                if (j===i) return {...p, status:"in-progress", completed_date: null};
+                                if (j===i+1) return {...p, status:"upcoming"};
+                                return p;
+                              });
+                              await supabase.from("onboarding_projects").update({ phases: updated }).eq("id", proj.id);
+                              if (onRefresh) onRefresh();
+                            }}
+                            style={{ fontSize:9, padding:"2px 7px", borderRadius:4, border:"1px solid rgba(255,255,255,0.08)", background:"transparent", color:"#4a6a8a", cursor:"pointer", fontFamily:"inherit" }}
+                          >
+                            Undo
+                          </button>
+                        )}
+                      </div>
+                    )}
                     {isActive && (
                       <button
                         onClick={async () => {
