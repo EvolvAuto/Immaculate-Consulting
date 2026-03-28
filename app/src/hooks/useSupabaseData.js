@@ -120,7 +120,7 @@ export const useOverview = () => {
       supabase
         .from('pipeline_deals')
         .select('id, estimated_value, stage')
-        .not('stage', 'in', '("Closed Won","Closed Lost")'),
+        .neq('stage', 'Closed Won').neq('stage', 'Closed Lost'),
     ]);
 
     // Propagate the first error encountered
@@ -197,7 +197,7 @@ export const usePipeline = () => {
           ehr_difficulty, ehr_timeline, ehr_notes,
           notes, assigned_to, created_at, updated_at
         `)
-        .not('stage', 'in', '("Closed Lost")')
+        .neq('stage', 'Closed Lost')
         .order('days_in_stage', { ascending: false }),
     [],
     []
@@ -779,7 +779,7 @@ export const useProposalTargets = () => {
         supabase
           .from('pipeline_deals')
           .select('id, practice_name, specialty, ehr, tier, providers, contact_name, contact_email')
-          .not('stage', 'in', '("Closed Won","Closed Lost")')
+          .neq('stage', 'Closed Won').neq('stage', 'Closed Lost')
           .order('practice_name'),
 
         supabase
@@ -828,7 +828,7 @@ export const useSalesPrep = () => {
           payer_mix, no_show_baseline, ehr_difficulty, ehr_timeline,
           ehr_notes, notes
         `)
-        .not('stage', 'in', '("Closed Won","Closed Lost")')
+        .neq('stage', 'Closed Won').neq('stage', 'Closed Lost')
         .order('next_action_date'),
     [],
     []
