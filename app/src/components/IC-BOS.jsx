@@ -264,7 +264,7 @@ const handleGenerateOutreach = async (deal) => {
               <div style={{ fontSize:10, color:"#374151", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
                 <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
-                <span style={{ fontSize:8, fontWeight:600, color:"#111", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
+                <span style={{ fontSize:8, fontWeight:700, color:"#ffffff", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
               </div>
               <div style={{ fontSize:10, color:"#6b7280", marginTop:5 }}>→ {d.nextAction}</div>
               {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
