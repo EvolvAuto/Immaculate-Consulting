@@ -3086,7 +3086,7 @@ export default function ICBOS() {
   const COMMS = (icbos.comms.data ?? []).map(c => ({
     ...c,
     client: c.clients?.name ?? "",
-    date:   c.date ?? "",
+    date:   c.comm_date ?? "",
     type:   (c.type ?? "note").toLowerCase(),
     note:   c.note ?? "",
   }));
