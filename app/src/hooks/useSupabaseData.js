@@ -109,11 +109,11 @@ export const useOverview = () => {
       // Open (incomplete) critical/high priority tasks
       supabase
         .from('tasks')
-        .select('id, text, priority, due, category')
+       .select('id, text, priority, due_date, category')
         .eq('completed', false)
         .in('priority', ['Critical', 'High'])
         .order('priority')
-        .order('due')
+        .order('due_date')
         .limit(5),
 
       // Active pipeline deal count + value
@@ -856,7 +856,7 @@ export const useTasks = () => {
       .select('id, text, due_date, priority, category, completed, client_id, notes, created_at')
       .eq('completed', false) // Default view: open tasks only
       .order('priority') // Critical → High → Medium → Low
-      .order('due');
+      .order('due_date');
 
     if (err) {
       logQueryError('fetchTasks', err);
