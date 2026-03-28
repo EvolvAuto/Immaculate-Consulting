@@ -5,6 +5,7 @@
  *
  * Energy Core orb — ambient glow + orbital rings + pulsing core.
  * Listening state: waveform bar replaces text area.
+ * Theme: 2C-III — charcoal #1f2937 bar, white bold text.
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
@@ -58,27 +59,22 @@ function detectTab(text) {
 }
 
 // ── Energy Core Orb ───────────────────────────────────────────────────
-// Self-contained orb component — same structure for both idle and listening states.
-// `fast` prop speeds up rings when listening.
 function EnergyOrb({ size = 56, fast = false }) {
   const speed = fast ? 0.6 : 1;
-  const core = size * 0.32;
+  const core  = size * 0.32;
   const shell = size * 0.68;
   const ring1 = size * 0.78;
   const ring2 = size * 0.82;
   const ring3 = size * 0.95;
   const glow  = size * 1.1;
-  const ptSize = size * 0.085;
+  const ptSize  = size * 0.085;
   const ptOrbit = size * 0.42;
 
   return (
     <div style={{
       position: "relative",
-      width: size,
-      height: size,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
+      width: size, height: size,
+      display: "flex", alignItems: "center", justifyContent: "center",
       flexShrink: 0,
     }}>
       <style>{`
@@ -86,22 +82,22 @@ function EnergyOrb({ size = 56, fast = false }) {
           0%,100% {
             box-shadow: 0 0 ${size*0.22}px ${size*0.07}px rgba(255,160,0,0.9),
                         0 0 ${size*0.55}px ${size*0.18}px rgba(255,100,0,0.6),
-                        0 0 ${size*1.0}px ${size*0.36}px rgba(255,60,0,0.3);
+                        0 0 ${size*1.0}px  ${size*0.36}px rgba(255,60,0,0.3);
           }
           50% {
             box-shadow: 0 0 ${size*0.32}px ${size*0.12}px rgba(255,200,0,1),
-                        0 0 ${size*0.8}px ${size*0.28}px rgba(255,120,0,0.8),
-                        0 0 ${size*1.4}px ${size*0.5}px rgba(255,60,0,0.4);
+                        0 0 ${size*0.8}px  ${size*0.28}px rgba(255,120,0,0.8),
+                        0 0 ${size*1.4}px  ${size*0.5}px  rgba(255,60,0,0.4);
             transform: scale(1.08);
           }
         }
         @keyframes ic-shell-pulse {
           0%,100% { border-color: rgba(255,140,0,0.25); }
-          50% { border-color: rgba(255,180,0,0.5); }
+          50%      { border-color: rgba(255,180,0,0.5); }
         }
         @keyframes ic-glow-pulse {
-          0%,100% { transform: scale(1); opacity: 0.6; }
-          50% { transform: scale(1.18); opacity: 1; }
+          0%,100% { transform: scale(1);    opacity: 0.6; }
+          50%      { transform: scale(1.18); opacity: 1; }
         }
         @keyframes ic-ring1 {
           from { transform: rotateX(70deg) rotateZ(0deg); }
@@ -123,140 +119,110 @@ function EnergyOrb({ size = 56, fast = false }) {
           from { transform: rotateX(55deg) rotateY(20deg) rotateZ(0deg); }
           to   { transform: rotateX(55deg) rotateY(20deg) rotateZ(360deg); }
         }
-        @keyframes ic-flare1 { from { transform: rotateZ(0deg); } to { transform: rotateZ(360deg); } }
-        @keyframes ic-flare2 { from { transform: rotateZ(0deg); } to { transform: rotateZ(360deg); } }
+        @keyframes ic-flare1 { from { transform: rotateZ(0deg); }   to { transform: rotateZ(360deg); } }
+        @keyframes ic-flare2 { from { transform: rotateZ(0deg); }   to { transform: rotateZ(360deg); } }
       `}</style>
 
       {/* Ambient glow */}
       <div style={{
-        position: "absolute",
-        width: glow, height: glow,
-        borderRadius: "50%",
+        position: "absolute", width: glow, height: glow, borderRadius: "50%",
         background: `radial-gradient(circle, rgba(255,120,0,0.18) 0%, rgba(255,60,0,0.08) 50%, transparent 75%)`,
-        animation: `ic-glow-pulse ${2 * speed}s ease-in-out infinite`,
-        zIndex: 1,
-        pointerEvents: "none",
+        animation: `ic-glow-pulse ${2*speed}s ease-in-out infinite`,
+        zIndex: 1, pointerEvents: "none",
       }} />
 
-      {/* Orbital ring 3 — outermost */}
+      {/* Ring 3 — outermost */}
       <div style={{
-        position: "absolute",
-        width: ring3, height: ring3,
-        borderRadius: "50%",
-        border: `1px solid rgba(255,200,80,0.28)`,
-        animation: `ic-ring3 ${8 * speed}s linear infinite`,
-        transformStyle: "preserve-3d",
-        zIndex: 2,
-        pointerEvents: "none",
+        position: "absolute", width: ring3, height: ring3, borderRadius: "50%",
+        border: "1px solid rgba(255,200,80,0.28)",
+        animation: `ic-ring3 ${8*speed}s linear infinite`,
+        transformStyle: "preserve-3d", zIndex: 2, pointerEvents: "none",
       }} />
 
-      {/* Orbital ring 2 */}
+      {/* Ring 2 */}
       <div style={{
-        position: "absolute",
-        width: ring2, height: ring2,
-        borderRadius: "50%",
-        border: `1px solid rgba(255,120,0,0.42)`,
-        animation: `ic-ring2 ${5 * speed}s linear infinite reverse`,
-        transformStyle: "preserve-3d",
-        zIndex: 2,
-        pointerEvents: "none",
+        position: "absolute", width: ring2, height: ring2, borderRadius: "50%",
+        border: "1px solid rgba(255,120,0,0.42)",
+        animation: `ic-ring2 ${5*speed}s linear infinite reverse`,
+        transformStyle: "preserve-3d", zIndex: 2, pointerEvents: "none",
       }} />
 
-      {/* Orbital ring 1 — main bright ring */}
+      {/* Ring 1 — main bright */}
       <div style={{
-        position: "absolute",
-        width: ring1, height: ring1,
-        borderRadius: "50%",
-        border: `1.5px solid rgba(255,160,40,0.72)`,
+        position: "absolute", width: ring1, height: ring1, borderRadius: "50%",
+        border: "1.5px solid rgba(255,160,40,0.72)",
         boxShadow: `0 0 ${size*0.14}px rgba(255,140,0,0.35)`,
-        animation: `ic-ring1 ${3 * speed}s linear infinite`,
-        transformStyle: "preserve-3d",
-        zIndex: 2,
-        pointerEvents: "none",
+        animation: `ic-ring1 ${3*speed}s linear infinite`,
+        transformStyle: "preserve-3d", zIndex: 2, pointerEvents: "none",
       }} />
 
       {/* Energy shell */}
       <div style={{
-        position: "absolute",
-        width: shell, height: shell,
-        borderRadius: "50%",
+        position: "absolute", width: shell, height: shell, borderRadius: "50%",
         background: `radial-gradient(circle at 35% 30%, rgba(255,200,80,0.14), rgba(255,100,0,0.06) 50%, transparent 70%)`,
-        border: `1px solid rgba(255,140,0,0.22)`,
-        animation: `ic-shell-pulse ${2 * speed}s ease-in-out infinite`,
-        zIndex: 3,
-        pointerEvents: "none",
+        border: "1px solid rgba(255,140,0,0.22)",
+        animation: `ic-shell-pulse ${2*speed}s ease-in-out infinite`,
+        zIndex: 3, pointerEvents: "none",
       }} />
 
       {/* Core */}
       <div style={{
-        position: "absolute",
-        width: core, height: core,
-        borderRadius: "50%",
-        background: `radial-gradient(circle at 40% 38%, #fff8e0, #ffcc44 28%, #ff8800 58%, #cc4400)`,
-        animation: `ic-core-pulse ${2 * speed}s ease-in-out infinite`,
-        zIndex: 4,
-        pointerEvents: "none",
+        position: "absolute", width: core, height: core, borderRadius: "50%",
+        background: "radial-gradient(circle at 40% 38%, #fff8e0, #ffcc44 28%, #ff8800 58%, #cc4400)",
+        animation: `ic-core-pulse ${2*speed}s ease-in-out infinite`,
+        zIndex: 4, pointerEvents: "none",
       }} />
 
       {/* Flare 1 */}
       <div style={{
         position: "absolute",
-        width: size * 0.035, height: size * 0.5,
-        background: `linear-gradient(to bottom, rgba(255,220,80,0.9), transparent)`,
+        width: size*0.035, height: size*0.5,
+        background: "linear-gradient(to bottom, rgba(255,220,80,0.9), transparent)",
         borderRadius: "50%",
-        top: `calc(50% - ${size * 0.6}px)`,
-        left: `calc(50% - ${size * 0.018}px)`,
-        transformOrigin: `${size * 0.018}px ${size * 0.6}px`,
-        animation: `ic-flare1 ${3 * speed}s linear infinite`,
+        top: `calc(50% - ${size*0.6}px)`,
+        left: `calc(50% - ${size*0.018}px)`,
+        transformOrigin: `${size*0.018}px ${size*0.6}px`,
+        animation: `ic-flare1 ${3*speed}s linear infinite`,
         boxShadow: `0 0 ${size*0.07}px rgba(255,200,0,0.5)`,
-        zIndex: 5,
-        pointerEvents: "none",
+        zIndex: 5, pointerEvents: "none",
       }} />
 
       {/* Flare 2 */}
       <div style={{
         position: "absolute",
-        width: size * 0.028, height: size * 0.38,
-        background: `linear-gradient(to bottom, rgba(255,160,40,0.8), transparent)`,
+        width: size*0.028, height: size*0.38,
+        background: "linear-gradient(to bottom, rgba(255,160,40,0.8), transparent)",
         borderRadius: "50%",
-        top: `calc(50% - ${size * 0.48}px)`,
-        left: `calc(50% - ${size * 0.014}px)`,
-        transformOrigin: `${size * 0.014}px ${size * 0.48}px`,
-        animation: `ic-flare2 ${4.5 * speed}s linear infinite reverse`,
+        top: `calc(50% - ${size*0.48}px)`,
+        left: `calc(50% - ${size*0.014}px)`,
+        transformOrigin: `${size*0.014}px ${size*0.48}px`,
+        animation: `ic-flare2 ${4.5*speed}s linear infinite reverse`,
         boxShadow: `0 0 ${size*0.06}px rgba(255,140,0,0.4)`,
-        zIndex: 5,
-        pointerEvents: "none",
+        zIndex: 5, pointerEvents: "none",
       }} />
 
       {/* Orbiting particle 1 */}
       <div style={{
         position: "absolute",
-        width: ptSize, height: ptSize,
-        borderRadius: "50%",
-        background: `radial-gradient(circle, #fff8c0, #ffcc00)`,
+        width: ptSize, height: ptSize, borderRadius: "50%",
+        background: "radial-gradient(circle, #fff8c0, #ffcc00)",
         boxShadow: `0 0 ${ptSize*1.4}px ${ptSize*0.5}px rgba(255,200,0,0.9)`,
-        top: `-${ptSize / 2}px`,
-        left: `calc(50% - ${ptSize / 2}px)`,
-        transformOrigin: `${ptSize / 2}px ${ptOrbit + ptSize / 2}px`,
-        animation: `ic-pt1 ${3 * speed}s linear infinite`,
-        zIndex: 6,
-        pointerEvents: "none",
+        top: `-${ptSize/2}px`, left: `calc(50% - ${ptSize/2}px)`,
+        transformOrigin: `${ptSize/2}px ${ptOrbit + ptSize/2}px`,
+        animation: `ic-pt1 ${3*speed}s linear infinite`,
+        zIndex: 6, pointerEvents: "none",
       }} />
 
       {/* Orbiting particle 2 */}
       <div style={{
         position: "absolute",
-        width: ptSize * 0.75, height: ptSize * 0.75,
-        borderRadius: "50%",
-        background: `radial-gradient(circle, #ffeeaa, #ff8800)`,
+        width: ptSize*0.75, height: ptSize*0.75, borderRadius: "50%",
+        background: "radial-gradient(circle, #ffeeaa, #ff8800)",
         boxShadow: `0 0 ${ptSize}px ${ptSize*0.4}px rgba(255,160,0,0.8)`,
-        top: `-${ptSize * 0.38}px`,
-        left: `calc(50% - ${ptSize * 0.38}px)`,
-        transformOrigin: `${ptSize * 0.38}px ${ptOrbit * 1.05 + ptSize * 0.38}px`,
-        animation: `ic-pt2 ${5 * speed}s linear infinite reverse`,
-        opacity: 0.82,
-        zIndex: 6,
-        pointerEvents: "none",
+        top: `-${ptSize*0.38}px`, left: `calc(50% - ${ptSize*0.38}px)`,
+        transformOrigin: `${ptSize*0.38}px ${ptOrbit*1.05 + ptSize*0.38}px`,
+        animation: `ic-pt2 ${5*speed}s linear infinite reverse`,
+        opacity: 0.82, zIndex: 6, pointerEvents: "none",
       }} />
     </div>
   );
@@ -264,8 +230,8 @@ function EnergyOrb({ size = 56, fast = false }) {
 
 // ── Waveform bars (listening state) ──────────────────────────────────
 function Waveform({ side = "left" }) {
-  const bars = [6, 12, 18, 22, 26, 20, 28];
-  const delays = [0, 0.08, 0.16, 0.04, 0.2, 0.12, 0.3];
+  const bars      = [6, 12, 18, 22, 26, 20, 28];
+  const delays    = [0, 0.08, 0.16, 0.04, 0.2, 0.12, 0.3];
   const durations = [0.7, 0.85, 0.6, 0.9, 0.75, 0.65, 1.0];
   return (
     <div style={{
@@ -274,9 +240,7 @@ function Waveform({ side = "left" }) {
     }}>
       {bars.map((h, i) => (
         <div key={i} style={{
-          width: 2.5,
-          height: h,
-          borderRadius: 2,
+          width: 2.5, height: h, borderRadius: 2,
           background: i === 4 || i === 6 ? "rgba(42,182,215,0.85)" : "rgba(42,182,215,0.5)",
           animation: `ic-wave ${durations[i]}s ease-in-out ${delays[i]}s infinite alternate`,
         }} />
@@ -296,13 +260,13 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
   const vapiRef = useRef(null);
   const inRef   = useRef(null);
 
-  const [active,    setActive]    = useState(false);
-  const [vState,    setVState]    = useState("idle");
-  const [transcript,setTranscript]= useState("");
-  const [response,  setResponse]  = useState("");
-  const [textInput, setTextInput] = useState("");
+  const [active,     setActive]     = useState(false);
+  const [vState,     setVState]     = useState("idle");
+  const [transcript, setTranscript] = useState("");
+  const [response,   setResponse]   = useState("");
+  const [textInput,  setTextInput]  = useState("");
 
-  // ── Init Vapi SDK ────────────────────────────────────────────────────
+  // ── Init Vapi SDK ─────────────────────────────────────────────────
   useEffect(() => {
     if (!VAPI_PUBLIC_KEY) {
       console.warn("IC-BOS: VITE_VAPI_PUBLIC_KEY not set");
@@ -311,11 +275,11 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
     const vapi = new Vapi(VAPI_PUBLIC_KEY);
     vapiRef.current = vapi;
 
-    vapi.on("call-start",  () => { setVState("listening"); setResponse("IC-BOS voice active. Ask me anything."); });
-    vapi.on("call-end",    () => { setActive(false); setVState("idle"); setTranscript(""); });
-    vapi.on("error",       (e) => { console.error("Vapi error:", e); setVState("error"); setResponse("Connection error. Try again."); setActive(false); });
-    vapi.on("speech-start",() => setVState("listening"));
-    vapi.on("speech-end",  () => setVState("speaking"));
+    vapi.on("call-start",   () => { setVState("listening"); setResponse("IC-BOS voice active. Ask me anything."); });
+    vapi.on("call-end",     () => { setActive(false); setVState("idle"); setTranscript(""); });
+    vapi.on("error",        (e) => { console.error("Vapi error:", e); setVState("error"); setResponse("Connection error. Try again."); setActive(false); });
+    vapi.on("speech-start", () => setVState("listening"));
+    vapi.on("speech-end",   () => setVState("speaking"));
 
     vapi.on("message", (msg) => {
       if (msg.type === "transcript" && msg.role === "user") {
@@ -336,7 +300,7 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
     return () => { vapi.stop(); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Toggle call ──────────────────────────────────────────────────────
+  // ── Toggle call ──────────────────────────────────────────────────
   const toggleCall = useCallback(async () => {
     const vapi = vapiRef.current;
     if (!vapi) return;
@@ -360,7 +324,7 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
     }
   }, [active]);
 
-  // ── Send typed text ──────────────────────────────────────────────────
+  // ── Send typed text ──────────────────────────────────────────────
   const sendText = useCallback(() => {
     const vapi = vapiRef.current;
     if (!vapi || !textInput.trim()) return;
@@ -370,7 +334,7 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
     setVState("speaking");
   }, [textInput]);
 
-  // ── Keyboard shortcut ────────────────────────────────────────────────
+  // ── Keyboard shortcut ────────────────────────────────────────────
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -386,23 +350,25 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
     if (active) setTimeout(() => inRef.current?.focus(), 150);
   }, [active]);
 
-  const isListening = vState === "listening";
-  const isSpeaking  = vState === "speaking";
+  const isListening  = vState === "listening";
+  const isSpeaking   = vState === "speaking";
   const isConnecting = vState === "connecting";
-  const isError     = vState === "error";
+  const isError      = vState === "error";
 
-  // ── Render ───────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────
   return (
     <div style={{
       position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
-      padding: "12px 24px 16px",
-      background: "linear-gradient(to top, rgba(7,24,48,0.98) 65%, transparent)",
+      padding: "10px 24px 14px",
+      /* 2C-III: charcoal bar matching the tab row */
+      background: "#1f2937",
+      borderTop: "1px solid #374151",
     }}>
 
       {/* ── LISTENING STATE — waveform bar ── */}
       {isListening && (
         <div style={{
-          maxWidth: 720, margin: "0 auto 0",
+          maxWidth: 720, margin: "0 auto",
           display: "flex", alignItems: "center", justifyContent: "space-between",
           gap: 14,
           background: "linear-gradient(135deg, #060f22, #0a1e3a)",
@@ -411,8 +377,7 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
           padding: "10px 14px 10px 20px",
           boxShadow: "0 0 0 1px rgba(42,182,215,0.1), 0 0 28px rgba(42,182,215,0.18), inset 0 0 32px rgba(42,182,215,0.05)",
           animation: "ic-bar-glow 2s ease-in-out infinite",
-          position: "relative",
-          overflow: "hidden",
+          position: "relative", overflow: "hidden",
         }}>
           <style>{`
             @keyframes ic-bar-glow {
@@ -437,27 +402,19 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
             pointerEvents: "none",
           }} />
 
-          {/* Left waveform */}
           <Waveform side="left" />
 
-          {/* Listening text */}
           <div style={{
-            fontSize: 15, fontWeight: 500, letterSpacing: 0.3,
+            fontSize: 15, fontWeight: 700, letterSpacing: 0.3, color: "#ffffff",
             animation: "ic-text-pulse 2s ease-in-out infinite",
             flex: 1, textAlign: "center",
           }}>
             Listening...
           </div>
 
-          {/* Right waveform */}
           <Waveform side="right" />
 
-          {/* Orb — same energy core */}
-          <div
-            onClick={toggleCall}
-            title="Tap to end"
-            style={{ cursor: "pointer", marginLeft: 6 }}
-          >
+          <div onClick={toggleCall} title="Tap to end" style={{ cursor: "pointer", marginLeft: 6 }}>
             <EnergyOrb size={48} fast />
           </div>
         </div>
@@ -468,8 +425,9 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
         <div style={{
           maxWidth: 720, margin: "0 auto",
           display: "flex", alignItems: "center", gap: 12,
-          background: active ? "rgba(42,182,215,0.04)" : "rgba(13,43,78,0.7)",
-          border: `1px solid ${active ? "rgba(42,182,215,0.18)" : "rgba(42,182,215,0.1)"}`,
+          /* Slightly lighter charcoal pill on charcoal bar */
+          background: active ? "rgba(42,182,215,0.06)" : "#2d3748",
+          border: `1px solid ${active ? "rgba(42,182,215,0.25)" : "#4b5563"}`,
           borderRadius: 40,
           padding: "6px 6px 6px 20px",
           transition: "all 0.3s",
@@ -487,7 +445,7 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
               </div>
             )}
             {active && transcript && transcript !== textInput && (
-              <div style={{ fontSize: 10, color: "#4a6a8a", fontStyle: "italic", fontFamily: M }}>
+              <div style={{ fontSize: 10, color: "#6b7280", fontStyle: "italic", fontFamily: M }}>
                 You: {transcript}
               </div>
             )}
@@ -507,9 +465,13 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
               disabled={!active}
               style={{
                 background: "none", border: "none", outline: "none",
-                color: "#f0f8ff", fontSize: 12.5, fontFamily: "inherit",
+                /* White bold text on charcoal — matches spec */
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: 13,
+                fontFamily: "inherit",
                 width: "100%",
-                opacity: active ? 1 : 0.45,
+                opacity: active ? 1 : 0.9,
               }}
             />
           </div>
@@ -520,7 +482,6 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
             title={active ? "End call" : "Start voice session"}
             style={{ cursor: "pointer", position: "relative" }}
           >
-            {/* Connecting pulse rings */}
             {isConnecting && (
               <>
                 <span style={{
@@ -542,17 +503,17 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
         </div>
       )}
 
-      {/* Status line */}
+      {/* Status line — visible on charcoal */}
       <div style={{ textAlign: "center", marginTop: 5 }}>
         {vState === "idle" ? (
-          <span style={{ fontSize: 9, color: "#2a3a54" }}>
+          <span style={{ fontSize: 9, color: "#6b7280" }}>
             Click orb or{" "}
             <kbd style={{
               padding: "1px 4px",
-              background: "rgba(42,182,215,0.06)",
+              background: "#374151",
               borderRadius: 3, fontSize: 8,
-              border: "1px solid rgba(42,182,215,0.12)",
-              color: "#4a6a8a",
+              border: "1px solid #4b5563",
+              color: "#9ca3af",
             }}>
               ⌘K
             </kbd>
@@ -566,7 +527,6 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
           </span>
         )}
       </div>
-
     </div>
   );
 }
