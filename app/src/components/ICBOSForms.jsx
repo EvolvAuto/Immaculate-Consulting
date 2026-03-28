@@ -60,14 +60,13 @@ const S = {
     padding: "9px 12px", color: "#f0f0f0", fontSize: 13,
     fontFamily: "inherit", outline: "none", boxSizing: "border-box",
     transition: "border-color 0.15s",
-    colorScheme: "dark",
   },
   select: {
-    width: "100%", background: "#1e293b",
+    width: "100%", background: "rgba(255,255,255,0.04)",
     border: "1px solid rgba(255,255,255,0.08)", borderRadius: 7,
     padding: "9px 12px", color: "#f0f0f0", fontSize: 13,
     fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-    appearance: "none", cursor: "pointer", colorScheme: "dark",
+    appearance: "none", cursor: "pointer",
   },
   textarea: {
     width: "100%", background: "rgba(255,255,255,0.04)",
@@ -186,7 +185,7 @@ Return: {"name":"Sunrise Pediatrics","tier":"2","ehr":"athenahealth","primary_co
 function getFieldNames(formName) {
   const map = {
     "Add Client":   "name, tier, status, ehr, monthly_fee, providers, primary_contact, contact_email, contact_phone, go_live_date, renewal_date, notes",
-    "Add Deal":     "practice_name, specialty, ehr, stage, tier, estimated_value, contact_name, contact_email, contact_phone, next_action, next_action_date, notes",
+    "Add Deal":     "practice_name, specialty, ehr, stage, tier, estimated_value, contact_name, contact_title, next_action, next_action_date, notes",
     "Add Task":     "text, due, priority, category",
     "Add Invoice":  "client_name, invoice_type, amount, due_date, notes",
     "Log Comms":    "client_name, date, type, note",
@@ -279,12 +278,12 @@ function Input({ value, onChange, placeholder, type = "text" }) {
   );
 }
 
-function Select({ value, onChange, options, labels }) {
+function Select({ value, onChange, options }) {
   return (
     <select className="ic-input" value={value ?? ""} onChange={e => onChange(e.target.value)} style={S.select}>
       <option value="">Select...</option>
-      {options.map((o, i) => (
-        <option key={o.value ?? o} value={o.value ?? o}>{labels ? labels[i] : (o.label ?? o)}</option>
+      {options.map(o => (
+        <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>
       ))}
     </select>
   );
@@ -302,7 +301,7 @@ function Textarea({ value, onChange, placeholder }) {
 // FORM 1: ADD CLIENT PANEL
 // =============================================================================
 
-export function AddClientPanel({ onClose, onSaved, supabase }) {
+export function AddClientPanel({ onClose, onSaved, supabase, initialData = null }) {
   const blank = {
     name: "", tier: "2", status: "Active", ehr: "athenahealth",
     monthly_fee: "", platform_cost: "", providers: "",
@@ -311,11 +310,22 @@ export function AddClientPanel({ onClose, onSaved, supabase }) {
     weekly_hours_saved: "", weekly_hours_spent: "",
     go_live_date: "", renewal_date: "",
     primary_contact: "", contact_email: "", contact_phone: "",
-   city: "", state: "NC", notes: "",
-    engagement_type: "managed", selected_services: [],
+    city: "", state: "NC", notes: "",
   };
 
-  const [fields, setFields] = useState(blank);
+  // Pre-fill from pipeline deal when converting closed-won deal to active client
+  const prefill = initialData ? {
+    name:            initialData.practice        || "",
+    tier:            String(initialData.tier     || "2"),
+    ehr:             initialData.ehr             || "athenahealth",
+    monthly_fee:     String(initialData.value    || ""),
+    providers:       String(initialData.providers|| ""),
+    no_show_before:  String(initialData.noShowBaseline || ""),
+    primary_contact: initialData.contact         || "",
+    notes:           `Converted from pipeline deal.${initialData.nextAction ? " Next action: " + initialData.nextAction : ""}`,
+  } : null;
+
+  const [fields, setFields] = useState(prefill ? { ...blank, ...prefill } : blank);
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
   const [error,  setError]  = useState("");
@@ -354,8 +364,6 @@ export function AddClientPanel({ onClose, onSaved, supabase }) {
       city:               fields.city || null,
       state:              fields.state || "NC",
       notes:              fields.notes || null,
-      engagement_type:    fields.engagement_type,
-      selected_services:  fields.selected_services,
     };
 
     const { error: err } = await supabase.from("clients").insert([payload]);
@@ -381,14 +389,31 @@ export function AddClientPanel({ onClose, onSaved, supabase }) {
     >
       {error && <div style={S.errorMsg}>⚠ {error}</div>}
 
+      {/* Pipeline → Client conversion banner */}
+      {initialData && (
+        <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:7, padding:"10px 12px", fontSize:11, color:"#15803d", display:"flex", alignItems:"flex-start", gap:8, marginBottom:4 }}>
+          <span>✓</span>
+          <div>
+            <strong>Converting from pipeline: {initialData?.practice}</strong>
+            <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>Key fields pre-filled. Complete any blanks and save to add as an active client.</div>
+          </div>
+        </div>
+      )}
+
       <Field label="Practice Name *">
         <Input value={fields.name} onChange={set("name")} placeholder="e.g. Sunrise Family Medicine" />
       </Field>
 
-      <Field label="Status">
-        <Select value={fields.status} onChange={set("status")}
-          options={["Active","Onboarding","Paused","Churned"]} />
-      </Field>
+      <div style={S.row}>
+        <Field label="Service Tier">
+          <Select value={fields.tier} onChange={set("tier")}
+            options={[{value:"1",label:"Tier 1 — $3,500/mo"},{value:"2",label:"Tier 2 — $6,500/mo"},{value:"3",label:"Tier 3 — $10,000+/mo"}]} />
+        </Field>
+        <Field label="Status">
+          <Select value={fields.status} onChange={set("status")}
+            options={["Active","Onboarding","Paused","Churned"]} />
+        </Field>
+      </div>
 
       <Field label="EHR Platform">
         <Select value={fields.ehr} onChange={set("ehr")} options={ehrOptions} />
@@ -461,41 +486,6 @@ export function AddClientPanel({ onClose, onSaved, supabase }) {
         </Field>
       </div>
 
-    <Field label="Engagement Type">
-        <Select value={fields.engagement_type} onChange={set("engagement_type")}
-          options={["managed","individual","mixed"]}
-          labels={["Managed Package","Individual Services","Package + Services"]} />
-      </Field>
-
-      {fields.engagement_type !== "individual" && (
-        <Field label="Managed Tier">
-          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {[{t:"1",n:"AI Starter",p:"$3,500/mo",d:"1-3 providers"},{t:"2",n:"Productivity Suite",p:"$6,500/mo",d:"4-10 providers"},{t:"3",n:"Practice Transformation",p:"$10,000/mo",d:"10+ providers"}].map(opt => (
-              <button key={opt.t} onClick={() => set("tier")(opt.t)} style={{ padding:"8px 12px", borderRadius:7, border:`1px solid ${fields.tier===opt.t?"#6366f1":"rgba(255,255,255,0.08)"}`, background:fields.tier===opt.t?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <div><span style={{ fontSize:12, fontWeight:600, color:fields.tier===opt.t?"#a5b4fc":"#9ca3af" }}>Tier {opt.t}: {opt.n}</span><span style={{ fontSize:10, color:"#6b7280", marginLeft:8 }}>{opt.d}</span></div>
-                <span style={{ fontSize:12, fontWeight:700, color:fields.tier===opt.t?"#f0f0f0":"#6b7280", fontFamily:"monospace" }}>{opt.p}</span>
-              </button>
-            ))}
-          </div>
-        </Field>
-      )}
-
-      {fields.engagement_type !== "managed" && (
-        <Field label="Individual Services">
-          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-            {["Prompt Engineering","AI Staff Training","Web App Development","AI Strategy Consultation","Document & SOP Creation","Forms & Templates"].map(svc => {
-              const active = fields.selected_services.includes(svc);
-              return (
-                <button key={svc} onClick={() => set("selected_services")(active ? fields.selected_services.filter(s=>s!==svc) : [...fields.selected_services, svc])} style={{ padding:"7px 12px", borderRadius:6, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.06)"}`, background:active?"rgba(99,102,241,0.1)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left", color:active?"#a5b4fc":"#9ca3af", fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ width:14, height:14, borderRadius:3, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.15)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white", flexShrink:0 }}>{active ? "v" : ""}</span>
-                  {svc}
-                </button>
-              );
-            })}
-          </div>
-        </Field>
-      )}
-
       <Field label="Notes">
         <Textarea value={fields.notes} onChange={set("notes")} placeholder="NC Medicaid referral, known through..." />
       </Field>
@@ -512,11 +502,10 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
   const blank = {
     practice_name: "", specialty: "", ehr: "athenahealth",
     stage: "Cold", tier: "2", estimated_value: "",
-   close_probability: "", contact_name: "", contact_email: "", contact_phone: "",
+    close_probability: "", contact_name: "", contact_title: "",
     next_action: "", next_action_date: "",
     providers: "", payer_mix: "", no_show_baseline: "",
     ehr_difficulty: "", ehr_timeline: "", ehr_notes: "", notes: "",
-    engagement_type: "managed", selected_services: [],
   };
 
   const [fields, setFields] = useState(blank);
@@ -540,20 +529,17 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
       estimated_value:   Number(fields.estimated_value) || 0,
       close_probability: Number(fields.close_probability) || 0,
       contact_name:      fields.contact_name || null,
-      contact_email:     fields.contact_email || null,
-      contact_phone:     fields.contact_phone || null,
+      contact_title:     fields.contact_title || null,
       next_action:       fields.next_action || null,
       next_action_date:  fields.next_action_date || null,
       providers:         Number(fields.providers) || 1,
       payer_mix:         fields.payer_mix || null,
-      no_show_baseline:  Number(fields.no_show_baseline) / 100 || 0,
+      no_show_baseline:  Number(fields.no_show_baseline) || 0,
       ehr_difficulty:    fields.ehr_difficulty || null,
       ehr_timeline:      fields.ehr_timeline || null,
       ehr_notes:         fields.ehr_notes || null,
       notes:             fields.notes || null,
       days_in_stage:     0,
-      engagement_type:   fields.engagement_type,
-      selected_services: fields.selected_services,
     };
 
     const { error: err } = await supabase.from("pipeline_deals").insert([payload]);
@@ -590,9 +576,15 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
         </Field>
       </div>
 
-     <Field label="Stage">
-        <Select value={fields.stage} onChange={set("stage")} options={stageOptions} />
-      </Field>
+      <div style={S.row}>
+        <Field label="Stage">
+          <Select value={fields.stage} onChange={set("stage")} options={stageOptions} />
+        </Field>
+        <Field label="Tier">
+          <Select value={fields.tier} onChange={set("tier")}
+            options={[{value:"1",label:"Tier 1"},{value:"2",label:"Tier 2"},{value:"3",label:"Tier 3"}]} />
+        </Field>
+      </div>
 
       <div style={S.row}>
         <Field label="Est. Monthly Value ($)">
@@ -603,16 +595,12 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
         </Field>
       </div>
 
-     <Field label="Contact Name">
-        <Input value={fields.contact_name} onChange={set("contact_name")} placeholder="Dr. Patel" />
-      </Field>
-
       <div style={S.row}>
-        <Field label="Contact Email">
-          <Input value={fields.contact_email} onChange={set("contact_email")} placeholder="dr.patel@practice.com" type="email" />
+        <Field label="Contact Name">
+          <Input value={fields.contact_name} onChange={set("contact_name")} placeholder="Dr. Patel" />
         </Field>
-        <Field label="Contact Phone">
-          <Input value={fields.contact_phone} onChange={set("contact_phone")} placeholder="919-555-0100" type="tel" />
+        <Field label="Contact Title">
+          <Input value={fields.contact_title} onChange={set("contact_title")} placeholder="Medical Director" />
         </Field>
       </div>
 
@@ -651,41 +639,6 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
         <Textarea value={fields.ehr_notes} onChange={set("ehr_notes")} placeholder="Integration complexity notes..." />
       </Field>
 
-     <Field label="Engagement Type">
-        <Select value={fields.engagement_type} onChange={set("engagement_type")}
-          options={["managed","individual","mixed"]}
-          labels={["Managed Package","Individual Services","Package + Services"]} />
-      </Field>
-
-      {fields.engagement_type !== "individual" && (
-        <Field label="Managed Tier">
-          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {[{t:"1",n:"AI Starter",p:"$3,500/mo",d:"1-3 providers"},{t:"2",n:"Productivity Suite",p:"$6,500/mo",d:"4-10 providers"},{t:"3",n:"Practice Transformation",p:"$10,000/mo",d:"10+ providers"}].map(opt => (
-              <button key={opt.t} onClick={() => set("tier")(opt.t)} style={{ padding:"8px 12px", borderRadius:7, border:`1px solid ${fields.tier===opt.t?"#6366f1":"rgba(255,255,255,0.08)"}`, background:fields.tier===opt.t?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <div><span style={{ fontSize:12, fontWeight:600, color:fields.tier===opt.t?"#a5b4fc":"#9ca3af" }}>Tier {opt.t}: {opt.n}</span><span style={{ fontSize:10, color:"#6b7280", marginLeft:8 }}>{opt.d}</span></div>
-                <span style={{ fontSize:12, fontWeight:700, color:fields.tier===opt.t?"#f0f0f0":"#6b7280", fontFamily:"monospace" }}>{opt.p}</span>
-              </button>
-            ))}
-          </div>
-        </Field>
-      )}
-
-      {fields.engagement_type !== "managed" && (
-        <Field label="Individual Services">
-          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-            {["Prompt Engineering","AI Staff Training","Web App Development","AI Strategy Consultation","Document & SOP Creation","Forms & Templates"].map(svc => {
-              const active = fields.selected_services.includes(svc);
-              return (
-                <button key={svc} onClick={() => set("selected_services")(active ? fields.selected_services.filter(s=>s!==svc) : [...fields.selected_services, svc])} style={{ padding:"7px 12px", borderRadius:6, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.06)"}`, background:active?"rgba(99,102,241,0.1)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left", color:active?"#a5b4fc":"#9ca3af", fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ width:14, height:14, borderRadius:3, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.15)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white", flexShrink:0 }}>{active ? "v" : ""}</span>
-                  {svc}
-                </button>
-              );
-            })}
-          </div>
-        </Field>
-      )}
-
       <Field label="General Notes">
         <Textarea value={fields.notes} onChange={set("notes")} placeholder="How we found them, context..." />
       </Field>
@@ -713,8 +666,8 @@ export function AddTaskPanel({ onClose, onSaved, supabase }) {
     setError(""); setSaving(true);
 
     const { error: err } = await supabase.from("tasks").insert([{
-     text:      fields.text.trim(),
-      due_date:  fields.due || null,
+      text:      fields.text.trim(),
+      due:       fields.due || null,
       priority:  fields.priority,
       category:  fields.category,
       completed: false,
@@ -769,7 +722,6 @@ export function AddInvoicePanel({ onClose, onSaved, supabase, clients = [] }) {
   const blank = {
     client_id: "", invoice_type: "Monthly Retainer",
     amount: "", due_date: "", notes: "",
-    stripe_invoice_id: "",
   };
   const [fields, setFields] = useState(blank);
   const [saving, setSaving] = useState(false);
@@ -798,16 +750,15 @@ export function AddInvoicePanel({ onClose, onSaved, supabase, clients = [] }) {
     const invoiceNum = `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`;
 
     const { error: err } = await supabase.from("invoices").insert([{
-      invoice_number:    invoiceNum,
-      client_id:         fields.client_id,
-      invoice_type:      fields.invoice_type,
-      amount:            Number(fields.amount),
-      total_amount:      Number(fields.amount),
-      due_date:          fields.due_date || null,
-      status:            "Pending",
-      notes:             fields.notes || null,
-      issued_date:       new Date().toISOString().split("T")[0],
-      stripe_invoice_id: fields.stripe_invoice_id || null,
+      invoice_number: invoiceNum,
+      client_id:      fields.client_id,
+      invoice_type:   fields.invoice_type,
+      amount:         Number(fields.amount),
+      total_amount:   Number(fields.amount),
+      due_date:       fields.due_date || null,
+      status:         "Pending",
+      notes:          fields.notes || null,
+      issued_date:    new Date().toISOString().split("T")[0],
     }]);
 
     setSaving(false);
@@ -847,14 +798,6 @@ export function AddInvoicePanel({ onClose, onSaved, supabase, clients = [] }) {
         </Field>
       </div>
 
-     <Field label="Stripe Invoice ID">
-        <Input
-          value={fields.stripe_invoice_id}
-          onChange={set("stripe_invoice_id")}
-          placeholder="in_1234567890 (from Stripe dashboard)"
-        />
-      </Field>
-
       <Field label="Notes">
         <Textarea value={fields.notes} onChange={set("notes")} placeholder="March managed service retainer..." />
       </Field>
@@ -868,8 +811,8 @@ export function AddInvoicePanel({ onClose, onSaved, supabase, clients = [] }) {
 // =============================================================================
 
 export function AddCommPanel({ onClose, onSaved, supabase, clients = [] }) {
- const blank = {
-    client_id: "", comm_date: new Date().toISOString().split("T")[0],
+  const blank = {
+    client_id: "", date: new Date().toISOString().split("T")[0],
     type: "Call", note: "",
   };
   const [fields, setFields] = useState(blank);
@@ -897,9 +840,9 @@ export function AddCommPanel({ onClose, onSaved, supabase, clients = [] }) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-   const { error: err } = await supabase.from("communications").insert([{
+    const { error: err } = await supabase.from("communications").insert([{
       client_id: fields.client_id,
-      comm_date: fields.comm_date,
+      date:      fields.date,
       type:      fields.type,
       note:      fields.note.trim(),
       user_id:   user?.id ?? null,
@@ -934,7 +877,7 @@ export function AddCommPanel({ onClose, onSaved, supabase, clients = [] }) {
           <Select value={fields.type} onChange={set("type")} options={typeOptions} />
         </Field>
         <Field label="Date">
-          <Input value={fields.comm_date} onChange={set("comm_date")} type="date" />
+          <Input value={fields.date} onChange={set("date")} type="date" />
         </Field>
       </div>
 
@@ -942,103 +885,6 @@ export function AddCommPanel({ onClose, onSaved, supabase, clients = [] }) {
         <Textarea value={fields.note} onChange={set("note")}
           placeholder="e.g. Discussed Q2 renewal pricing. Client very positive about ROI results..." />
       </Field>
-   </SlidePanel>
-  );
-}
-  
-  // =============================================================================
-// FORM 6: ADD ONBOARDING PROJECT PANEL
-// =============================================================================
-
-export function AddOnboardingPanel({ onClose, onSaved, supabase, clients = [] }) {
-  const blank = {
-    client_id: "", kickoff_date: new Date().toISOString().split("T")[0],
-    target_go_live: "", notes: "",
-  };
-  const [fields, setFields] = useState(blank);
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
-  const [error,  setError]  = useState("");
-
-  const set = (key) => (val) => setFields(p => ({ ...p, [key]: val }));
-
-  const handleSave = async () => {
-    if (!fields.client_id)     { setError("Please select a client."); return; }
-    if (!fields.target_go_live) { setError("Target go-live date is required."); return; }
-    setError(""); setSaving(true);
-
-    // Auto-generate 5 standard phases based on kickoff and go-live dates
-    const kickoff  = new Date(fields.kickoff_date);
-    const goLive   = new Date(fields.target_go_live);
-    const totalDays = Math.ceil((goLive - kickoff) / 86400000);
-    const phaseLen  = Math.floor(totalDays / 5);
-
-    const phaseNames = ["Discovery","Build","Testing","Training & Go-Live","Optimize"];
-    const phases = phaseNames.map((name, i) => {
-      const start = new Date(kickoff);
-      start.setDate(start.getDate() + i * phaseLen);
-      const end = new Date(kickoff);
-      end.setDate(end.getDate() + (i + 1) * phaseLen - 1);
-      return {
-        name,
-        phase: i + 1,
-        status: i === 0 ? "in-progress" : "upcoming",
-        progress: i === 0 ? 0 : 0,
-        target_date: end.toISOString().split("T")[0],
-        completed_date: null,
-      };
-    });
-
-    const { error: err } = await supabase.from("onboarding_projects").insert([{
-      client_id:        fields.client_id,
-      kickoff_date:     fields.kickoff_date,
-      target_go_live:   fields.target_go_live,
-      notes:            fields.notes || null,
-      phases:           phases,
-      risks:            [],
-      blockers:         [],
-      current_phase:    1,
-      overall_progress: 0,
-    }]);
-
-    setSaving(false);
-    if (err) { setError(err.message); return; }
-    setSaved(true);
-    setTimeout(() => { onSaved?.(); onClose(); }, 1200);
-  };
-
-  const clientOptions = clients.map(c => ({ value: c.id, label: c.name }));
-
-  return (
-    <SlidePanel
-      title="Start Onboarding Project"
-      onClose={onClose}
-      onSave={handleSave}
-      saving={saving}
-      saved={saved}
-    >
-      {error && <div style={S.errorMsg}>⚠ {error}</div>}
-
-      <Field label="Client *">
-        <Select value={fields.client_id} onChange={set("client_id")} options={clientOptions} />
-      </Field>
-
-      <div style={S.row}>
-        <Field label="Kickoff Date">
-          <Input value={fields.kickoff_date} onChange={set("kickoff_date")} type="date" />
-        </Field>
-        <Field label="Target Go-Live *">
-          <Input value={fields.target_go_live} onChange={set("target_go_live")} type="date" />
-        </Field>
-      </div>
-
-      <Field label="Notes">
-        <Textarea value={fields.notes} onChange={set("notes")} placeholder="Key context, EHR access status, special considerations..." />
-      </Field>
-
-      <div style={{ fontSize:11, color:"#7aaacb", padding:"10px 12px", background:"rgba(42,182,215,0.05)", border:"1px solid rgba(42,182,215,0.1)", borderRadius:7, lineHeight:1.6 }}>
-        5 standard phases will be auto-generated: Discovery, Build, Testing, Training & Go-Live, and Optimize — evenly distributed between kickoff and go-live.
-      </div>
     </SlidePanel>
   );
 }
