@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from "react";
 import VapiAssistant from "./VapiAssistant";
-import { AddClientPanel, AddDealPanel, AddTaskPanel, AddInvoicePanel, AddCommPanel } from "./ICBOSForms";
+import { AddClientPanel, AddDealPanel, AddTaskPanel, AddInvoicePanel, AddCommPanel, AddOnboardingPanel } from "./ICBOSForms";
 import AgentsTab from "./AgentsTab";
 import { supabase } from "../lib/supabaseClient";
 import { useICBosData } from "../hooks/useSupabaseData";
@@ -841,9 +841,12 @@ function OnboardingTab() {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
-      <div>
-        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f8ff" }}>Onboarding Tracker</h2>
-        <p style={{ fontSize:11, color:"#7aaacb", marginTop:2 }}>Agent 3 — Onboarding Orchestrator available per project</p>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div>
+          <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f8ff" }}>Onboarding Tracker</h2>
+          <p style={{ fontSize:11, color:"#7aaacb", marginTop:2 }}>Agent 3 — Onboarding Orchestrator available per project</p>
+        </div>
+        <button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"onboarding"}))} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Start Onboarding</button>
       </div>
 
       {ONBOARDING.map((proj,pi)=>{
@@ -3383,7 +3386,7 @@ export default function ICBOS() {
       {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.pipeline.refetch(); }}/>}
       {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.tasks.refetch(); }}/>}
       {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.invoices.refetch(); icbos.financials.refetch(); }}/>}
-      {showForm==="comm"&&<AddCommPanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.comms.refetch(); }}/>}
+     {showForm==="onboarding"&&<AddOnboardingPanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.onboarding.refetch(); }}/>}
     {/* Voice Layer — Vapi SDK */}
       <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
   </div>
