@@ -937,12 +937,12 @@ export const useCommunications = (clientId = null) => {
     async () => {
       let query = supabase
         .from('communications')
-        .select(`
-          id, date, type, note, created_at,
+.select(`
+          id, comm_date, type, subject, note, created_at,
           clients ( id, name ),
           users   ( id, full_name )
         `)
-        .order('date', { ascending: false })
+        .order('comm_date', { ascending: false })
         .limit(100);
 
       if (clientId) query = query.eq('client_id', clientId);
