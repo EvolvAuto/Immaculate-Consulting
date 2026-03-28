@@ -784,7 +784,7 @@ function OnboardingTab() {
   const [planStates, setPlanStates] = useState({});
   const [planResults, setPlanResults] = useState({});
   const [expandedKickoff, setExpandedKickoff] = useState({});
-  const phaseColors = { complete:"#4ade80", "in-progress":"#fbbf24", upcoming:"#4b5563" };
+  const phaseColors = { complete:"#4ade80", "in-progress":"#fbbf24", upcoming:"#4b5563", "Complete":"#4ade80", "In Progress":"#fbbf24", "Not Started":"#4b5563" };
   const [onboardingUpdateText, setOnboardingUpdateText] = useState("");
   const [onboardingUpdateStatus, setOnboardingUpdateStatus] = useState("note");
   const [savingUpdate, setSavingUpdate] = useState(false);
@@ -865,7 +865,7 @@ function OnboardingTab() {
             <div style={{ display:"flex", gap:4, marginBottom:16 }}>
               {proj.phases.map((ph,i)=>(
                 <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
-                  <div style={{ height:6, borderRadius:3, background:ph.status==="complete"?"#4ade80":ph.status==="in-progress"?"linear-gradient(90deg,#fbbf24 60%,rgba(255,255,255,0.06) 60%)":"rgba(255,255,255,0.04)" }}/>
+                  <div style={{ height:6, borderRadius:3, background:(ph.status==="complete"||ph.status==="Complete")?"#4ade80":(ph.status==="in-progress"||ph.status==="In Progress")?"linear-gradient(90deg,#fbbf24 60%,rgba(255,255,255,0.06) 60%)":"rgba(255,255,255,0.04)"
                   <span style={{ fontSize:9, fontWeight:600, color:phaseColors[ph.status], fontFamily:M, textTransform:"uppercase" }}>{ph.name}</span>
                   <span style={{ fontSize:9, color:"#7aaacb" }}>{ph.start} – {ph.end}</span>
                   {ph.notes&&<span style={{ fontSize:10, color:"#a8c8e8", lineHeight:1.3 }}>{ph.notes}</span>}
@@ -2767,7 +2767,7 @@ function CapTab() {
 function CommsTab({ onTabNav }) {
   const { COMMS, CLIENTS } = useData();
   const [clientFilter, setClientFilter] = useState("all");
-  const tc = { email:"#38bdf8", call:"#4ade80", meeting:"#c084fc", sms:"#fbbf24", note:"#94a3b8", call:"#4ade80" };
+  const tc = { email:"#38bdf8", call:"#4ade80", meeting:"#c084fc", sms:"#fbbf24", note:"#94a3b8" };
   const agentEntries = new Set(["Mar 01", "Feb 28"]);
 
   const all = [...COMMS]
