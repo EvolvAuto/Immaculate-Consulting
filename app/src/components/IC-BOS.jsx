@@ -2765,12 +2765,14 @@ function CapTab() {
 
 // Comms Tab (Feature 7) — with agent visual tokens + recording upload shortcut
 function CommsTab({ onTabNav }) {
-  const { COMMS } = useData();
-  const all = [...COMMS].sort((a,b) => new Date(b.date) - new Date(a.date));
-  const tc = { email:"#38bdf8", call:"#4ade80", meeting:"#c084fc", sms:"#fbbf24" };
+  const { COMMS, CLIENTS } = useData();
+  const [clientFilter, setClientFilter] = useState("all");
+  const tc = { email:"#38bdf8", call:"#4ade80", meeting:"#c084fc", sms:"#fbbf24", note:"#94a3b8", call:"#4ade80" };
+  const agentEntries = new Set(["Mar 01", "Feb 28"]);
 
-  // Mock agent-generated entries — these will come from Supabase in Task 17
-  const agentEntries = new Set(["Mar 01", "Feb 28"]); // dates of mock agent-written entries
+  const all = [...COMMS]
+    .filter(c => clientFilter === "all" || c.clients?.id === clientFilter)
+    .sort((a,b) => new Date(b.date) - new Date(a.date));
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, maxWidth:680 }}>
@@ -2794,7 +2796,26 @@ function CommsTab({ onTabNav }) {
       </div>
 
       {/* Agent activity note */}
-     <div style={{ fontSize:10, color:"#818cf8", padding:"6px 10px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
+   {/* Client filter */}
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+        <button
+          onClick={() => setClientFilter("all")}
+          style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter==="all"?"#6366f1":"rgba(255,255,255,0.06)"}`, background:clientFilter==="all"?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:clientFilter==="all"?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
+        >
+          All Clients
+        </button>
+        {CLIENTS.map(c => (
+          <button
+            key={c.id}
+            onClick={() => setClientFilter(clientFilter === c.id ? "all" : c.id)}
+            style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter===c.id?"#6366f1":"rgba(255,255,255,0.06)"}`, background:clientFilter===c.id?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:clientFilter===c.id?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
+          >
+            {c.name}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ fontSize:10, color:"#818cf8", padding:"6px 10px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
         🤖 Entries with an indigo border were written by an IC-BOS agent. Upload a recording to auto-generate call entries.
       </div>
 
