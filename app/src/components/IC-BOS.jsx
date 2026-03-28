@@ -120,7 +120,7 @@ function RevChart({ data }) {
     <div style={{ display:"flex", alignItems:"flex-end", gap:8, height:120, padding:"0 4px" }}>
       {data.map((d,i)=>(<div key={d.month} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4, animation:`fu 0.5s ease ${i*50}ms both` }}>
         <div style={{ display:"flex", alignItems:"flex-end", gap:2, height:100 }}>
-          <div style={{ width:12, height:(d.revenue/mx)*90, borderRadius:"3px 3px 0 0", background:"linear-gradient(to top,#4f46e5,#818cf8)" }}/>
+          <div style={{ width:12, height:(d.revenue/mx)*90, borderRadius:"3px 3px 0 0", background:"#374151" }}/>
           <div style={{ width:8, height:(d.expenses/mx)*90, borderRadius:"3px 3px 0 0", background:"#f9fafb" }}/>
         </div>
         <span style={{ fontSize:9, color:"#6b7280", fontFamily:M }}>{d.month}</span>
@@ -707,7 +707,7 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
       </div>
 
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
-        <KPI label="Mar Billed" value={totalBilled} prefix="$" spark={[17500,20000,22000,24000,27500,27635]} sparkColor="#818cf8"/>
+        <KPI label="Mar Billed" value={totalBilled} prefix="$" spark={[17500,20000,22000,24000,27500,27635]} sparkColor="#94a3b8"/>
         <KPI label="Collected" value={collected} prefix="$" spark={[11000,15000,18000,22000,24500,6548]} sparkColor="#4ade80" delay={60}/>
         <KPI label="Pending" value={pending.reduce((s,i)=>s+i.total,0)} prefix="$" spark={[8000,6000,4000,3000,5000,14532]} sparkColor="#fbbf24" delay={120}/>
         <KPI label="Overdue" value={overdue.reduce((s,i)=>s+i.total,0)} prefix="$" spark={[0,0,2000,0,0,6555]} sparkColor="#f87171" delay={180}/>
@@ -736,7 +736,7 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
                   <span style={{ fontSize:10, fontWeight:600, color:stColors[inv.status], textTransform:"uppercase" }}>{inv.status}</span>
                   {isOverdue&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.15)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>{daysOverdue}d</span>}
                   {inv.stripe_invoice_id&&inv.status==="paid"&&(
-                    <span style={{ fontSize:8, fontWeight:700, color:"#374151", background:"rgba(99,102,241,0.1)", border:"1px solid #d1d5db", padding:"1px 5px", borderRadius:3, fontFamily:M }}>
+                    <span style={{ fontSize:8, fontWeight:700, color:"#374151", background:"#f3f4f6", border:"1px solid #d1d5db", padding:"1px 5px", borderRadius:3, fontFamily:M }}>
                       ⚡ Stripe
                     </span>
                   )}
@@ -877,7 +877,7 @@ function OnboardingTab({ onRefresh }) {
                 return (
                   <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:"1px solid #f0f0f0" }}>
                     <div style={{ width:8, height:8, borderRadius:"50%", flexShrink:0, background:isDone?"#4ade80":isActive?"#fbbf24":"#4b5563" }}/>
-                    <span style={{ flex:1, fontSize:11, color:isDone?"#a8c8e8":isActive?"#f0f8ff":"#4a6a8a", fontWeight:isActive?600:400 }}>{ph.name}</span>
+                    <span style={{ flex:1, fontSize:11, color:isDone?"#6b7280":isActive?"#111827":"#9ca3af", fontWeight:isActive?600:400 }}>{ph.name}</span>
                     <div style={{ width:80, height:5, borderRadius:3, background:"#e5e7eb", overflow:"hidden" }}>
                       <div style={{ height:"100%", borderRadius:3, background:isDone?"#4ade80":isActive?"#fbbf24":"transparent", width:isDone?"100%":isActive?"50%":"0%" }}/>
                     </div>
@@ -954,7 +954,7 @@ function OnboardingTab({ onRefresh }) {
                     <div style={{ fontSize:10, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Generated Task List ({(pr.task_list||pr.next_steps).length} tasks)</div>
                     {(pr.task_list||pr.next_steps).map((s,si)=>(
                       <div key={si} style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:5 }}>
-                        <span style={{ width:16, height:16, borderRadius:4, border:"1.5px solid rgba(99,102,241,0.3)", flexShrink:0, marginTop:1 }}/>
+                        <span style={{ width:16, height:16, borderRadius:4, border:"1.5px solid #d1d5db", flexShrink:0, marginTop:1 }}/>
                         <span style={{ fontSize:11, color:"#111827", lineHeight:1.4 }}>{typeof s === 'object' ? `[${s.phase}] ${s.task} — ${s.owner} (${s.duration})` : s}</span>
                       </div>
                     ))}
@@ -1045,7 +1045,7 @@ function ProfitabilityTab() {
       <h2 style={{ fontSize:17, fontWeight:700, color:"#111827" }}>Client Profitability</h2>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
         <KPI label="Avg Effective Rate" value={Math.round(active.reduce((s,c)=>s+c.p.effectiveRate,0)/active.length)} prefix="$" suffix="/hr" spark={[120,140,155,165,175,180]} sparkColor="#4ade80"/>
-        <KPI label="Avg Margin" value={Math.round(active.reduce((s,c)=>s+c.p.margin,0)/active.length)} suffix="%" spark={[60,65,68,70,72,74]} sparkColor="#818cf8" delay={80}/>
+        <KPI label="Avg Margin" value={Math.round(active.reduce((s,c)=>s+c.p.margin,0)/active.length)} suffix="%" spark={[60,65,68,70,72,74]} sparkColor="#94a3b8" delay={80}/>
         <KPI label="Total Monthly Profit" value={Math.round(active.reduce((s,c)=>s+c.p.monthlyProfit,0))} prefix="$" spark={[8000,11000,14000,16000,18000,19000]} sparkColor="#fbbf24" delay={160}/>
       </div>
       {active.map((c,i)=>{
@@ -1393,14 +1393,14 @@ function WeeklyReportTab() {
 
   const sections = [
     { title: "Revenue & Financial Health", items: [
-      { l:"MRR", v:`$${FINANCIALS.mrr.toLocaleString()}`, c:"#818cf8" },
+      { l:"MRR", v:`$${FINANCIALS.mrr.toLocaleString()}`, c:"#374151" },
       { l:"Cash on Hand", v:`$${FINANCIALS.cashOnHand.toLocaleString()}`, c:"#4ade80" },
       { l:"A/R Outstanding", v:`$${FINANCIALS.accountsReceivable.toLocaleString()}`, c:"#fbbf24" },
       { l:"Net Margin", v:`${Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100)}%`, c:"#4ade80" },
       { l:"Overdue Invoices", v:overdue.length>0?`${overdue.length} ($${overdue.reduce((s,i)=>s+i.total,0).toLocaleString()})`:"None", c:overdue.length?"#f87171":"#4ade80" },
     ]},
     { title: "Pipeline & Sales", items: [
-      { l:"Pipeline Deals", v:PIPELINE.length.toString(), c:"#818cf8" },
+      { l:"Pipeline Deals", v:PIPELINE.length.toString(), c:"#374151" },
       { l:"Pipeline Value", v:`$${pipeVal.toLocaleString()}/mo`, c:"#fbbf24" },
       { l:"Stale Deals (>5d)", v:staleDeals.length.toString(), c:staleDeals.length?"#f87171":"#4ade80" },
       { l:"Next Actions", v:`${TASKS.filter(t=>t.category==="sales").length} sales tasks`, c:"#38bdf8" },
@@ -1412,7 +1412,7 @@ function WeeklyReportTab() {
       { l:"Onboarding Projects", v:ONBOARDING.length.toString(), c:"#38bdf8" },
     ]},
     { title: "Operations", items: [
-      { l:"Automations Running", v:AUTOMATIONS.length.toString(), c:"#818cf8" },
+      { l:"Automations Running", v:AUTOMATIONS.length.toString(), c:"#374151" },
       { l:"Executions Today", v:totalExecs.toString(), c:"#4ade80" },
       { l:"Critical Issues", v:critAuto.toString(), c:critAuto?"#f87171":"#4ade80" },
       { l:"Capacity Utilization", v:`${capPct}%`, c:capPct>85?"#f87171":"#4ade80" },
@@ -1845,7 +1845,7 @@ function ProposalTab() {
   const roi = totalYear1 > 0 ? ((aBen - totalYear1) / totalYear1) * 100 : 0;
 
   const Chip = ({active, onClick, children}) => (
-    <button onClick={onClick} style={{ padding:"5px 11px", borderRadius:6, border:`1px solid ${active?"#374151":"#e5e7eb"}`, background:active?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:active?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:10.5, fontFamily:"inherit", transition:"all 0.15s" }}>{children}</button>
+    <button onClick={onClick} style={{ padding:"5px 11px", borderRadius:6, border:`1px solid ${active?"#374151":"#e5e7eb"}`, background:active?"#f3f4f6":"#ffffff", color:active?"#111827":"#6b7280", cursor:"pointer", fontSize:10.5, fontFamily:"inherit", transition:"all 0.15s" }}>{children}</button>
   );
 // ── Proposal PDF Print helper ────────────────────────────────────────────
 const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aRev, aStaff, aBen) => {
@@ -2170,9 +2170,9 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
             {tier < 3 && <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:6 }}>
               {webAppAddOns.map(ao=>{
                 const active = selectedAddOns.includes(ao.id);
-                return (<button key={ao.id} onClick={()=>toggleAddOn(ao.id)} style={{ padding:"8px 10px", borderRadius:7, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.05)"}`, background:active?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.015)", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+                return (<button key={ao.id} onClick={()=>toggleAddOn(ao.id)} style={{ padding:"8px 10px", borderRadius:7, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.05)"}`, background:active?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                    <span style={{ fontSize:11, fontWeight:active?600:400, color:active?"#a5b4fc":"#9ca3af" }}>{ao.name}</span>
+                    <span style={{ fontSize:11, fontWeight:active?600:400, color:active?"#111827":"#6b7280" }}>{ao.name}</span>
                     <span style={{ width:14, height:14, borderRadius:4, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.12)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white" }}>{active&&"✓"}</span>
                   </div>
                   <div style={{ fontSize:10, color:"#6b7280", fontFamily:M, marginTop:3 }}>{ao.priceRange} + ${ao.monthly}/mo</div>
@@ -2196,8 +2196,8 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
                 <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
                   {svc.options.map((opt, oi)=>{
                     const active = selectedServices.find(s=>s.key===`${svc.id}-${oi}`);
-                    return (<button key={oi} onClick={()=>toggleService(svc.id, oi)} style={{ padding:"6px 10px", borderRadius:6, border:`1px solid ${active?"#374151":"#e5e7eb"}`, background:active?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.015)", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
-                      <div style={{ fontSize:10.5, color:active?"#a5b4fc":"#9ca3af" }}>{opt.n}</div>
+                    return (<button key={oi} onClick={()=>toggleService(svc.id, oi)} style={{ padding:"6px 10px", borderRadius:6, border:`1px solid ${active?"#374151":"#e5e7eb"}`, background:active?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+                      <div style={{ fontSize:10.5, color:active?"#111827":"#6b7280" }}>{opt.n}</div>
                       <div style={{ fontSize:12, fontWeight:700, color:active?"#f0f0f0":"#6b7280", fontFamily:M, marginTop:2 }}>${opt.p.toLocaleString()}</div>
                     </button>);
                   })}
@@ -2275,7 +2275,7 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
          onClick={() => printProposal(prospect, totalOneTime, totalMonthly, totalYear1, roi, aRev, aStaff, aBen)}
           style={{
             background:"#f9fafb", color:"#374151",
-            border:"1px solid rgba(99,102,241,0.3)", borderRadius:"6px",
+            border:"1px solid #d1d5db", borderRadius:"6px",
             padding:"8px 16px", fontSize:"13px", cursor:"pointer",
             display:"flex", alignItems:"center", gap:"6px", fontWeight:600
           }}
@@ -2308,7 +2308,7 @@ function AutoTab() {
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
       <h2 style={{ fontSize:17, fontWeight:700, color:"#111827" }}>Automation Health</h2>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12 }}>
-        <KPI label="Automations" value={AUTOMATIONS.length} spark={[4,5,5,6,7,7]} sparkColor="#818cf8"/>
+        <KPI label="Automations" value={AUTOMATIONS.length} spark={[4,5,5,6,7,7]} sparkColor="#94a3b8"/>
         <KPI label="Execs Today" value={AUTOMATIONS.reduce((s,a)=>s+a.execsToday,0)} spark={[320,410,480,530,560,569]} sparkColor="#4ade80" delay={60}/>
         <KPI label="Cost Today" value={Math.round(AUTOMATIONS.reduce((s,a)=>s+a.costToday,0)*100)/100} prefix="$" spark={[12,14,16,17,18,19]} sparkColor="#fbbf24" delay={120}/>
         <KPI label="Errors 24h" value={AUTOMATIONS.reduce((s,a)=>s+a.errors24h,0)} spark={[2,1,3,0,1,9]} sparkColor={crit.length?"#f87171":"#4ade80"} delay={180}/>
@@ -2362,9 +2362,9 @@ function TeamTab({ webhookSecret }) {
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMember, setNewMember] = useState({ name: "", title: "", type: "Full-Time", hoursPerWeek: 40, monthlyCost: 0, startDate: "", notes: "" });
 
-  const roleColors = { principal: "#a5b4fc", consultant: "#4ade80", viewer: "#fbbf24" };
-  const roleBg = { principal: "rgba(99,102,241,0.1)", consultant: "rgba(74,222,128,0.1)", viewer: "rgba(251,191,36,0.1)" };
-  const roleBorder = { principal: "rgba(99,102,241,0.2)", consultant: "rgba(74,222,128,0.2)", viewer: "rgba(251,191,36,0.2)" };
+  const roleColors = { principal: "#c7d2fe", consultant: "#6ee7b7", viewer: "#fcd34d" };
+  const roleBg = { principal: "rgba(199,210,254,0.15)", consultant: "rgba(110,231,183,0.15)", viewer: "rgba(252,211,77,0.12)" };
+  const roleBorder = { principal: "rgba(199,210,254,0.3)", consultant: "rgba(110,231,183,0.3)", viewer: "rgba(252,211,77,0.25)" };
 
   // Load app users on mount
   useEffect(() => {
@@ -2455,7 +2455,7 @@ function TeamTab({ webhookSecret }) {
         </div>
 
         {/* Invite form */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, marginBottom: 14, padding: "12px 14px", background: "rgba(99,102,241,0.04)", border: "1px solid #e5e7eb", borderRadius: 9 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, marginBottom: 14, padding: "12px 14px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 9 }}>
           <input
             value={inviteEmail}
             onChange={e => setInviteEmail(e.target.value)}
@@ -2520,12 +2520,12 @@ function TeamTab({ webhookSecret }) {
             <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Team Members</div>
             <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>{team.length} member{team.length !== 1 ? "s" : ""} · ${team.reduce((s, t) => s + Number(t.monthlyCost), 0).toLocaleString()}/mo total cost</div>
           </div>
-          <button onClick={() => setShowAddMember(p => !p)} style={{ fontSize: 11, fontWeight: 600, color: "#a5b4fc", background: "rgba(99,102,241,0.1)", border: "1px solid #d1d5db", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add Member</button>
+          <button onClick={() => setShowAddMember(p => !p)} style={{ fontSize: 11, fontWeight: 600, color: "#374151", background: "#f9fafb", border: "1px solid #d1d5db", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add Member</button>
         </div>
 
         {/* Add member form */}
         {showAddMember && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14, padding: "12px 14px", background: "rgba(99,102,241,0.04)", border: "1px solid #e5e7eb", borderRadius: 9, animation: "fu 0.3s ease both" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14, padding: "12px 14px", background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 9, animation: "fu 0.3s ease both" }}>
             {[
               { label: "Name", key: "name", type: "text", placeholder: "Full name" },
               { label: "Title", key: "title", type: "text", placeholder: "e.g. Jr. Consultant" },
@@ -2561,9 +2561,9 @@ function TeamTab({ webhookSecret }) {
             <div key={t.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr 1fr auto", gap: 8, alignItems: "center", padding: "10px 10px", background: "#fafafa", border: "1px solid #f0f0f0", borderRadius: 7 }}>
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#111827" }}>{t.name}</div>
-               {t.notes && <div style={{ fontSize: 9, color: "#a5b4fc" }}>{t.notes}</div>}
+               {t.notes && <div style={{ fontSize: 9, color: "#374151" }}>{t.notes}</div>}
               </div>
-              <span style={{ fontSize: 11, color: "#a5b4fc" }}>{t.title}</span>
+              <span style={{ fontSize: 11, color: "#374151" }}>{t.title}</span>
               <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: M }}>{t.type}</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: "#111827", fontFamily: M }}>{t.hoursPerWeek}h</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: t.monthlyCost > 0 ? "#f87171" : "#4ade80", fontFamily: M }}>{t.monthlyCost > 0 ? `$${Number(t.monthlyCost).toLocaleString()}` : "—"}</span>
@@ -2651,15 +2651,15 @@ function CapTab() {
           <h2 style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>Team Capacity & Forecaster</h2>
           <p style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{team.length} consultant{team.length > 1 ? "s" : ""} · {teamHoursAvail}h/wk total capacity</p>
         </div>
-        <button onClick={() => setShowAddForm(!showAddForm)} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid #d1d5db", background: "rgba(99,102,241,0.08)", color: "#a5b4fc", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>
+        <button onClick={() => setShowAddForm(!showAddForm)} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid #d1d5db", background: "#f9fafb", color: "#374151", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>
           {showAddForm ? "Cancel" : "+ Add Consultant"}
         </button>
       </div>
 
       {/* Add consultant form */}
       {showAddForm && (
-        <div style={{ background: "rgba(99,102,241,0.04)", border: "1px solid #e5e7eb", borderRadius: 10, padding: "14px 18px", animation: "fu 0.3s ease both" }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#a5b4fc", marginBottom: 10 }}>New Consultant</div>
+        <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "14px 18px", animation: "fu 0.3s ease both" }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 10 }}>New Consultant</div>
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
             <div>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Name</div>
@@ -2691,7 +2691,7 @@ function CapTab() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10 }}>
         <KPI label="Team Utilization" value={teamPct} suffix="%" spark={[55, 60, 65, 70, 74, teamPct]} sparkColor={teamPct > 85 ? "#f87171" : "#4ade80"} />
         <KPI label="Team Free Hours" value={teamFree} suffix="h/wk" spark={[20, 18, 16, 14, 12, teamFree]} sparkColor="#38bdf8" delay={50} />
-        <KPI label="Revenue / Consultant" value={Math.round(revenuePerConsultant)} prefix="$" suffix="/mo" spark={[11000, 15000, 18000, 22000, 24500, Math.round(revenuePerConsultant)]} sparkColor="#818cf8" delay={100} />
+        <KPI label="Revenue / Consultant" value={Math.round(revenuePerConsultant)} prefix="$" suffix="/mo" spark={[11000, 15000, 18000, 22000, 24500, Math.round(revenuePerConsultant)]} sparkColor="#94a3b8" delay={100} />
         <KPI label="Clients / Consultant" value={Math.round(clientsPerConsultant * 10) / 10} spark={[1, 2, 3, 3, 4, clientsPerConsultant]} sparkColor="#fbbf24" delay={150} />
         <KPI label="Team Overhead" value={teamMonthlyCost} prefix="$" suffix="/mo" spark={[0, 0, 0, 0, 0, teamMonthlyCost]} sparkColor="#6b7280" delay={200} />
       </div>
@@ -2855,7 +2855,7 @@ function CommsTab({ onTabNav }) {
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
         <button
           onClick={() => setClientFilter("all")}
-          style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter==="all"?"#6366f1":"rgba(255,255,255,0.06)"}`, background:clientFilter==="all"?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:clientFilter==="all"?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
+          style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter==="all"?"#6366f1":"rgba(255,255,255,0.06)"}`, background:clientFilter==="all"?"#f3f4f6":"#ffffff", color:clientFilter==="all"?"#111827":"#6b7280", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
         >
           All Clients
         </button>
@@ -2863,14 +2863,14 @@ function CommsTab({ onTabNav }) {
           <button
             key={c.id}
             onClick={() => setClientFilter(clientFilter === c.id ? "all" : c.id)}
-            style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter===c.id?"#6366f1":"rgba(255,255,255,0.06)"}`, background:clientFilter===c.id?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:clientFilter===c.id?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
+            style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter===c.id?"#6366f1":"rgba(255,255,255,0.06)"}`, background:clientFilter===c.id?"#f3f4f6":"#ffffff", color:clientFilter===c.id?"#111827":"#6b7280", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
           >
             {c.name}
           </button>
         ))}
       </div>
 
-      <div style={{ fontSize:10, color:"#374151", padding:"6px 10px", background:"#f9fafb", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
+      <div style={{ fontSize:10, color:"#374151", padding:"6px 10px", background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:7 }}>
         🤖 Entries with an indigo border were written by an IC-BOS agent. Upload a recording to auto-generate call entries.
       </div>
 
@@ -2882,8 +2882,8 @@ function CommsTab({ onTabNav }) {
             <div key={i} style={{ position:"relative", marginBottom:10, animation:`fu 0.3s ease ${i*30}ms both` }}>
               <div style={{ position:"absolute", left:-17, top:3, width:12, height:12, borderRadius:"50%", background:tc[c.type], border:"2px solid #f3f4f6" }}/>
               <div style={{
-                background: isAgentEntry ? "rgba(99,102,241,0.04)" : "rgba(255,255,255,0.02)",
-                border: `1px solid ${isAgentEntry ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)"}`,
+                background: isAgentEntry ? "#eff6ff" : "#ffffff",
+                border: `1px solid ${isAgentEntry ? "#bfdbfe" : "#f0f0f0"}`,
                 borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid #f9fafb",
                 borderRadius:8,
                 padding:"8px 14px"
@@ -3222,7 +3222,7 @@ export default function ICBOS() {
     }).map(c => {
       const days = Math.round((new Date(c.renewalDate) - Date.now()) / 864e5);
       return {
-        id: `renewal-${c.id}`, type: "renewal", color: "#818cf8",
+        id: `renewal-${c.id}`, type: "renewal", color: "#374151",
         icon: "🔄", tab: "renewals",
         text: `${c.name} renewal in ${days} days — health ${c.healthScore}`,
       };
@@ -3359,7 +3359,7 @@ export default function ICBOS() {
           </div>
 
           {/* Sign Out */}
-         <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color: isPrincipal?"#818cf8":isConsultant?"#34d399":"#9ca3af", background: isPrincipal?"rgba(99,102,241,0.15)":isConsultant?"rgba(52,211,153,0.12)":"rgba(255,255,255,0.06)", border:`1px solid ${isPrincipal?"rgba(99,102,241,0.3)":isConsultant?"rgba(52,211,153,0.25)":"rgba(255,255,255,0.15)"}`, borderRadius:5, padding:"3px 8px", fontFamily:M }}>{userRole}</span>
+         <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color: isPrincipal?"#818cf8":isConsultant?"#34d399":"#9ca3af", background: isPrincipal?"rgba(199,210,254,0.12)":isConsultant?"rgba(110,231,183,0.1)":"rgba(255,255,255,0.06)", border:`1px solid ${isPrincipal?"rgba(199,210,254,0.35)":isConsultant?"rgba(110,231,183,0.3)":"rgba(255,255,255,0.15)"}`, borderRadius:5, padding:"3px 8px", fontFamily:M }}>{userRole}</span>
           <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} style={{ fontSize:10, color:"#374151", background:"#ffffff", border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>Sign Out</button>
 
         </div>
@@ -3382,7 +3382,7 @@ export default function ICBOS() {
               <button onClick={()=>setTab("roi")} style={{ fontSize:10, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>View →</button>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:10 }}>
-              <KPI label="MRR" value={FINANCIALS.mrr} prefix="$" change={12.2} spark={FINANCIALS.revenueHistory.map(r=>r.revenue)} sparkColor="#818cf8"/>
+              <KPI label="MRR" value={FINANCIALS.mrr} prefix="$" change={12.2} spark={FINANCIALS.revenueHistory.map(r=>r.revenue)} sparkColor="#94a3b8"/>
               <KPI label="Pipeline" value={pipeVal} prefix="$" suffix="/mo" spark={[28e3,32e3,35e3,38e3,42e3,45e3]} sparkColor="#fbbf24" delay={50}/>
               <KPI label="Clients" value={CLIENTS.filter(c=>c.status==="active").length} spark={[1,1,2,2,3,3]} sparkColor="#4ade80" delay={100}/>
               <KPI label="Capacity" value={Math.round((CAPACITY.currentUtilization/CAPACITY.weeklyHoursAvailable)*100)} suffix="%" spark={[55,60,65,70,74,76]} sparkColor="#4ade80" delay={150}/>
@@ -3409,21 +3409,21 @@ export default function ICBOS() {
           )
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"rgba(99,102,241,0.1)",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             <h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Financial Overview</h2>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
-              <KPI label="MRR" value={FINANCIALS.mrr} prefix="$" change={12.2} spark={FINANCIALS.revenueHistory.map(r=>r.revenue)} sparkColor="#818cf8"/>
+              <KPI label="MRR" value={FINANCIALS.mrr} prefix="$" change={12.2} spark={FINANCIALS.revenueHistory.map(r=>r.revenue)} sparkColor="#94a3b8"/>
               <KPI label="ARR" value={FINANCIALS.arr} prefix="$" spark={FINANCIALS.revenueHistory.map(r=>r.revenue*12)} sparkColor="#4ade80" delay={60}/>
               <KPI label="Cash" value={FINANCIALS.cashOnHand} prefix="$" spark={[32e3,35e3,38e3,41e3,45e3,48200]} sparkColor="#38bdf8" delay={120}/>
               <KPI label="Net Margin" value={FINANCIALS.monthlyExpenses>0?Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100):0} suffix="%" spark={[58,60,63,65,67,69]} sparkColor="#4ade80" delay={180}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
               <Panel title="Revenue Trend"><RevChart data={FINANCIALS.revenueHistory}/></Panel>
-              <Panel title="Monthly P&L">{[{l:"Revenue",v:`$${FINANCIALS.mrr.toLocaleString()}`,c:"#818cf8"},{l:"Expenses",v:`-$${FINANCIALS.monthlyExpenses.toLocaleString()}`,c:"#f87171"},{l:"Net",v:`$${(FINANCIALS.mrr-FINANCIALS.monthlyExpenses).toLocaleString()}`,c:"#4ade80"},{l:"A/R",v:`$${FINANCIALS.accountsReceivable.toLocaleString()}`,c:"#fbbf24"}].map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f0f0f0"}}><span style={{fontSize:12,color:"#374151"}}>{m.l}</span><span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span></div>))}</Panel>
+              <Panel title="Monthly P&L">{[{l:"Revenue",v:`$${FINANCIALS.mrr.toLocaleString()}`,c:"#374151"},{l:"Expenses",v:`-$${FINANCIALS.monthlyExpenses.toLocaleString()}`,c:"#f87171"},{l:"Net",v:`$${(FINANCIALS.mrr-FINANCIALS.monthlyExpenses).toLocaleString()}`,c:"#4ade80"},{l:"A/R",v:`$${FINANCIALS.accountsReceivable.toLocaleString()}`,c:"#fbbf24"}].map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f0f0f0"}}><span style={{fontSize:12,color:"#374151"}}>{m.l}</span><span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span></div>))}</Panel>
             </div>
           </div>
         )}
