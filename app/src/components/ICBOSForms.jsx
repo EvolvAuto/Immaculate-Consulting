@@ -313,7 +313,7 @@ export function AddClientPanel({ onClose, onSaved, supabase, initialData = null 
     city: "", state: "NC", notes: "",
   };
 
-  // Pre-fill from pipeline deal when converting closed-won deal to active client
+  // Pre-fill from pipeline deal when converting a closed-won deal to active client
   const prefill = initialData ? {
     name:            initialData.practice        || "",
     tier:            String(initialData.tier     || "2"),
@@ -389,13 +389,12 @@ export function AddClientPanel({ onClose, onSaved, supabase, initialData = null 
     >
       {error && <div style={S.errorMsg}>⚠ {error}</div>}
 
-      {/* Pipeline → Client conversion banner */}
       {initialData && (
         <div style={{ background:"#f0fdf4", border:"1px solid #bbf7d0", borderRadius:7, padding:"10px 12px", fontSize:11, color:"#15803d", display:"flex", alignItems:"flex-start", gap:8, marginBottom:4 }}>
           <span>✓</span>
           <div>
             <strong>Converting from pipeline: {initialData?.practice}</strong>
-            <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>Key fields pre-filled. Complete any blanks and save to add as an active client.</div>
+            <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>Key fields pre-filled. Complete remaining fields and save to add as an active client.</div>
           </div>
         </div>
       )}
@@ -885,6 +884,105 @@ export function AddCommPanel({ onClose, onSaved, supabase, clients = [] }) {
         <Textarea value={fields.note} onChange={set("note")}
           placeholder="e.g. Discussed Q2 renewal pricing. Client very positive about ROI results..." />
       </Field>
+    </SlidePanel>
+  );
+}
+
+
+// =============================================================================
+// FORM 6: ADD ONBOARDING PROJECT PANEL
+// =============================================================================
+
+export function AddOnboardingPanel({ onClose, onSaved, supabase, clients = [] }) {
+  const blank = {
+    client_id: "", kickoff_date: new Date().toISOString().split("T")[0],
+    target_go_live: "", notes: "",
+  };
+  const [fields, setFields] = useState(blank);
+  const [saving, setSaving] = useState(false);
+  const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState("");
+
+  const set = (key) => (val) => setFields(p => ({ ...p, [key]: val }));
+
+  const handleSave = async () => {
+    if (!fields.client_id)      { setError("Please select a client."); return; }
+    if (!fields.target_go_live) { setError("Target go-live date is required."); return; }
+    setError(""); setSaving(true);
+
+    // Auto-generate 5 standard phases evenly distributed between kickoff and go-live
+    const kickoff  = new Date(fields.kickoff_date);
+    const goLive   = new Date(fields.target_go_live);
+    const totalDays = Math.ceil((goLive - kickoff) / 86400000);
+    const phaseLen  = Math.floor(totalDays / 5);
+
+    const phaseNames = ["Discovery", "Build", "Testing", "Training & Go-Live", "Optimize"];
+    const phases = phaseNames.map((name, i) => {
+      const start = new Date(kickoff);
+      start.setDate(start.getDate() + i * phaseLen);
+      const end = new Date(kickoff);
+      end.setDate(end.getDate() + (i + 1) * phaseLen - 1);
+      return {
+        name,
+        phase: i + 1,
+        status: i === 0 ? "in-progress" : "upcoming",
+        progress: 0,
+        target_date: end.toISOString().split("T")[0],
+        completed_date: null,
+      };
+    });
+
+    const { error: err } = await supabase.from("onboarding_projects").insert([{
+      client_id:        fields.client_id,
+      kickoff_date:     fields.kickoff_date,
+      target_go_live:   fields.target_go_live,
+      notes:            fields.notes || null,
+      phases:           phases,
+      risks:            [],
+      blockers:         [],
+      current_phase:    1,
+      overall_progress: 0,
+    }]);
+
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    setSaved(true);
+    setTimeout(() => { onSaved?.(); onClose(); }, 1200);
+  };
+
+  const clientOptions = clients.map(c => ({ value: c.id, label: c.name }));
+
+  return (
+    <SlidePanel
+      title="Start Onboarding Project"
+      onClose={onClose}
+      onSave={handleSave}
+      saving={saving}
+      saved={saved}
+    >
+      {error && <div style={S.errorMsg}>⚠ {error}</div>}
+
+      <Field label="Client *">
+        <Select value={fields.client_id} onChange={set("client_id")} options={clientOptions} />
+      </Field>
+
+      <div style={S.row}>
+        <Field label="Kickoff Date">
+          <Input value={fields.kickoff_date} onChange={set("kickoff_date")} type="date" />
+        </Field>
+        <Field label="Target Go-Live *">
+          <Input value={fields.target_go_live} onChange={set("target_go_live")} type="date" />
+        </Field>
+      </div>
+
+      <Field label="Notes">
+        <Textarea value={fields.notes} onChange={set("notes")}
+          placeholder="Key context, EHR access status, special considerations..." />
+      </Field>
+
+      <div style={{ fontSize:11, color:"#6b7280", padding:"10px 12px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:7, lineHeight:1.6 }}>
+        5 standard phases will be auto-generated: Discovery, Build, Testing, Training & Go-Live, and Optimize — evenly distributed between kickoff and go-live.
+      </div>
     </SlidePanel>
   );
 }
