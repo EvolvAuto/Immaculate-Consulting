@@ -2765,8 +2765,8 @@ function CapTab() {
 
 // Comms Tab (Feature 7) — with agent visual tokens + recording upload shortcut
 function CommsTab({ onTabNav }) {
-  const { CLIENTS } = useData();
-  const all = CLIENTS.flatMap(c => c.contactLog.map(l => ({ ...l, client: c.name }))).sort((a,b) => new Date(b.date) - new Date(a.date));
+  const { COMMS } = useData();
+  const all = [...COMMS].sort((a,b) => new Date(b.date) - new Date(a.date));
   const tc = { email:"#38bdf8", call:"#4ade80", meeting:"#c084fc", sms:"#fbbf24" };
 
   // Mock agent-generated entries — these will come from Supabase in Task 17
@@ -3083,6 +3083,14 @@ export default function ICBOS() {
     blockers: o.blockers ?? [],
   }));
 
+  const COMMS = (icbos.comms.data ?? []).map(c => ({
+    ...c,
+    client: c.clients?.name ?? "",
+    date:   c.date ?? "",
+    type:   (c.type ?? "note").toLowerCase(),
+    note:   c.note ?? "",
+  }));
+
   // CAPACITY stays local — CapTab manages consultant team state internally
   const CAPACITY = { weeklyHoursAvailable: 50, currentUtilization: 38, deliveryHours: 22, salesHours: 10, adminHours: 6 };
 
@@ -3148,7 +3156,7 @@ export default function ICBOS() {
   const isAnyAgentRunning = runningAgents.length > 0;
   
   return (
-   <ICBOSCtx.Provider value={{ PIPELINE, CLIENTS, FINANCIALS, INVOICES, AUTOMATIONS, TASKS, ONBOARDING, CAPACITY }}>
+   <ICBOSCtx.Provider value={{ PIPELINE, CLIENTS, FINANCIALS, INVOICES, AUTOMATIONS, TASKS, ONBOARDING, CAPACITY, COMMS }}>
    <div style={{ minHeight:"100vh", background:"#071830", color:"#f0f8ff", fontFamily:"'Inter',-apple-system,sans-serif",  }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
