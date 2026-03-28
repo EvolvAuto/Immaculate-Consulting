@@ -865,15 +865,47 @@ function OnboardingTab() {
             }
           >
             {/* Phase progress bar */}
-            <div style={{ display:"flex", gap:4, marginBottom:16 }}>
+           <div style={{ display:"flex", gap:4, marginBottom:8 }}>
               {proj.phases.map((ph,i)=>(
-                <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
-                  <div style={{ height:6, borderRadius:3, background:["complete","Complete"].includes(ph.status)?"#4ade80":["in-progress","In Progress"].includes(ph.status)?"linear-gradient(90deg,#fbbf24 60%,rgba(255,255,255,0.06) 60%)":"rgba(255,255,255,0.04)" }}/>
-                  <span style={{ fontSize:9, fontWeight:600, color:phaseColors[ph.status], fontFamily:M, textTransform:"uppercase" }}>{ph.name}</span>
-                  <span style={{ fontSize:9, color:"#7aaacb" }}>{ph.start} – {ph.end}</span>
-                  {ph.notes&&<span style={{ fontSize:10, color:"#a8c8e8", lineHeight:1.3 }}>{ph.notes}</span>}
-                </div>
+                <div key={i} style={{ flex:1, height:6, borderRadius:3, background:["complete","Complete"].includes(ph.status)?"#4ade80":["in-progress","In Progress"].includes(ph.status)?"#fbbf24":"rgba(255,255,255,0.04)" }}/>
               ))}
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:0, marginBottom:16 }}>
+              {proj.phases.map((ph,i)=>{
+                const isDone = ["complete","Complete"].includes(ph.status);
+                const isActive = ["in-progress","In Progress"].includes(ph.status);
+                return (
+                  <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:"1px solid rgba(42,182,215,0.08)" }}>
+                    <div style={{ width:8, height:8, borderRadius:"50%", flexShrink:0, background:isDone?"#4ade80":isActive?"#fbbf24":"#4b5563" }}/>
+                    <span style={{ flex:1, fontSize:11, color:isDone?"#a8c8e8":isActive?"#f0f8ff":"#4a6a8a", fontWeight:isActive?600:400 }}>{ph.name}</span>
+                    <div style={{ width:80, height:5, borderRadius:3, background:"rgba(255,255,255,0.04)", overflow:"hidden" }}>
+                      <div style={{ height:"100%", borderRadius:3, background:isDone?"#4ade80":isActive?"#fbbf24":"transparent", width:isDone?"100%":isActive?"50%":"0%" }}/>
+                    </div>
+                    {isDone && <span style={{ fontSize:9, fontWeight:600, color:"#4ade80", background:"rgba(74,222,128,0.1)", padding:"2px 7px", borderRadius:4, fontFamily:M }}>Complete</span>}
+                    {isActive && (
+                      <button
+                        onClick={async () => {
+                          const updated = proj.phases.map((p,j) => {
+                            if (j===i) return {...p, status:"complete", completed_date: new Date().toISOString().split("T")[0]};
+                            if (j===i+1) return {...p, status:"in-progress"};
+                            return p;
+                          });
+                          const isLastPhase = i === proj.phases.length - 1;
+                          await supabase.from("onboarding_projects").update({
+                            phases: updated,
+                            ...(isLastPhase ? {actual_go_live: new Date().toISOString().split("T")[0]} : {})
+                          }).eq("id", proj.id);
+                          icbos.onboarding.refetch();
+                        }}
+                        style={{ fontSize:9, fontWeight:600, padding:"3px 9px", borderRadius:5, border:"1px solid rgba(74,222,128,0.2)", background:"rgba(74,222,128,0.08)", color:"#4ade80", cursor:"pointer", whiteSpace:"nowrap", fontFamily:"inherit" }}
+                      >
+                        Mark complete
+                      </button>
+                    )}
+                    {!isDone && !isActive && <span style={{ fontSize:9, fontWeight:600, color:"#4a6a8a", background:"rgba(42,182,215,0.06)", padding:"2px 7px", borderRadius:4, fontFamily:M }}>Upcoming</span>}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Risks */}
