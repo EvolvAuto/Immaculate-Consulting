@@ -119,7 +119,8 @@ export const useOverview = () => {
       // Active pipeline deal count + value
       supabase
         .from('pipeline_deals')
-        .select('id, estimated_value, stage'),
+        .select('id, estimated_value, stage')
+        .not('stage', 'in', '("Closed Won","Closed Lost")'),
     ]);
 
     // Propagate the first error encountered
@@ -777,7 +778,7 @@ export const useProposalTargets = () => {
         supabase
           .from('pipeline_deals')
           .select('id, practice_name, specialty, ehr, tier, providers, contact_name, contact_email')
-          .in('stage', ['Cold', 'Discovery', 'Proposal', 'Negotiation'])
+          .not('stage', 'in', '("Closed Won","Closed Lost")')
           .order('practice_name'),
 
         supabase
@@ -826,7 +827,7 @@ export const useSalesPrep = () => {
           payer_mix, no_show_baseline, ehr_difficulty, ehr_timeline,
           ehr_notes, notes
         `)
-        .in('stage', ['Cold', 'Discovery', 'Proposal', 'Negotiation'])
+        .not('stage', 'in', '("Closed Won","Closed Lost")')
         .order('next_action_date'),
     [],
     []
