@@ -29,11 +29,11 @@ const useData = () => useContext(ICBOSCtx);
 const STAGES = ["cold", "discovery", "proposal", "negotiation", "closed-won"];
 const STAGE_LABELS = { cold: "Cold", discovery: "Discovery", proposal: "Proposal", negotiation: "Negotiation", "closed-won": "Closed Won" };
 const STAGE_COLORS = {
-  cold: { bg: "rgba(148,163,184,0.10)", border: "#64748b", text: "#94a3b8", dot: "#64748b" },
-  discovery: { bg: "rgba(56,189,248,0.08)", border: "#0ea5e9", text: "#38bdf8", dot: "#0ea5e9" },
-  proposal: { bg: "rgba(251,191,36,0.08)", border: "#f59e0b", text: "#fbbf24", dot: "#f59e0b" },
-  negotiation: { bg: "rgba(168,85,247,0.08)", border: "#a855f7", text: "#c084fc", dot: "#a855f7" },
-  "closed-won": { bg: "rgba(34,197,94,0.08)", border: "#22c55e", text: "#4ade80", dot: "#22c55e" },
+  cold: { bg: "#f8fafc", border: "#64748b", text: "#475569", dot: "#64748b" },
+  discovery: { bg: "#f0f9ff", border: "#0ea5e9", text: "#0369a1", dot: "#0ea5e9" },
+  proposal: { bg: "#fffbeb", border: "#d97706", text: "#92400e", dot: "#d97706" },
+  negotiation: { bg: "#faf5ff", border: "#9333ea", text: "#6b21a8", dot: "#9333ea" },
+  "closed-won": { bg: "#f0fdf4", border: "#16a34a", text: "#15803d", dot: "#16a34a" },
 };
 
 // ─── Calc Engines ────────────────────────────────────────────────────
@@ -105,9 +105,9 @@ function TaskItem({ task, delay=0 }) {
   const [done,setDone]=useState(false);
   const pc={high:"#f87171",medium:"#fbbf24",low:"#6b7280"};
   return (
-    <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:7, background:done?"rgba(74,222,128,0.04)":"rgba(255,255,255,0.02)", border:`1px solid ${done?"rgba(74,222,128,0.08)":"rgba(255,255,255,0.04)"}`, animation:`fu 0.3s ease ${delay}ms both`, opacity:done?0.4:1, transition:"all 0.3s" }}>
+    <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:7, background:done?"#f0fdf4":"#ffffff", border:`1px solid ${done?"#bbf7d0":"#e5e7eb"}`, animation:`fu 0.3s ease ${delay}ms both`, opacity:done?0.4:1, transition:"all 0.3s" }}>
       <button onClick={()=>setDone(!done)} style={{ width:16, height:16, borderRadius:4, border:`2px solid ${done?"#4ade80":pc[task.priority]}`, background:done?"#4ade80":"transparent", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>{done&&<span style={{color:"#111",fontSize:10,fontWeight:800}}>✓</span>}</button>
-      <span style={{ flex:1, fontSize:12, color:done?"#6b7280":"#e5e7eb", textDecoration:done?"line-through":"none" }}>{task.text}</span>
+      <span style={{ flex:1, fontSize:12, color:done?"#9ca3af":"#1f2937", textDecoration:done?"line-through":"none" }}>{task.text}</span>
       <span style={{ fontSize:10, color:"#6b7280", fontFamily:M, flexShrink:0 }}>{task.due}</span>
     </div>
   );
@@ -215,13 +215,13 @@ const handleGenerateOutreach = async (deal) => {
           </div>
           {deals.map(d=>{
             const ps = proposalStates[d.id];
-            return (<div key={d.id} style={{ background:c.bg, border:`1px solid ${c.border}15`, borderRadius:9, padding:"10px 12px", marginBottom:6, position:"relative" }}>
+            return (<div key={d.id} style={{ background:c.bg, border:`1px solid ${c.border}40`, borderRadius:9, padding:"10px 12px", marginBottom:6, position:"relative" }}>
               {canEdit && (
                 <button
                   onClick={() => handleDeleteDeal(d)}
                   disabled={deleteLoading === d.id}
                   title={deleteConfirm === d.id ? "Click again to confirm delete" : "Remove deal"}
-                  style={{ position:"absolute", top:6, right:6, width:18, height:18, borderRadius:4, border:`1px solid ${deleteConfirm===d.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===d.id?"rgba(248,113,113,0.15)":"rgba(0,0,0,0.4)", color:deleteConfirm===d.id?"#f87171":"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
+                  style={{ position:"absolute", top:6, right:6, width:18, height:18, borderRadius:4, border:`1px solid ${deleteConfirm===d.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===d.id?"#fef2f2":"#f9fafb", color:deleteConfirm===d.id?"#f87171":"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s" }}
                 >
                   {deleteLoading===d.id ? "…" : deleteConfirm===d.id ? "!" : "×"}
                 </button>
@@ -501,7 +501,7 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
           const ar = analyzeResults[c.id];
 
           return (
-            <div key={c.id} style={{ background: isAtRisk?"rgba(248,113,113,0.04)":"rgba(255,255,255,0.02)", border:`1px solid ${isAtRisk?"rgba(248,113,113,0.12)":"rgba(255,255,255,0.05)"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
+            <div key={c.id} style={{ background: isAtRisk?"#fef2f2":"#ffffff", border:`1px solid ${isAtRisk?"#fca5a5":"#e5e7eb"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
               {/* Top row */}
               <div style={{ display:"grid", gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1fr auto", gap:8, alignItems:"center", fontSize:12 }}>
                <div>
@@ -513,7 +513,7 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
                         onClick={() => handleDeleteClient(c)}
                         disabled={deleteLoading === c.id}
                         title={deleteConfirm === c.id ? "Click again to confirm delete" : "Remove client"}
-                        style={{ width:16, height:16, borderRadius:4, border:`1px solid ${deleteConfirm===c.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===c.id?"rgba(248,113,113,0.15)":"rgba(0,0,0,0.4)", color:"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s", flexShrink:0 }}
+                        style={{ width:16, height:16, borderRadius:4, border:`1px solid ${deleteConfirm===c.id?"rgba(248,113,113,0.5)":"rgba(255,255,255,0.08)"}`, background:deleteConfirm===c.id?"#fef2f2":"#f9fafb", color:"#f87171", cursor:"pointer", fontSize:10, display:"flex", alignItems:"center", justifyContent:"center", transition:"all 0.15s", flexShrink:0 }}
                       >
                         {deleteLoading===c.id ? "…" : deleteConfirm===c.id ? "!" : "×"}
                       </button>
@@ -1593,7 +1593,7 @@ function RenewalsTab({ canEdit = true }) {
         const pr = predictResults[c.id];
 
         return (
-          <div key={c.id} style={{ background:risk?"rgba(248,113,113,0.05)":"rgba(255,255,255,0.02)", border:`1px solid ${risk?"rgba(248,113,113,0.12)":"rgba(255,255,255,0.05)"}`, borderRadius:10, padding:"14px 18px", animation:`fu 0.4s ease ${i*60}ms both` }}>
+          <div key={c.id} style={{ background:risk?"#fef2f2":"#ffffff", border:`1px solid ${risk?"#fca5a5":"#e5e7eb"}`, borderRadius:10, padding:"14px 18px", animation:`fu 0.4s ease ${i*60}ms both` }}>
 
             {/* Header row */}
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
@@ -2170,10 +2170,10 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
             {tier < 3 && <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:6 }}>
               {webAppAddOns.map(ao=>{
                 const active = selectedAddOns.includes(ao.id);
-                return (<button key={ao.id} onClick={()=>toggleAddOn(ao.id)} style={{ padding:"8px 10px", borderRadius:7, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.05)"}`, background:active?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+                return (<button key={ao.id} onClick={()=>toggleAddOn(ao.id)} style={{ padding:"8px 10px", borderRadius:7, border:`1px solid ${active?"#374151":"#e5e7eb"}`, background:active?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <span style={{ fontSize:11, fontWeight:active?600:400, color:active?"#111827":"#6b7280" }}>{ao.name}</span>
-                    <span style={{ width:14, height:14, borderRadius:4, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.12)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white" }}>{active&&"✓"}</span>
+                    <span style={{ width:14, height:14, borderRadius:4, border:`2px solid ${active?"#374151":"#d1d5db"}`, background:active?"#374151":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white" }}>{active&&"✓"}</span>
                   </div>
                   <div style={{ fontSize:10, color:"#6b7280", fontFamily:M, marginTop:3 }}>{ao.priceRange} + ${ao.monthly}/mo</div>
                 </button>);
@@ -2317,7 +2317,7 @@ function AutoTab() {
         <div style={{ fontSize:10, fontWeight:700, color:"#f87171", fontFamily:M, marginBottom:6 }}>⚠ CRITICAL</div>
         {crit.map(a=><div key={a.id} style={{ fontSize:12, color:"#111827" }}><strong>{a.client}</strong> → {a.name}: {a.successRate}% success</div>)}
       </div>}
-      {AUTOMATIONS.map((a,i)=>(<div key={a.id} style={{ display:"grid", gridTemplateColumns:"2fr 1fr 0.7fr 0.7fr 0.7fr 0.5fr", alignItems:"center", gap:6, padding:"10px 16px", background:"#ffffff", border:`1px solid ${a.status==="critical"?"rgba(248,113,113,0.1)":"rgba(255,255,255,0.04)"}`, borderRadius:8, animation:`fu 0.3s ease ${i*40}ms both`, fontSize:12 }}>
+      {AUTOMATIONS.map((a,i)=>(<div key={a.id} style={{ display:"grid", gridTemplateColumns:"2fr 1fr 0.7fr 0.7fr 0.7fr 0.5fr", alignItems:"center", gap:6, padding:"10px 16px", background:"#ffffff", border:`1px solid ${a.status==="critical"?"#fca5a5":"#e5e7eb"}`, borderRadius:8, animation:`fu 0.3s ease ${i*40}ms both`, fontSize:12 }}>
         <div><div style={{ fontWeight:600, color:"#111827" }}>{a.client}</div><div style={{ fontSize:10, color:"#6b7280" }}>{a.name}</div></div>
         <div style={{ display:"flex", alignItems:"center", gap:5 }}><span style={{ width:6, height:6, borderRadius:"50%", background:stc[a.status] }}/><span style={{ color:stc[a.status], fontSize:10, fontWeight:600, textTransform:"uppercase" }}>{a.status}</span></div>
         <span style={{ fontFamily:M, color:"#111827" }}>{a.successRate}%</span>
@@ -2730,7 +2730,7 @@ function CapTab() {
                   <div style={{ height: "100%", borderRadius: 4, background: color, width: `${Math.min(pct, 100)}%`, transition: "width 0.5s" }} />
                 </div>
                 <div style={{ display: "flex", gap: 12, fontSize: 10, color: "#6b7280" }}>
-                  {[{ l: "Delivery", h: t.delivery, c: "#818cf8" }, { l: "Sales", h: t.sales, c: "#fbbf24" }, { l: "Admin", h: t.admin, c: "#6b7280" }, { l: "Free", h: free, c: "#4ade80" }].map(b => (
+                  {[{ l: "Delivery", h: t.delivery, c: "#374151" }, { l: "Sales", h: t.sales, c: "#fbbf24" }, { l: "Admin", h: t.admin, c: "#6b7280" }, { l: "Free", h: free, c: "#4ade80" }].map(b => (
                     <span key={b.l} style={{ display: "flex", alignItems: "center", gap: 3 }}>
                       <span style={{ width: 5, height: 5, borderRadius: 2, background: b.c }} />
                       {b.l}: <span style={{ fontWeight: 600, color: b.c, fontFamily: M }}>{b.h}h</span>
@@ -2753,7 +2753,7 @@ function CapTab() {
             <div style={{ textAlign: "center", margin: "4px 0 12px" }}>
               <Gauge pct={teamPct} label={`${teamHoursUsed}h / ${teamHoursAvail}h`} />
             </div>
-            {[{ l: "Delivery", h: team.reduce((s, t) => s + t.delivery, 0), c: "#818cf8" }, { l: "Sales", h: team.reduce((s, t) => s + t.sales, 0), c: "#fbbf24" }, { l: "Admin", h: team.reduce((s, t) => s + t.admin, 0), c: "#6b7280" }, { l: "Free", h: teamFree, c: "#4ade80" }].map(b => (
+            {[{ l: "Delivery", h: team.reduce((s, t) => s + t.delivery, 0), c: "#374151" }, { l: "Sales", h: team.reduce((s, t) => s + t.sales, 0), c: "#fbbf24" }, { l: "Admin", h: team.reduce((s, t) => s + t.admin, 0), c: "#6b7280" }, { l: "Free", h: teamFree, c: "#4ade80" }].map(b => (
               <div key={b.l} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
                 <span style={{ width: 50, fontSize: 10, color: "#9ca3af" }}>{b.l}</span>
                 <div style={{ flex: 1, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.04)" }}><div style={{ height: "100%", borderRadius: 3, background: b.c, width: `${(b.h / teamHoursAvail) * 100}%` }} /></div>
@@ -2794,7 +2794,7 @@ function CapTab() {
                     { l: "Team Capacity", v: `${newTeamHours}h/wk (+${hs.hours}h)`, c: "#38bdf8" },
                     { l: "Utilization After", v: `${newPct}%`, c: newPct > 70 ? "#fbbf24" : "#4ade80" },
                     { l: "Free Hours", v: `${newFree}h/wk`, c: "#4ade80" },
-                    { l: "New T2 Clients Possible", v: `${maxNewTier2}`, c: "#818cf8" },
+                    { l: "New T2 Clients Possible", v: `${maxNewTier2}`, c: "#374151" },
                     { l: "Monthly Cost", v: `$${hs.cost.toLocaleString()}`, c: "#f87171" },
                     { l: "Breakeven", v: `${Math.ceil(hs.cost / 6500 * 10) / 10} T2 clients`, c: "#fbbf24" },
                     { l: "Net MRR After Hire", v: `$${newNetMRR.toLocaleString()}`, c: newNetMRR > 0 ? "#4ade80" : "#f87171" },
@@ -2855,7 +2855,7 @@ function CommsTab({ onTabNav }) {
       <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
         <button
           onClick={() => setClientFilter("all")}
-          style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter==="all"?"#6366f1":"rgba(255,255,255,0.06)"}`, background:clientFilter==="all"?"#f3f4f6":"#ffffff", color:clientFilter==="all"?"#111827":"#6b7280", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
+          style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter==="all"?"#374151":"#e5e7eb"}`, background:clientFilter==="all"?"#f3f4f6":"#ffffff", color:clientFilter==="all"?"#111827":"#6b7280", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
         >
           All Clients
         </button>
@@ -2863,7 +2863,7 @@ function CommsTab({ onTabNav }) {
           <button
             key={c.id}
             onClick={() => setClientFilter(clientFilter === c.id ? "all" : c.id)}
-            style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter===c.id?"#6366f1":"rgba(255,255,255,0.06)"}`, background:clientFilter===c.id?"#f3f4f6":"#ffffff", color:clientFilter===c.id?"#111827":"#6b7280", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
+            style={{ padding:"4px 12px", borderRadius:6, border:`1px solid ${clientFilter===c.id?"#374151":"#e5e7eb"}`, background:clientFilter===c.id?"#f3f4f6":"#ffffff", color:clientFilter===c.id?"#111827":"#6b7280", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}
           >
             {c.name}
           </button>
@@ -2884,7 +2884,7 @@ function CommsTab({ onTabNav }) {
               <div style={{
                 background: isAgentEntry ? "#eff6ff" : "#ffffff",
                 border: `1px solid ${isAgentEntry ? "#bfdbfe" : "#f0f0f0"}`,
-                borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid #f9fafb",
+                borderLeft: isAgentEntry ? "3px solid #2563eb" : "1px solid #e5e7eb",
                 borderRadius:8,
                 padding:"8px 14px"
               }}>
@@ -3242,10 +3242,10 @@ export default function ICBOS() {
         ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
         button{font-family:inherit}
       
-        /* Vapi voice layer — charcoal bottom bar */
+        /* Vapi voice layer — charcoal bottom bar with white bold text */
         div[style*="Press orb"] { background:#1f2937 !important; border-top:1px solid #374151 !important; }
         div[style*="Press orb"] p,
-        div[style*="Press orb"] span:not([style*="background"]) { color:#ffffff !important; font-weight:700 !important; }`}</style>
+        div[style*="Press orb"] span:not([style*="width"]):not([style*="border-radius"]) { color:#ffffff !important; font-weight:700 !important; }`}</style>
 
       <div style={{ position:"fixed", inset:0, zIndex:0, pointerEvents:"none", background:"transparent" }}/>
 
@@ -3253,25 +3253,14 @@ export default function ICBOS() {
       <header style={{ position:"sticky", top:0, zIndex:50 }}>
         {/* Top row: brand + controls */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"7px 20px", background:"#111827", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <div>
               <div style={{ fontSize:14, fontWeight:600, color:"#f9fafb", letterSpacing:"-0.3px" }}>Immaculate Consulting</div>
               <div style={{ fontSize:9, color:"#6b7280", letterSpacing:"0.5px" }}>Business Operating System</div>
             </div>
             <span style={{ fontSize:9, fontWeight:700, color:"#f9fafb", background:"rgba(255,255,255,0.12)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:4, padding:"2px 7px", letterSpacing:"0.5px" }}>IC-BOS</span>
           </div>
-        </div>
-        </div>
-        {/* Tab row */}
-        <div style={{ background:"#1f2937", padding:"3px 20px", display:"flex", gap:1, flexWrap:"wrap", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-          {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"5px 9px", borderRadius:6, border:"none", cursor:"pointer", fontSize:10.5, fontWeight:500, background:tab===t.id?"rgba(255,255,255,0.12)":"transparent", color:tab===t.id?"#f9fafb":"#d1d5db", transition:"all 0.15s", position:"relative" }}>
-            {t.l}
-            {t.id==="automations"&&critCount>0&&<span style={{ position:"absolute", top:2, right:2, width:5, height:5, borderRadius:"50%", background:"#f87171" }}/>}
-            {t.id==="invoicing"&&overdueInvs.length>0&&<span style={{ position:"absolute", top:2, right:2, width:5, height:5, borderRadius:"50%", background:"#f87171" }}/>}
-          </button>))}
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10, position:"relative" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, position:"relative" }}>
 
          {/* Theme toggle */}
           
@@ -3361,9 +3350,18 @@ export default function ICBOS() {
           </div>
 
           {/* Sign Out */}
-         <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color: isPrincipal?"#818cf8":isConsultant?"#34d399":"#9ca3af", background: isPrincipal?"rgba(199,210,254,0.12)":isConsultant?"rgba(110,231,183,0.1)":"rgba(255,255,255,0.06)", border:`1px solid ${isPrincipal?"rgba(199,210,254,0.35)":isConsultant?"rgba(110,231,183,0.3)":"rgba(255,255,255,0.15)"}`, borderRadius:5, padding:"3px 8px", fontFamily:M }}>{userRole}</span>
+         <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color: isPrincipal?"#c7d2fe":isConsultant?"#6ee7b7":"#9ca3af", background: isPrincipal?"rgba(199,210,254,0.12)":isConsultant?"rgba(110,231,183,0.1)":"rgba(255,255,255,0.06)", border:`1px solid ${isPrincipal?"rgba(199,210,254,0.35)":isConsultant?"rgba(110,231,183,0.3)":"rgba(255,255,255,0.15)"}`, borderRadius:5, padding:"3px 8px", fontFamily:M }}>{userRole}</span>
           <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} style={{ fontSize:10, color:"#374151", background:"#ffffff", border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>Sign Out</button>
 
+        </div>
+        </div>
+        {/* Tab row */}
+        <div style={{ background:"#1f2937", padding:"3px 20px", display:"flex", gap:1, flexWrap:"wrap", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+          {tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"5px 9px", borderRadius:6, border:"none", cursor:"pointer", fontSize:10.5, fontWeight:500, background:tab===t.id?"rgba(255,255,255,0.12)":"transparent", color:tab===t.id?"#f9fafb":"#d1d5db", transition:"all 0.15s", position:"relative" }}>
+            {t.l}
+            {t.id==="automations"&&critCount>0&&<span style={{ position:"absolute", top:2, right:2, width:5, height:5, borderRadius:"50%", background:"#f87171" }}/>}
+            {t.id==="invoicing"&&overdueInvs.length>0&&<span style={{ position:"absolute", top:2, right:2, width:5, height:5, borderRadius:"50%", background:"#f87171" }}/>}
+          </button>))}
         </div>
       </header>
 
