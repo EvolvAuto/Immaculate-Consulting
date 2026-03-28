@@ -2844,7 +2844,111 @@ function CommsTab({ onTabNav }) {
     </div>
   );
 }
+function TasksView({ onShowForm, canEdit }) {
+  const { TASKS } = useData();
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [completedTasks, setCompletedTasks] = useState([]);
+  const [completedLoading, setCompletedLoading] = useState(false);
+  const [search, setSearch] = useState("");
 
+  const fetchCompleted = async () => {
+    setCompletedLoading(true);
+    const { data } = await supabase
+      .from("tasks")
+      .select("id, text, due_date, priority, category, completed, completed_at, created_at")
+      .eq("completed", true)
+      .order("completed_at", { ascending: false })
+      .limit(100);
+    setCompletedTasks(data ?? []);
+    setCompletedLoading(false);
+  };
+
+  const handleToggleCompleted = () => {
+    if (!showCompleted) fetchCompleted();
+    setShowCompleted(p => !p);
+    setSearch("");
+  };
+
+  const pMap = { critical:0, high:1, medium:2, low:3 };
+
+  const filteredActive = [...TASKS]
+    .sort((a,b) => {
+      const x = pMap[a.priority] !== undefined ? pMap[a.priority] : 2;
+      const y = pMap[b.priority] !== undefined ? pMap[b.priority] : 2;
+      return x - y;
+    })
+    .filter(t => !search || t.text?.toLowerCase().includes(search.toLowerCase()));
+
+  const filteredCompleted = completedTasks.filter(t =>
+    !search || t.text?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:12, maxWidth:680 }}>
+      {/* Header */}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <h2 style={{ fontSize:17, fontWeight:700, color:"#f0f8ff" }}>Action Items</h2>
+        {canEdit && <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Task</button>}
+      </div>
+
+      {/* Search bar */}
+      <div style={{ position:"relative" }}>
+        <span style={{ position:"absolute", left:10, top:"50%", transform:"translateY(-50%)", fontSize:13, color:"#4a6a8a" }}>🔍</span>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search tasks..."
+          style={{ width:"100%", padding:"8px 12px 8px 32px", borderRadius:8, border:"1px solid rgba(42,182,215,0.15)", background:"rgba(42,182,215,0.05)", color:"#f0f8ff", fontSize:12, fontFamily:"inherit", outline:"none" }}
+        />
+        {search && <button onClick={()=>setSearch("")} style={{ position:"absolute", right:10, top:"50%", transform:"translateY(-50%)", background:"transparent", border:"none", color:"#4a6a8a", cursor:"pointer", fontSize:14 }}>×</button>}
+      </div>
+
+      {/* Active tasks */}
+      <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+        {filteredActive.length === 0 && (
+          <div style={{ fontSize:12, color:"#4a6a8a", textAlign:"center", padding:"20px 0" }}>
+            {search ? "No tasks match your search." : "No open tasks — you're all caught up! 🎉"}
+          </div>
+        )}
+        {filteredActive.map((t,i) => <TaskItem key={t.id} task={t} delay={i*30}/>)}
+      </div>
+
+      {/* Completed toggle */}
+      <button
+        onClick={handleToggleCompleted}
+        style={{ display:"flex", alignItems:"center", gap:8, background:"transparent", border:"1px solid rgba(42,182,215,0.1)", borderRadius:8, padding:"8px 14px", cursor:"pointer", color:"#4a6a8a", fontSize:11, fontFamily:"inherit", marginTop:4 }}
+      >
+        <span style={{ fontSize:10, color:"#4ade80" }}>{showCompleted ? "▲" : "▼"}</span>
+        {showCompleted ? "Hide" : "Show"} completed tasks
+        {completedTasks.length > 0 && <span style={{ fontSize:10, color:"#4ade80", background:"rgba(74,222,128,0.1)", borderRadius:4, padding:"1px 6px", fontFamily:M }}>{completedTasks.length}</span>}
+      </button>
+
+      {/* Completed tasks list */}
+      {showCompleted && (
+        <div style={{ display:"flex", flexDirection:"column", gap:5, animation:"fu 0.3s ease both" }}>
+          {completedLoading && <div style={{ fontSize:11, color:"#4a6a8a", textAlign:"center", padding:"12px 0" }}>Loading...</div>}
+          {!completedLoading && filteredCompleted.length === 0 && (
+            <div style={{ fontSize:12, color:"#4a6a8a", textAlign:"center", padding:"12px 0" }}>
+              {search ? "No completed tasks match your search." : "No completed tasks yet."}
+            </div>
+          )}
+          {filteredCompleted.map((t, i) => (
+            <div key={t.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:7, background:"rgba(74,222,128,0.02)", border:"1px solid rgba(74,222,128,0.06)", opacity:0.5, animation:`fu 0.3s ease ${i*20}ms both` }}>
+              <span style={{ width:16, height:16, borderRadius:4, background:"#4ade80", border:"2px solid #4ade80", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <span style={{ color:"#111", fontSize:10, fontWeight:800 }}>✓</span>
+              </span>
+              <span style={{ flex:1, fontSize:12, color:"#6b7280", textDecoration:"line-through" }}>{t.text}</span>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:2 }}>
+                <span style={{ fontSize:9, color:"#4a6a8a", fontFamily:M }}>{t.category}</span>
+                {t.completed_at && <span style={{ fontSize:9, color:"#4a6a8a", fontFamily:M }}>✓ {new Date(t.completed_at).toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 // ═══════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════
@@ -3242,7 +3346,7 @@ export default function ICBOS() {
         {tab==="renewals"&&<RenewalsTab/>}
         {tab==="proposal"&&<ProposalTab/>}
         {tab==="salesprep"&&<SalesPrepTab/>}
-        {tab==="tasks"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#f0f8ff"}}>Action Items</h2><button onClick={()=>setShowForm("task")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Task</button></div><div style={{display:"flex",flexDirection:"column",gap:5,maxWidth:680}}>{[...TASKS].sort((a,b)=>{const p={high:0,medium:1,low:2};const x=p[a.priority]!==undefined?p[a.priority]:1;const y=p[b.priority]!==undefined?p[b.priority]:1;return x-y;}).map((t,i)=><TaskItem key={t.id} task={t} delay={i*30}/>)}</div></>}
+        {tab==="tasks"&&<TasksView onShowForm={()=>setShowForm("task")} canEdit={canEdit}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
 {showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
