@@ -385,16 +385,10 @@ export function AddClientPanel({ onClose, onSaved, supabase }) {
         <Input value={fields.name} onChange={set("name")} placeholder="e.g. Sunrise Family Medicine" />
       </Field>
 
-      <div style={S.row}>
-        <Field label="Service Tier">
-          <Select value={fields.tier} onChange={set("tier")}
-            options={[{value:"1",label:"Tier 1 — $3,500/mo"},{value:"2",label:"Tier 2 — $6,500/mo"},{value:"3",label:"Tier 3 — $10,000+/mo"}]} />
-        </Field>
-        <Field label="Status">
-          <Select value={fields.status} onChange={set("status")}
-            options={["Active","Onboarding","Paused","Churned"]} />
-        </Field>
-      </div>
+      <Field label="Status">
+        <Select value={fields.status} onChange={set("status")}
+          options={["Active","Onboarding","Paused","Churned"]} />
+      </Field>
 
       <Field label="EHR Platform">
         <Select value={fields.ehr} onChange={set("ehr")} options={ehrOptions} />
@@ -596,15 +590,9 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
         </Field>
       </div>
 
-      <div style={S.row}>
-        <Field label="Stage">
-          <Select value={fields.stage} onChange={set("stage")} options={stageOptions} />
-        </Field>
-        <Field label="Tier">
-          <Select value={fields.tier} onChange={set("tier")}
-            options={[{value:"1",label:"Tier 1"},{value:"2",label:"Tier 2"},{value:"3",label:"Tier 3"}]} />
-        </Field>
-      </div>
+     <Field label="Stage">
+        <Select value={fields.stage} onChange={set("stage")} options={stageOptions} />
+      </Field>
 
       <div style={S.row}>
         <Field label="Est. Monthly Value ($)">
