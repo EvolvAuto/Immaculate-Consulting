@@ -279,12 +279,12 @@ function Input({ value, onChange, placeholder, type = "text" }) {
   );
 }
 
-function Select({ value, onChange, options }) {
+function Select({ value, onChange, options, labels }) {
   return (
     <select className="ic-input" value={value ?? ""} onChange={e => onChange(e.target.value)} style={S.select}>
       <option value="">Select...</option>
-      {options.map(o => (
-        <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>
+      {options.map((o, i) => (
+        <option key={o.value ?? o} value={o.value ?? o}>{labels ? labels[i] : (o.label ?? o)}</option>
       ))}
     </select>
   );
@@ -311,7 +311,8 @@ export function AddClientPanel({ onClose, onSaved, supabase }) {
     weekly_hours_saved: "", weekly_hours_spent: "",
     go_live_date: "", renewal_date: "",
     primary_contact: "", contact_email: "", contact_phone: "",
-    city: "", state: "NC", notes: "",
+   city: "", state: "NC", notes: "",
+    engagement_type: "managed", selected_services: [],
   };
 
   const [fields, setFields] = useState(blank);
@@ -353,6 +354,8 @@ export function AddClientPanel({ onClose, onSaved, supabase }) {
       city:               fields.city || null,
       state:              fields.state || "NC",
       notes:              fields.notes || null,
+      engagement_type:    fields.engagement_type,
+      selected_services:  fields.selected_services,
     };
 
     const { error: err } = await supabase.from("clients").insert([payload]);
@@ -464,6 +467,41 @@ export function AddClientPanel({ onClose, onSaved, supabase }) {
         </Field>
       </div>
 
+    <Field label="Engagement Type">
+        <Select value={fields.engagement_type} onChange={set("engagement_type")}
+          options={["managed","individual","mixed"]}
+          labels={["Managed Package","Individual Services","Package + Services"]} />
+      </Field>
+
+      {fields.engagement_type !== "individual" && (
+        <Field label="Managed Tier">
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {[{t:"1",n:"AI Starter",p:"$3,500/mo",d:"1-3 providers"},{t:"2",n:"Productivity Suite",p:"$6,500/mo",d:"4-10 providers"},{t:"3",n:"Practice Transformation",p:"$10,000/mo",d:"10+ providers"}].map(opt => (
+              <button key={opt.t} onClick={() => set("tier")(opt.t)} style={{ padding:"8px 12px", borderRadius:7, border:`1px solid ${fields.tier===opt.t?"#6366f1":"rgba(255,255,255,0.08)"}`, background:fields.tier===opt.t?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div><span style={{ fontSize:12, fontWeight:600, color:fields.tier===opt.t?"#a5b4fc":"#9ca3af" }}>Tier {opt.t}: {opt.n}</span><span style={{ fontSize:10, color:"#6b7280", marginLeft:8 }}>{opt.d}</span></div>
+                <span style={{ fontSize:12, fontWeight:700, color:fields.tier===opt.t?"#f0f0f0":"#6b7280", fontFamily:"monospace" }}>{opt.p}</span>
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
+
+      {fields.engagement_type !== "managed" && (
+        <Field label="Individual Services">
+          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+            {["Prompt Engineering","AI Staff Training","Web App Development","AI Strategy Consultation","Document & SOP Creation","Forms & Templates"].map(svc => {
+              const active = fields.selected_services.includes(svc);
+              return (
+                <button key={svc} onClick={() => set("selected_services")(active ? fields.selected_services.filter(s=>s!==svc) : [...fields.selected_services, svc])} style={{ padding:"7px 12px", borderRadius:6, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.06)"}`, background:active?"rgba(99,102,241,0.1)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left", color:active?"#a5b4fc":"#9ca3af", fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ width:14, height:14, borderRadius:3, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.15)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white", flexShrink:0 }}>{active ? "v" : ""}</span>
+                  {svc}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+      )}
+
       <Field label="Notes">
         <Textarea value={fields.notes} onChange={set("notes")} placeholder="NC Medicaid referral, known through..." />
       </Field>
@@ -484,6 +522,7 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
     next_action: "", next_action_date: "",
     providers: "", payer_mix: "", no_show_baseline: "",
     ehr_difficulty: "", ehr_timeline: "", ehr_notes: "", notes: "",
+    engagement_type: "managed", selected_services: [],
   };
 
   const [fields, setFields] = useState(blank);
@@ -519,6 +558,8 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
       ehr_notes:         fields.ehr_notes || null,
       notes:             fields.notes || null,
       days_in_stage:     0,
+      engagement_type:   fields.engagement_type,
+      selected_services: fields.selected_services,
     };
 
     const { error: err } = await supabase.from("pipeline_deals").insert([payload]);
@@ -621,6 +662,41 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
       <Field label="EHR Notes">
         <Textarea value={fields.ehr_notes} onChange={set("ehr_notes")} placeholder="Integration complexity notes..." />
       </Field>
+
+     <Field label="Engagement Type">
+        <Select value={fields.engagement_type} onChange={set("engagement_type")}
+          options={["managed","individual","mixed"]}
+          labels={["Managed Package","Individual Services","Package + Services"]} />
+      </Field>
+
+      {fields.engagement_type !== "individual" && (
+        <Field label="Managed Tier">
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {[{t:"1",n:"AI Starter",p:"$3,500/mo",d:"1-3 providers"},{t:"2",n:"Productivity Suite",p:"$6,500/mo",d:"4-10 providers"},{t:"3",n:"Practice Transformation",p:"$10,000/mo",d:"10+ providers"}].map(opt => (
+              <button key={opt.t} onClick={() => set("tier")(opt.t)} style={{ padding:"8px 12px", borderRadius:7, border:`1px solid ${fields.tier===opt.t?"#6366f1":"rgba(255,255,255,0.08)"}`, background:fields.tier===opt.t?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div><span style={{ fontSize:12, fontWeight:600, color:fields.tier===opt.t?"#a5b4fc":"#9ca3af" }}>Tier {opt.t}: {opt.n}</span><span style={{ fontSize:10, color:"#6b7280", marginLeft:8 }}>{opt.d}</span></div>
+                <span style={{ fontSize:12, fontWeight:700, color:fields.tier===opt.t?"#f0f0f0":"#6b7280", fontFamily:"monospace" }}>{opt.p}</span>
+              </button>
+            ))}
+          </div>
+        </Field>
+      )}
+
+      {fields.engagement_type !== "managed" && (
+        <Field label="Individual Services">
+          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+            {["Prompt Engineering","AI Staff Training","Web App Development","AI Strategy Consultation","Document & SOP Creation","Forms & Templates"].map(svc => {
+              const active = fields.selected_services.includes(svc);
+              return (
+                <button key={svc} onClick={() => set("selected_services")(active ? fields.selected_services.filter(s=>s!==svc) : [...fields.selected_services, svc])} style={{ padding:"7px 12px", borderRadius:6, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.06)"}`, background:active?"rgba(99,102,241,0.1)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left", color:active?"#a5b4fc":"#9ca3af", fontSize:12, display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ width:14, height:14, borderRadius:3, border:`2px solid ${active?"#6366f1":"rgba(255,255,255,0.15)"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white", flexShrink:0 }}>{active ? "v" : ""}</span>
+                  {svc}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+      )}
 
       <Field label="General Notes">
         <Textarea value={fields.notes} onChange={set("notes")} placeholder="How we found them, context..." />
