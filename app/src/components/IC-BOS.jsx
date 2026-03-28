@@ -243,7 +243,7 @@ const handleGenerateOutreach = async (deal) => {
                     <div>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
                         <span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Outreach ready</span>
-                        <button onClick={() => setExpandedOutreach(prev => ({...prev, [d.id]: !prev[d.id]}))} style={{ fontSize:9, color:"#a5b4fc", background:"transparent", border:"1px solid rgba(99,102,241,0.2)", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>{expandedOutreach[d.id] ? "Hide" : "View"}</button>
+                        <button onClick={() => setExpandedOutreach(prev => ({...prev, [d.id]: !prev[d.id]}))} style={{ fontSize:9, color:"#374151", background:"transparent", border:"1px solid #d1d5db", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>{expandedOutreach[d.id] ? "Hide" : "View"}</button>
                       </div>
                       {expandedOutreach[d.id] && (
                         <div style={{ background:"#f9fafb", borderRadius:6, padding:"8px 10px" }}>
@@ -258,7 +258,7 @@ const handleGenerateOutreach = async (deal) => {
                     </div>
                   )}
                   {(!outreachStates[d.id] || outreachStates[d.id] === null) && canEdit && (
-                    <button onClick={() => handleGenerateOutreach(d)} style={{ width:"100%", padding:"5px 0", borderRadius:6, border:"1px solid rgba(99,102,241,0.2)", background:"rgba(99,102,241,0.08)", color:"#a5b4fc", cursor:"pointer", fontSize:9.5, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
+                    <button onClick={() => handleGenerateOutreach(d)} style={{ width:"100%", padding:"5px 0", borderRadius:6, border:"1px solid #d1d5db", background:"#f9fafb", color:"#374151", cursor:"pointer", fontSize:9.5, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}>
                       🤖 Generate Outreach
                     </button>
                   )}
@@ -272,7 +272,7 @@ const handleGenerateOutreach = async (deal) => {
                {(!ps || ps === null) && canEdit && (
                   <button
                     onClick={() => handleGenerateProposal(d)}
-                    style={{ width:"100%", padding:"5px 0", borderRadius:6, border:"1px solid rgba(99,102,241,0.2)", background:"rgba(99,102,241,0.08)", color:"#a5b4fc", cursor:"pointer", fontSize:9.5, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}
+                    style={{ width:"100%", padding:"5px 0", borderRadius:6, border:"1px solid #d1d5db", background:"#f9fafb", color:"#374151", cursor:"pointer", fontSize:9.5, fontWeight:600, display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}
                   >
                     🤖 Generate Proposal
                   </button>
@@ -478,7 +478,7 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
           <h2 style={{ fontSize:17, fontWeight:700, color:"#111827" }}>Client Health</h2>
           <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>{CLIENTS.length} clients · Agent 5 analysis available</p>
         </div>
-        {onShowForm && <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Client</button>}
+        {onShowForm && <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Client</button>}
       </div>
 
       {/* At-risk banner */}
@@ -537,7 +537,7 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
                 <span style={{ fontSize:10.5, color:"#374151" }}>{c.nextMilestone}</span>
                 {/* Analyze + Report buttons */}
                 <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
-                  {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
+                  {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
                   {as==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Running...</span>}
                   {as==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
                   {as==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
@@ -585,8 +585,8 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
         <div style={{ fontSize:10, color:"#111827" }}>{ar.upsell_opportunity}</div>
       </div>
     )}
-    <div style={{ gridColumn:"1/-1", padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-      <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+    <div style={{ gridColumn:"1/-1", padding:"8px 10px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:7 }}>
+      <div style={{ fontSize:9, color:"#374151", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
       <div style={{ fontSize:11, color:"#374151", lineHeight:1.4 }}>{ar.agent_summary}</div>
     </div>
   </div>
@@ -606,7 +606,7 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:10 }}>
                     {[
                       { label:"No-Show Reduction", value:`${reportResults[c.id].metrics?.noShowReduction}%`, color:"#4ade80" },
-                      { label:"ROI to Date", value:`$${(reportResults[c.id].metrics?.totalToDate||0).toLocaleString()}`, color:"#818cf8" },
+                      { label:"ROI to Date", value:`$${(reportResults[c.id].metrics?.totalToDate||0).toLocaleString()}`, color:"#374151" },
                       { label:"Annual Benefit", value:`$${(reportResults[c.id].metrics?.totalBenefit||0).toLocaleString()}`, color:"#fbbf24" },
                       { label:"Year 1 ROI", value:`${reportResults[c.id].metrics?.roi}%`, color:"#4ade80" },
                     ].map((kpi,ki) => (
@@ -627,8 +627,8 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
                         <div key={hi} style={{ fontSize:10, color:"#111827", marginBottom:3 }}>✓ {h}</div>
                       ))}
                     </div>
-                    <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                      <div style={{ fontSize:10, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommendations</div>
+                    <div style={{ padding:"10px 12px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:7 }}>
+                      <div style={{ fontSize:10, color:"#374151", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:6 }}>Recommendations</div>
                       {reportResults[c.id].recommendations?.slice(0,3).map((r,ri) => (
                         <div key={ri} style={{ fontSize:10, color:"#111827", marginBottom:3 }}>→ {r}</div>
                       ))}
@@ -687,7 +687,7 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ fontSize:17, fontWeight:700, color:"#111827" }}>Invoicing & Billing</h2>
-        <button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"invoice"}))} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Invoice</button>
+        <button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"invoice"}))} style={{ fontSize:11, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Invoice</button>
       </div>
 
       {/* Collections summary bar */}
@@ -736,13 +736,13 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
                   <span style={{ fontSize:10, fontWeight:600, color:stColors[inv.status], textTransform:"uppercase" }}>{inv.status}</span>
                   {isOverdue&&<span style={{ fontSize:8, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.15)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>{daysOverdue}d</span>}
                   {inv.stripe_invoice_id&&inv.status==="paid"&&(
-                    <span style={{ fontSize:8, fontWeight:700, color:"#818cf8", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>
+                    <span style={{ fontSize:8, fontWeight:700, color:"#374151", background:"rgba(99,102,241,0.1)", border:"1px solid #d1d5db", padding:"1px 5px", borderRadius:3, fontFamily:M }}>
                       ⚡ Stripe
                     </span>
                   )}
                 </div>
                 <div>
-                  {isOverdue&&(!fs||fs===null)&&<button onClick={()=>handleDraftFollowUp(inv)} style={{ fontSize:9, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Draft Follow-up</button>}
+                  {isOverdue&&(!fs||fs===null)&&<button onClick={()=>handleDraftFollowUp(inv)} style={{ fontSize:9, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Draft Follow-up</button>}
                   {fs==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:3 }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Drafting...</span>}
                   {fs==="done"&&<button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:!prev[inv.id]}))} style={{ fontSize:9, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer" }}>{expandedEmail[inv.id]?"Hide":"View Email"}</button>}
                   {fs==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
@@ -750,10 +750,10 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
               </div>
               {/* Agent-drafted email panel */}
               {fs==="done"&&fr&&expandedEmail[inv.id]&&(
-  <div style={{ padding:"12px 16px", background:"rgba(99,102,241,0.04)", borderBottom:"1px solid #f0f0f0", animation:"fu 0.3s ease both" }}>
+  <div style={{ padding:"12px 16px", background:"#f9fafb", borderBottom:"1px solid #f0f0f0", animation:"fu 0.3s ease both" }}>
     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-        <span style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M }}>🤖 AGENT-DRAFTED FOLLOW-UP EMAIL</span>
+        <span style={{ fontSize:10, fontWeight:700, color:"#374151", fontFamily:M }}>🤖 AGENT-DRAFTED FOLLOW-UP EMAIL</span>
         {fr.escalation_level&&<span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color:fr.escalation_level==="final"?"#f87171":fr.escalation_level==="firm"?"#fbbf24":"#4ade80", background:fr.escalation_level==="final"?"rgba(248,113,113,0.1)":fr.escalation_level==="firm"?"rgba(251,191,36,0.1)":"rgba(74,222,128,0.1)", border:`1px solid ${fr.escalation_level==="final"?"rgba(248,113,113,0.2)":fr.escalation_level==="firm"?"rgba(251,191,36,0.2)":"rgba(74,222,128,0.2)"}`, borderRadius:4, padding:"1px 6px" }}>{fr.escalation_level}</span>}
         {fr.flag_for_service_pause&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:4, padding:"1px 6px" }}>⚠ FLAG: SERVICE PAUSE</span>}
       </div>
@@ -764,8 +764,8 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
       {fr.body}
     </div>
     {fr.recommended_action&&(
-      <div style={{ marginTop:8, padding:"6px 10px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:5 }}>
-        <span style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600 }}>Next Action: </span>
+      <div style={{ marginTop:8, padding:"6px 10px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:5 }}>
+        <span style={{ fontSize:9, color:"#374151", fontFamily:M, textTransform:"uppercase", fontWeight:600 }}>Next Action: </span>
         <span style={{ fontSize:10, color:"#111827" }}>{fr.recommended_action}</span>
       </div>
     )}
@@ -846,7 +846,7 @@ function OnboardingTab({ onRefresh }) {
           <h2 style={{ fontSize:17, fontWeight:700, color:"#111827" }}>Onboarding Tracker</h2>
           <p style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>Agent 3 — Onboarding Orchestrator available per project</p>
         </div>
-        <button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"onboarding"}))} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Start Onboarding</button>
+        <button onClick={()=>document.dispatchEvent(new CustomEvent("ic-show-form",{detail:"onboarding"}))} style={{ fontSize:11, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Start Onboarding</button>
       </div>
 
       {ONBOARDING.map((proj,pi)=>{
@@ -857,7 +857,7 @@ function OnboardingTab({ onRefresh }) {
           <Panel key={proj.id} title={proj.client} subtitle={`Tier ${proj.tier} · ${proj.ehr} · Go-live: ${proj.targetGoLive} (${proj.daysToGoLive}d)`}
             action={
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                {(!ps||ps===null)&&<button onClick={()=>handleGeneratePlan(proj)} style={{ fontSize:10, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Generate Plan</button>}
+                {(!ps||ps===null)&&<button onClick={()=>handleGeneratePlan(proj)} style={{ fontSize:10, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Generate Plan</button>}
                 {ps==="loading"&&<span style={{ fontSize:10, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:5 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Generating...</span>}
                 {ps==="done"&&<span style={{ fontSize:10, color:"#4ade80", fontFamily:M }}>✓ Plan ready</span>}
                 {ps==="error"&&<span style={{ fontSize:10, color:"#f87171", fontFamily:M }}>✗ Error</span>}
@@ -939,12 +939,12 @@ function OnboardingTab({ onRefresh }) {
             {/* Agent 3 result panel */}
             {ps==="done"&&pr&&(
               <div style={{ borderTop:"1px solid #e5e7eb", paddingTop:12, display:"flex", flexDirection:"column", gap:10, animation:"fu 0.3s ease both" }}>
-                <div style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#374151", fontFamily:M, textTransform:"uppercase", display:"flex", alignItems:"center", gap:6 }}>
                   🤖 Agent 3 — Onboarding Orchestrator
                 </div>
 
                 {/* Summary */}
-                <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderLeft:"3px solid #6366f1", borderRadius:7 }}>
+                <div style={{ padding:"10px 12px", background:"#f9fafb", border:"1px solid #e5e7eb", borderLeft:"3px solid #374151", borderRadius:7 }}>
                   <div style={{ fontSize:11, color:"#111827", lineHeight:1.5 }}>{pr.summary || pr.qualification_summary}</div>
                 </div>
 
@@ -965,7 +965,7 @@ function OnboardingTab({ onRefresh }) {
                   <div>
                     <button
                       onClick={()=>setExpandedKickoff(prev=>({...prev,[proj.id]:!prev[proj.id]}))}
-                      style={{ fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer", marginBottom:6 }}
+                      style={{ fontSize:10, color:"#374151", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:6, padding:"5px 12px", cursor:"pointer", marginBottom:6 }}
                     >
                       {expandedKickoff[proj.id] ? "Hide Kickoff Email" : "📧 View Kickoff Email Draft"}
                     </button>
@@ -1005,7 +1005,7 @@ function OnboardingTab({ onRefresh }) {
                 <button
                   onClick={() => saveOnboardingUpdate(proj)}
                   disabled={savingUpdate || !onboardingUpdateText.trim()}
-                  style={{ background:"#6366f1", color:"#111827", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
+                  style={{ background:"#374151", color:"#111827", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
                 >
                   {savingUpdate ? "..." : "Log"}
                 </button>
@@ -1159,7 +1159,7 @@ const handleResearchProspect = async () => {
     <div style={{ display:"flex", flexDirection:"column", gap:16, maxWidth:800 }}>
       <h2 style={{ fontSize:17, fontWeight:700, color:"#111827" }}>Sales Discovery Prep</h2>
       <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-        {prospects.map(p=>(<button key={p.id} onClick={()=>setSelected(p)} style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${selected.id===p.id?"#6366f1":"rgba(255,255,255,0.06)"}`, background:selected.id===p.id?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:selected.id===p.id?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>{p.practice}</button>))}
+        {prospects.map(p=>(<button key={p.id} onClick={()=>setSelected(p)} style={{ padding:"6px 12px", borderRadius:6, border:`1px solid ${selected.id===p.id?"#374151":"#e5e7eb"}`, background:selected.id===p.id?"#f3f4f6":"#ffffff", color:selected.id===p.id?"#111827":"#6b7280", cursor:"pointer", fontSize:11, fontFamily:"inherit" }}>{p.practice}</button>))}
       </div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
         <Panel title="Practice Profile">
@@ -1206,13 +1206,13 @@ const handleResearchProspect = async () => {
         </div>
       </Panel>
       {/* Agent 2 — Analyze Call */}
-      <div style={{ background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:12, padding:"16px 18px" }}>
+      <div style={{ background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:12, padding:"16px 18px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
           <div>
             <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>🤖 Discovery Call Analyzer</div>
             <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>Paste a transcript to get BANT score, pain points, and next steps</div>
           </div>
-          <button onClick={()=>setShowTranscriptInput(p=>!p)} style={{ fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>
+          <button onClick={()=>setShowTranscriptInput(p=>!p)} style={{ fontSize:10, color:"#374151", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>
             {showTranscriptInput ? "Hide" : "Paste Transcript"}
           </button>
         </div>
@@ -1227,7 +1227,7 @@ const handleResearchProspect = async () => {
             <button
               onClick={handleAnalyzeCall}
               disabled={!transcriptText.trim() || analysisState==="loading"}
-              style={{ padding:"9px 0", borderRadius:8, border:"none", background:transcriptText.trim()?"linear-gradient(135deg,#6366f1,#8b5cf6)":"rgba(255,255,255,0.06)", color:transcriptText.trim()?"white":"#4b5563", fontSize:12, fontWeight:700, cursor:transcriptText.trim()?"pointer":"not-allowed" }}
+              style={{ padding:"9px 0", borderRadius:8, border:"none", background:transcriptText.trim()?"#374151":"#e5e7eb", color:transcriptText.trim()?"#f9fafb":"#9ca3af", fontSize:12, fontWeight:700, cursor:transcriptText.trim()?"pointer":"not-allowed" }}
             >
               {analysisState==="loading" ? "Analyzing..." : "▶ Analyze Call"}
             </button>
@@ -1250,7 +1250,7 @@ const handleResearchProspect = async () => {
               </div>
               <div style={{ padding:"10px 12px", background:"#f9fafb", borderRadius:8, textAlign:"center" }}>
                 <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Rec. Tier</div>
-                <div style={{ fontSize:24, fontWeight:800, color:"#818cf8", fontFamily:M }}>{analysisResult.recommended_tier}</div>
+                <div style={{ fontSize:24, fontWeight:800, color:"#374151", fontFamily:M }}>{analysisResult.recommended_tier}</div>
               </div>
               <div style={{ padding:"10px 12px", background:"#f9fafb", borderRadius:8, textAlign:"center" }}>
                 <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Urgency</div>
@@ -1272,10 +1272,10 @@ const handleResearchProspect = async () => {
               </div>
             </div>
             {analysisResult.ic_services_match?.length > 0 && (
-              <div style={{ padding:"10px 12px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:8 }}>
-                <div style={{ fontSize:10, fontWeight:600, color:"#818cf8", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>IC Services Match</div>
+              <div style={{ padding:"10px 12px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:8 }}>
+                <div style={{ fontSize:10, fontWeight:600, color:"#374151", textTransform:"uppercase", fontFamily:M, marginBottom:5 }}>IC Services Match</div>
                 <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-                  {analysisResult.ic_services_match.map((s,i)=><span key={i} style={{ fontSize:10, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:4, padding:"2px 8px" }}>{s}</span>)}
+                  {analysisResult.ic_services_match.map((s,i)=><span key={i} style={{ fontSize:10, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:4, padding:"2px 8px" }}>{s}</span>)}
                 </div>
               </div>
             )}
@@ -1283,7 +1283,7 @@ const handleResearchProspect = async () => {
         )}
       </div>
   {/* Agent 9 — Research Prospect */}
-      <div style={{ background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:12, padding:"16px 18px" }}>
+      <div style={{ background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:12, padding:"16px 18px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
           <div>
             <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>🤖 Competitive Intel Researcher</div>
@@ -1292,7 +1292,7 @@ const handleResearchProspect = async () => {
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             {researchState==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Researching...</span>}
             {researchState==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
-            {(!researchState||researchState===null)&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Research Prospect</button>}
+            {(!researchState||researchState===null)&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"#374151", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Research Prospect</button>}
             {researchState==="done"&&<button onClick={handleResearchProspect} style={{ fontSize:10, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>Re-run</button>}
           </div>
         </div>
@@ -1304,8 +1304,8 @@ const handleResearchProspect = async () => {
                 <div style={{ fontSize:22, fontWeight:800, color:researchResult.confidence_to_close>=70?"#4ade80":researchResult.confidence_to_close>=40?"#fbbf24":"#f87171", fontFamily:M }}>{researchResult.confidence_to_close}</div>
                 <div style={{ fontSize:9, color:"#6b7280" }}>/100</div>
               </div>
-              <div style={{ gridColumn:"2/4", padding:"8px 10px", background:"rgba(99,102,241,0.06)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Recommended Next Action</div>
+              <div style={{ gridColumn:"2/4", padding:"8px 10px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:7 }}>
+                <div style={{ fontSize:9, color:"#374151", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Recommended Next Action</div>
                 <div style={{ fontSize:11, color:"#111827", lineHeight:1.4 }}>{researchResult.recommended_next_action}</div>
               </div>
             </div>
@@ -1327,8 +1327,8 @@ const handleResearchProspect = async () => {
                 {researchResult.medicaid_talking_points?.map((t,i)=><div key={i} style={{ fontSize:10, color:"#111827", marginBottom:2 }}>• {t}</div>)}
               </div>
             </div>
-            <div style={{ padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-              <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+            <div style={{ padding:"8px 10px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:7 }}>
+              <div style={{ fontSize:9, color:"#374151", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
               <div style={{ fontSize:11, color:"#374151", lineHeight:1.4 }}>{researchResult.agent_summary}</div>
             </div>
           </div>
@@ -1429,7 +1429,7 @@ function WeeklyReportTab() {
         <button
           onClick={handleGenerateDigest}
           disabled={digestState==="loading"}
-          style={{ fontSize:11, fontWeight:600, color: digestState==="loading"?"#38bdf8":"#a5b4fc", background: digestState==="loading"?"rgba(56,189,248,0.08)":"rgba(99,102,241,0.1)", border:`1px solid ${digestState==="loading"?"rgba(56,189,248,0.2)":"rgba(99,102,241,0.2)"}`, borderRadius:6, padding:"6px 14px", cursor: digestState==="loading"?"not-allowed":"pointer", display:"flex", alignItems:"center", gap:6 }}
+          style={{ fontSize:11, fontWeight:600, color: digestState==="loading"?"#6b7280":"#374151", background: digestState==="loading"?"#f9fafb":"#f9fafb", border:`1px solid ${digestState==="loading"?"#d1d5db":"#d1d5db"}`, borderRadius:6, padding:"6px 14px", cursor: digestState==="loading"?"not-allowed":"pointer", display:"flex", alignItems:"center", gap:6 }}
         >
           {digestState==="loading" ? (
             <><span style={{ width:7, height:7, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Generating...</>
@@ -1438,8 +1438,8 @@ function WeeklyReportTab() {
       </div>
 
       {/* 3 Things to Act On — always visible from live data */}
-      <div style={{ background:"#eef2ff", border:"1px solid rgba(99,102,241,0.15)", borderRadius:12, padding:"14px 18px" }}>
-        <div style={{ fontSize:11, fontWeight:700, color:"#a5b4fc", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+      <div style={{ background:"#eff6ff", border:"1px solid #d1d5db", borderRadius:12, padding:"14px 18px" }}>
+        <div style={{ fontSize:11, fontWeight:700, color:"#374151", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
           ⚡ 3 Things to Act On This Week
         </div>
         {threeThings.length === 0 ? (
@@ -1456,7 +1456,7 @@ function WeeklyReportTab() {
 
       {/* AI Digest panel — shows after generation */}
       {digestState==="loading" && (
-        <div style={{ background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:12, padding:"16px 18px", display:"flex", alignItems:"center", gap:10 }}>
+        <div style={{ background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:12, padding:"16px 18px", display:"flex", alignItems:"center", gap:10 }}>
           <span style={{ width:8, height:8, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>
           <span style={{ fontSize:11, color:"#7dd3fc" }}>Agent 4 (Weekly Digest) is generating your narrative report...</span>
         </div>
@@ -1467,8 +1467,8 @@ function WeeklyReportTab() {
         </div>
       )}
       {digestState==="done" && digestResult && (
-        <div style={{ background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.12)", borderLeft:"3px solid #6366f1", borderRadius:12, padding:"16px 18px", animation:"fu 0.4s ease both" }}>
-          <div style={{ fontSize:10, fontWeight:700, color:"#818cf8", fontFamily:M, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
+        <div style={{ background:"#f9fafb", border:"1px solid #e5e7eb", borderLeft:"3px solid #374151", borderRadius:12, padding:"16px 18px", animation:"fu 0.4s ease both" }}>
+          <div style={{ fontSize:10, fontWeight:700, color:"#374151", fontFamily:M, textTransform:"uppercase", marginBottom:10, display:"flex", alignItems:"center", gap:6 }}>
             🤖 Agent 4 — AI Narrative Digest
           </div>
          <div style={{ fontSize:12, color:"#111827", lineHeight:1.7, marginBottom:12 }}>{digestResult.narrative || digestResult.qualification_summary}</div>
@@ -1607,7 +1607,7 @@ function RenewalsTab({ canEdit = true }) {
                 {risk&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.12)", padding:"2px 8px", borderRadius:5, fontFamily:M }}>AT RISK</span>}
                 <span style={{ fontSize:11, fontWeight:600, color:bc, fontFamily:M }}>{d}d</span>
                 {/* Predict Risk button */}
-                {(!ps||ps===null)&&<button onClick={()=>handlePredictRisk(c)} style={{ fontSize:9.5, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Predict Risk</button>}
+                {(!ps||ps===null)&&<button onClick={()=>handlePredictRisk(c)} style={{ fontSize:9.5, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Predict Risk</button>}
                 {ps==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Analyzing...</span>}
                 {ps==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
                 {ps==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
@@ -1664,8 +1664,8 @@ function RenewalsTab({ canEdit = true }) {
                     <div style={{ fontSize:10, color:"#111827" }}>{pr.upsell_potential}</div>
                   </div>
                 )}
-                <div style={{ padding:"8px 10px", background:"rgba(99,102,241,0.05)", border:"1px solid rgba(99,102,241,0.1)", borderRadius:7 }}>
-                  <div style={{ fontSize:9, color:"#818cf8", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
+                <div style={{ padding:"8px 10px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:7 }}>
+                  <div style={{ fontSize:9, color:"#374151", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>🤖 Agent Summary</div>
                   <div style={{ fontSize:11, color:"#374151", lineHeight:1.4 }}>{pr.agent_summary}</div>
                 </div>
               </div>
@@ -1845,7 +1845,7 @@ function ProposalTab() {
   const roi = totalYear1 > 0 ? ((aBen - totalYear1) / totalYear1) * 100 : 0;
 
   const Chip = ({active, onClick, children}) => (
-    <button onClick={onClick} style={{ padding:"5px 11px", borderRadius:6, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.06)"}`, background:active?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:active?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:10.5, fontFamily:"inherit", transition:"all 0.15s" }}>{children}</button>
+    <button onClick={onClick} style={{ padding:"5px 11px", borderRadius:6, border:`1px solid ${active?"#374151":"#e5e7eb"}`, background:active?"rgba(99,102,241,0.12)":"rgba(255,255,255,0.02)", color:active?"#a5b4fc":"#9ca3af", cursor:"pointer", fontSize:10.5, fontFamily:"inherit", transition:"all 0.15s" }}>{children}</button>
   );
 // ── Proposal PDF Print helper ────────────────────────────────────────────
 const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aRev, aStaff, aBen) => {
@@ -2087,7 +2087,7 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
         </div>
       ) : (
         agentProposals.map(p => (
-          <div key={p.id} style={{ background:"#ffffff", border:"1px solid rgba(99,102,241,0.15)", borderLeft:"3px solid #6366f1", borderRadius:8, padding:"14px 16px" }}>
+          <div key={p.id} style={{ background:"#ffffff", border:"1px solid #d1d5db", borderLeft:"3px solid #374151", borderRadius:8, padding:"14px 16px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
               <div>
                 <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{p.practice_name}</div>
@@ -2105,13 +2105,13 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
                 }}>{p.status}</span>
                 <button
                   onClick={() => setExpandedProposal(expandedProposal === p.id ? null : p.id)}
-                  style={{ fontSize:11, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}
+                  style={{ fontSize:11, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}
                 >
                   {expandedProposal === p.id ? "Hide" : "View"}
                 </button>
                 <button
                   onClick={() => printAgentProposal(p)}
-                  style={{ fontSize:11, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}
+                  style={{ fontSize:11, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}
                 >
                   📄 PDF
                 </button>
@@ -2142,8 +2142,8 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
       {/* Engagement type */}
       <div style={{ display:"flex", gap:6 }}>
         {[{id:"managed",l:"Managed Package",d:"Monthly retainer"},{id:"individual",l:"Individual Services",d:"One-time / project"},{id:"mixed",l:"Package + Services",d:"Best of both"}].map(m=>(
-          <button key={m.id} onClick={()=>setMode(m.id)} style={{ flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${mode===m.id?"#6366f1":"rgba(255,255,255,0.06)"}`, background:mode===m.id?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left" }}>
-            <div style={{ fontSize:12, fontWeight:600, color:mode===m.id?"#a5b4fc":"#9ca3af" }}>{m.l}</div>
+          <button key={m.id} onClick={()=>setMode(m.id)} style={{ flex:1, padding:"10px 14px", borderRadius:8, border:`1px solid ${mode===m.id?"#374151":"#e5e7eb"}`, background:mode===m.id?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left" }}>
+            <div style={{ fontSize:12, fontWeight:600, color:mode===m.id?"#111827":"#6b7280" }}>{m.l}</div>
             <div style={{ fontSize:10, color:"#6b7280", marginTop:2 }}>{m.d}</div>
           </button>
         ))}
@@ -2154,9 +2154,9 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
         <Panel title="Managed Service Package" subtitle={`${prospect.providers} providers · Suggested: Tier ${prospect.providers<=3?1:prospect.providers<=10?2:3}`}>
           <div style={{ display:"flex", gap:6, marginBottom:12 }}>
             {[1,2,3].map(n=>(
-              <button key={n} onClick={()=>setTier(n)} style={{ flex:1, padding:"10px 12px", borderRadius:8, border:`1px solid ${tier===n?"#6366f1":"rgba(255,255,255,0.06)"}`, background:tier===n?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.02)", cursor:"pointer", textAlign:"left" }}>
-                <div style={{ fontSize:11, fontWeight:600, color:tier===n?"#a5b4fc":"#9ca3af" }}>Tier {n}: {managedTiers[n].n}</div>
-                <div style={{ fontSize:16, fontWeight:700, color:tier===n?"#f0f0f0":"#6b7280", fontFamily:M, marginTop:2 }}>${managedTiers[n].p.toLocaleString()}<span style={{ fontSize:10, fontWeight:400 }}>/mo</span></div>
+              <button key={n} onClick={()=>setTier(n)} style={{ flex:1, padding:"10px 12px", borderRadius:8, border:`1px solid ${tier===n?"#374151":"#e5e7eb"}`, background:tier===n?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left" }}>
+                <div style={{ fontSize:11, fontWeight:600, color:tier===n?"#111827":"#6b7280" }}>Tier {n}: {managedTiers[n].n}</div>
+                <div style={{ fontSize:16, fontWeight:700, color:tier===n?"#111827":"#6b7280", fontFamily:M, marginTop:2 }}>${managedTiers[n].p.toLocaleString()}<span style={{ fontSize:10, fontWeight:400 }}>/mo</span></div>
                 <div style={{ fontSize:9.5, color:"#6b7280", marginTop:2 }}>{managedTiers[n].desc}</div>
               </button>
             ))}
@@ -2196,7 +2196,7 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
                 <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
                   {svc.options.map((opt, oi)=>{
                     const active = selectedServices.find(s=>s.key===`${svc.id}-${oi}`);
-                    return (<button key={oi} onClick={()=>toggleService(svc.id, oi)} style={{ padding:"6px 10px", borderRadius:6, border:`1px solid ${active?"#6366f1":"rgba(255,255,255,0.06)"}`, background:active?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.015)", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
+                    return (<button key={oi} onClick={()=>toggleService(svc.id, oi)} style={{ padding:"6px 10px", borderRadius:6, border:`1px solid ${active?"#374151":"#e5e7eb"}`, background:active?"rgba(99,102,241,0.08)":"rgba(255,255,255,0.015)", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
                       <div style={{ fontSize:10.5, color:active?"#a5b4fc":"#9ca3af" }}>{opt.n}</div>
                       <div style={{ fontSize:12, fontWeight:700, color:active?"#f0f0f0":"#6b7280", fontFamily:M, marginTop:2 }}>${opt.p.toLocaleString()}</div>
                     </button>);
@@ -2209,12 +2209,12 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
       )}
 
       {/* Pricing Summary */}
-      <Panel title="Proposal Summary" subtitle={`${prospect.practice} · ${prospect.providers} providers · ${prospect.ehr}`} style={{ background:"rgba(99,102,241,0.03)", border:"1px solid rgba(99,102,241,0.1)" }}>
+      <Panel title="Proposal Summary" subtitle={`${prospect.practice} · ${prospect.providers} providers · ${prospect.ehr}`} style={{ background:"#f9fafb", border:"1px solid #e5e7eb" }}>
         <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
           {mode !== "individual" && (
             <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid #f0f0f0" }}>
               <span style={{ fontSize:12, color:"#374151" }}>Managed — Tier {tier}: {managedTiers[tier].n}</span>
-              <span style={{ fontSize:12, fontWeight:600, color:"#818cf8", fontFamily:M }}>${managedTiers[tier].p.toLocaleString()}/mo</span>
+              <span style={{ fontSize:12, fontWeight:600, color:"#374151", fontFamily:M }}>${managedTiers[tier].p.toLocaleString()}/mo</span>
             </div>
           )}
           {selectedAddOns.map(id=>{const ao=webAppAddOns.find(a=>a.id===id);return ao&&(
@@ -2245,7 +2245,7 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
         {/* Totals */}
         <div style={{ display:"grid", gridTemplateColumns:totalMonthly>0?"repeat(3,1fr)":"repeat(2,1fr)", gap:10, marginTop:14, padding:"14px", background:"#f9fafb", borderRadius:8 }}>
           {totalOneTime > 0 && <div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>One-Time / Project</div><div style={{ fontSize:22, fontWeight:800, color:"#111827", fontFamily:M, marginTop:2 }}>${totalOneTime.toLocaleString()}</div></div>}
-          {totalMonthly > 0 && <div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>Monthly Recurring</div><div style={{ fontSize:22, fontWeight:800, color:"#818cf8", fontFamily:M, marginTop:2 }}>${totalMonthly.toLocaleString()}<span style={{fontSize:11}}>/mo</span></div></div>}
+          {totalMonthly > 0 && <div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>Monthly Recurring</div><div style={{ fontSize:22, fontWeight:800, color:"#374151", fontFamily:M, marginTop:2 }}>${totalMonthly.toLocaleString()}<span style={{fontSize:11}}>/mo</span></div></div>}
           <div><div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>Year 1 Total</div><div style={{ fontSize:22, fontWeight:800, color:"#fbbf24", fontFamily:M, marginTop:2 }}>${totalYear1.toLocaleString()}</div></div>
         </div>
       </Panel>
@@ -2274,7 +2274,7 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
         <button
          onClick={() => printProposal(prospect, totalOneTime, totalMonthly, totalYear1, roi, aRev, aStaff, aBen)}
           style={{
-            background:"rgba(99,102,241,0.12)", color:"#818cf8",
+            background:"#f9fafb", color:"#374151",
             border:"1px solid rgba(99,102,241,0.3)", borderRadius:"6px",
             padding:"8px 16px", fontSize:"13px", cursor:"pointer",
             display:"flex", alignItems:"center", gap:"6px", fontWeight:600
@@ -2439,33 +2439,33 @@ function TeamTab({ webhookSecret }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 900 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: "#f0f0f0" }}>Team</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>Team</h2>
           <p style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>HR records and app access management</p>
         </div>
       </div>
 
       {/* ── Section 1: App Access ─────────────────────────────────── */}
-      <div style={{ background: "#fafafa", border: "1px solid #d1d5db", borderRadius: 12, padding: "16px 18px" }}>
+      <div style={{ background: "#fafafa", border: "1px solid #e5e7eb", borderRadius: 12, padding: "16px 18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>App Access</div>
             <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>Invite team members and manage their IC-BOS access level</div>
           </div>
-          <button onClick={loadUsers} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid #d1d5db", borderRadius: 5, padding: "3px 8px", cursor: "pointer" }}>↻ Refresh</button>
+          <button onClick={loadUsers} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid #e5e7eb", borderRadius: 5, padding: "3px 8px", cursor: "pointer" }}>↻ Refresh</button>
         </div>
 
         {/* Invite form */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, marginBottom: 14, padding: "12px 14px", background: "rgba(99,102,241,0.04)", border: "1px solid rgba(99,102,241,0.1)", borderRadius: 9 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8, marginBottom: 14, padding: "12px 14px", background: "rgba(99,102,241,0.04)", border: "1px solid #e5e7eb", borderRadius: 9 }}>
           <input
             value={inviteEmail}
             onChange={e => setInviteEmail(e.target.value)}
             placeholder="Email address to invite..."
-            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#f9fafb", color: "#111827", fontSize: 11, fontFamily: "inherit", outline: "none" }}
+            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#111827", fontSize: 11, fontFamily: "inherit", outline: "none" }}
           />
           <select
             value={inviteRole}
             onChange={e => setInviteRole(e.target.value)}
-            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#f9fafb", color: "#111827", fontSize: 11, fontFamily: "inherit", outline: "none", cursor: "pointer" }}
+            style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#111827", fontSize: 11, fontFamily: "inherit", outline: "none", cursor: "pointer" }}
           >
             <option value="consultant">Consultant</option>
             <option value="viewer">Viewer</option>
@@ -2474,7 +2474,7 @@ function TeamTab({ webhookSecret }) {
           <button
             onClick={handleInvite}
             disabled={!inviteEmail.trim() || inviteState === "loading"}
-            style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: inviteEmail.trim() ? "linear-gradient(135deg,#6366f1,#8b5cf6)" : "rgba(255,255,255,0.06)", color: inviteEmail.trim() ? "white" : "#4b5563", fontSize: 11, fontWeight: 600, cursor: inviteEmail.trim() ? "pointer" : "not-allowed" }}
+            style={{ padding: "7px 14px", borderRadius: 6, border: "none", background: inviteEmail.trim() ? "#374151" : "#e5e7eb", color: inviteEmail.trim() ? "#f9fafb" : "#9ca3af", fontSize: 11, fontWeight: 600, cursor: inviteEmail.trim() ? "pointer" : "not-allowed" }}
           >
             {inviteState === "loading" ? "Sending..." : inviteState === "done" ? "✓ Sent!" : "Send Invite"}
           </button>
@@ -2514,18 +2514,18 @@ function TeamTab({ webhookSecret }) {
       </div>
 
       {/* ── Section 2: HR Records ──────────────────────────────────── */}
-      <div style={{ background: "#fafafa", border: "1px solid #d1d5db", borderRadius: 12, padding: "16px 18px" }}>
+      <div style={{ background: "#fafafa", border: "1px solid #e5e7eb", borderRadius: 12, padding: "16px 18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>Team Members</div>
             <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>{team.length} member{team.length !== 1 ? "s" : ""} · ${team.reduce((s, t) => s + Number(t.monthlyCost), 0).toLocaleString()}/mo total cost</div>
           </div>
-          <button onClick={() => setShowAddMember(p => !p)} style={{ fontSize: 11, fontWeight: 600, color: "#a5b4fc", background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.2)", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add Member</button>
+          <button onClick={() => setShowAddMember(p => !p)} style={{ fontSize: 11, fontWeight: 600, color: "#a5b4fc", background: "rgba(99,102,241,0.1)", border: "1px solid #d1d5db", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>+ Add Member</button>
         </div>
 
         {/* Add member form */}
         {showAddMember && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14, padding: "12px 14px", background: "rgba(99,102,241,0.04)", border: "1px solid rgba(99,102,241,0.1)", borderRadius: 9, animation: "fu 0.3s ease both" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14, padding: "12px 14px", background: "rgba(99,102,241,0.04)", border: "1px solid #e5e7eb", borderRadius: 9, animation: "fu 0.3s ease both" }}>
             {[
               { label: "Name", key: "name", type: "text", placeholder: "Full name" },
               { label: "Title", key: "title", type: "text", placeholder: "e.g. Jr. Consultant" },
@@ -2541,13 +2541,13 @@ function TeamTab({ webhookSecret }) {
                   value={newMember[f.key]}
                   onChange={e => setNewMember(prev => ({ ...prev, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))}
                   placeholder={f.placeholder}
-                  style={{ width: "100%", padding: "6px 8px", borderRadius: 5, border: "1px solid #d1d5db", background: "#f9fafb", color: "#111827", fontSize: 11, fontFamily: "inherit", outline: "none" }}
+                  style={{ width: "100%", padding: "6px 8px", borderRadius: 5, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#111827", fontSize: 11, fontFamily: "inherit", outline: "none" }}
                 />
               </div>
             ))}
             <div style={{ gridColumn: "1/-1", display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-              <button onClick={() => setShowAddMember(false)} style={{ fontSize: 11, color: "#6b7280", background: "transparent", border: "1px solid #d1d5db", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>Cancel</button>
-              <button onClick={addTeamMember} style={{ fontSize: 11, fontWeight: 600, color: "white", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", border: "none", borderRadius: 6, padding: "5px 16px", cursor: "pointer" }}>Add Member</button>
+              <button onClick={() => setShowAddMember(false)} style={{ fontSize: 11, color: "#6b7280", background: "transparent", border: "1px solid #e5e7eb", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>Cancel</button>
+              <button onClick={addTeamMember} style={{ fontSize: 11, fontWeight: 600, color: "white", background: "#374151", border: "none", borderRadius: 6, padding: "5px 16px", cursor: "pointer" }}>Add Member</button>
             </div>
           </div>
         )}
@@ -2565,10 +2565,10 @@ function TeamTab({ webhookSecret }) {
               </div>
               <span style={{ fontSize: 11, color: "#a5b4fc" }}>{t.title}</span>
               <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: M }}>{t.type}</span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#f0f0f0", fontFamily: M }}>{t.hoursPerWeek}h</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#111827", fontFamily: M }}>{t.hoursPerWeek}h</span>
               <span style={{ fontSize: 11, fontWeight: 600, color: t.monthlyCost > 0 ? "#f87171" : "#4ade80", fontFamily: M }}>{t.monthlyCost > 0 ? `$${Number(t.monthlyCost).toLocaleString()}` : "—"}</span>
               {t.id !== 1 ? (
-                <button onClick={() => removeTeamMember(t.id)} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid #d1d5db", borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}>Remove</button>
+                <button onClick={() => removeTeamMember(t.id)} style={{ fontSize: 9, color: "#6b7280", background: "transparent", border: "1px solid #e5e7eb", borderRadius: 4, padding: "2px 6px", cursor: "pointer" }}>Remove</button>
               ) : <span/>}
             </div>
           ))}
@@ -2648,26 +2648,26 @@ function CapTab() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
-          <h2 style={{ fontSize: 17, fontWeight: 700, color: "#f0f0f0" }}>Team Capacity & Forecaster</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 700, color: "#111827" }}>Team Capacity & Forecaster</h2>
           <p style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>{team.length} consultant{team.length > 1 ? "s" : ""} · {teamHoursAvail}h/wk total capacity</p>
         </div>
-        <button onClick={() => setShowAddForm(!showAddForm)} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid rgba(99,102,241,0.2)", background: "rgba(99,102,241,0.08)", color: "#a5b4fc", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>
+        <button onClick={() => setShowAddForm(!showAddForm)} style={{ padding: "6px 14px", borderRadius: 7, border: "1px solid #d1d5db", background: "rgba(99,102,241,0.08)", color: "#a5b4fc", cursor: "pointer", fontSize: 11, fontFamily: "inherit" }}>
           {showAddForm ? "Cancel" : "+ Add Consultant"}
         </button>
       </div>
 
       {/* Add consultant form */}
       {showAddForm && (
-        <div style={{ background: "rgba(99,102,241,0.04)", border: "1px solid rgba(99,102,241,0.12)", borderRadius: 10, padding: "14px 18px", animation: "fu 0.3s ease both" }}>
+        <div style={{ background: "rgba(99,102,241,0.04)", border: "1px solid #e5e7eb", borderRadius: 10, padding: "14px 18px", animation: "fu 0.3s ease both" }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: "#a5b4fc", marginBottom: 10 }}>New Consultant</div>
           <div style={{ display: "grid", gridTemplateColumns: "2fr 1.5fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
             <div>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Name</div>
-              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#f9fafb", color: "#111827", fontSize: 12, fontFamily: "inherit", outline: "none" }} />
+              <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#111827", fontSize: 12, fontFamily: "inherit", outline: "none" }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Role</div>
-              <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#f9fafb", color: "#111827", fontSize: 12, fontFamily: "inherit", outline: "none" }}>
+              <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#111827", fontSize: 12, fontFamily: "inherit", outline: "none" }}>
                 <option value="Consultant">Consultant</option>
                 <option value="Jr. Consultant">Jr. Consultant</option>
                 <option value="Contractor">Contractor</option>
@@ -2676,13 +2676,13 @@ function CapTab() {
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>Hours/wk</div>
-              <input type="number" value={newHours} onChange={e => setNewHours(Number(e.target.value))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#f9fafb", color: "#111827", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", outline: "none" }} />
+              <input type="number" value={newHours} onChange={e => setNewHours(Number(e.target.value))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#111827", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", outline: "none" }} />
             </div>
             <div>
               <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 3 }}>$/month</div>
-              <input type="number" value={newCost} onChange={e => setNewCost(Number(e.target.value))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#f9fafb", color: "#111827", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", outline: "none" }} />
+              <input type="number" value={newCost} onChange={e => setNewCost(Number(e.target.value))} style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#111827", fontSize: 12, fontFamily: "'JetBrains Mono',monospace", outline: "none" }} />
             </div>
-            <button onClick={addConsultant} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: "#6366f1", color: "white", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit" }}>Add</button>
+            <button onClick={addConsultant} style={{ padding: "7px 16px", borderRadius: 6, border: "none", background: "#374151", color: "#f9fafb", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "inherit" }}>Add</button>
           </div>
         </div>
       )}
@@ -2715,7 +2715,7 @@ function CapTab() {
             const free = t.hoursAvail - used;
             const color = pct > 85 ? "#f87171" : pct > 70 ? "#fbbf24" : "#4ade80";
             return (
-              <div key={t.id} style={{ padding: "12px 0", borderBottom: ti < team.length - 1 ? "1px solid #f0f0f0" : "none", animation: `fu 0.3s ease ${ti * 60}ms both` }}>
+              <div key={t.id} style={{ padding: "12px 0", borderBottom: ti < team.length - 1 ? "1px solid #f9fafb" : "none", animation: `fu 0.3s ease ${ti * 60}ms both` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div>
                     <span style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{t.name}</span>
@@ -2766,7 +2766,7 @@ function CapTab() {
           <Panel title="New Client Scenarios">
             {scenarios.map((s, i) => {
               const np = Math.round(((teamHoursUsed + s.h) / teamHoursAvail) * 100); const fits = np <= 100;
-              return (<div key={i} style={{ padding: "8px 10px", background: "rgba(0,0,0,0.2)", borderRadius: 6, marginBottom: 5, border: `1px solid ${!fits ? "rgba(248,113,113,0.15)" : "#e5e7eb"}` }}>
+              return (<div key={i} style={{ padding: "8px 10px", background: "#f9fafb", borderRadius: 6, marginBottom: 5, border: `1px solid ${!fits ? "rgba(248,113,113,0.15)" : "#e5e7eb"}` }}>
                 <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 11.5, fontWeight: 600, color: "#111827" }}>{s.l}</span><span style={{ fontSize: 10.5, fontWeight: 600, color: fits ? "#4ade80" : "#f87171", fontFamily: M }}>{np}%{!fits && " ⚠"}</span></div>
                 <div style={{ fontSize: 10, color: "#6b7280", marginTop: 2 }}>+{s.h}h/wk · +${s.r.toLocaleString()}/mo · {fits ? `${teamFree - s.h}h remaining` : "Over capacity — hire first"}</div>
               </div>);
@@ -2786,7 +2786,7 @@ function CapTab() {
             const revenueToBreakEven = hs.cost;
             const newNetMRR = FINANCIALS.mrr - FINANCIALS.monthlyExpenses - teamMonthlyCost - hs.cost;
             return (
-              <div key={i} style={{ padding: "14px", background: "rgba(0,0,0,0.2)", borderRadius: 9, animation: `fu 0.4s ease ${i * 60}ms both` }}>
+              <div key={i} style={{ padding: "14px", background: "#f9fafb", borderRadius: 9, animation: `fu 0.4s ease ${i * 60}ms both` }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: "#111827", marginBottom: 2 }}>{hs.role}</div>
                 <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 10 }}>{hs.desc}</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -2837,13 +2837,13 @@ function CommsTab({ onTabNav }) {
           {/* Recording upload shortcut */}
           <button
             onClick={() => onTabNav && onTabNav("agents")}
-            style={{ fontSize:11, fontWeight:600, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.15)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}
+            style={{ fontSize:11, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}
           >
             🎙️ Upload Recording
           </button>
           <button
             onClick={() => document.dispatchEvent(new CustomEvent("ic-show-form", { detail:"comm" }))}
-            style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}
+            style={{ fontSize:11, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}
           >
             + Log Comms
           </button>
@@ -2870,7 +2870,7 @@ function CommsTab({ onTabNav }) {
         ))}
       </div>
 
-      <div style={{ fontSize:10, color:"#818cf8", padding:"6px 10px", background:"rgba(99,102,241,0.04)", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
+      <div style={{ fontSize:10, color:"#374151", padding:"6px 10px", background:"#f9fafb", border:"1px solid rgba(99,102,241,0.08)", borderRadius:7 }}>
         🤖 Entries with an indigo border were written by an IC-BOS agent. Upload a recording to auto-generate call entries.
       </div>
 
@@ -2884,7 +2884,7 @@ function CommsTab({ onTabNav }) {
               <div style={{
                 background: isAgentEntry ? "rgba(99,102,241,0.04)" : "rgba(255,255,255,0.02)",
                 border: `1px solid ${isAgentEntry ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)"}`,
-                borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid #f0f0f0",
+                borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid #f9fafb",
                 borderRadius:8,
                 padding:"8px 14px"
               }}>
@@ -2892,7 +2892,7 @@ function CommsTab({ onTabNav }) {
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     <span style={{ fontSize:12, fontWeight:600, color:"#111827" }}>{c.client}</span>
                     {isAgentEntry && (
-                      <span style={{ fontSize:8, fontWeight:700, color:"#818cf8", background:"rgba(99,102,241,0.12)", padding:"1px 5px", borderRadius:3, fontFamily:M }}>🤖 AGENT</span>
+                      <span style={{ fontSize:8, fontWeight:700, color:"#374151", background:"#f9fafb", padding:"1px 5px", borderRadius:3, fontFamily:M }}>🤖 AGENT</span>
                     )}
                   </div>
                   <span style={{ fontSize:10, color:"#6b7280", fontFamily:M }}>{c.date}</span>
@@ -2907,7 +2907,7 @@ function CommsTab({ onTabNav }) {
                     <button style={{ fontSize:9, color:"#38bdf8", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.12)", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
                       View Transcript
                     </button>
-                    <button style={{ fontSize:9, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
+                    <button style={{ fontSize:9, color:"#374151", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
                       View Analysis
                     </button>
                   </div>
@@ -2964,7 +2964,7 @@ function TasksView({ onShowForm, canEdit }) {
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ fontSize:17, fontWeight:700, color:"#111827" }}>Action Items</h2>
-        {canEdit && <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#a5b4fc", background:"rgba(99,102,241,0.1)", border:"1px solid rgba(99,102,241,0.2)", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Task</button>}
+        {canEdit && <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Task</button>}
       </div>
 
       {/* Search bar */}
@@ -3241,14 +3241,16 @@ export default function ICBOS() {
         *{box-sizing:border-box;margin:0;padding:0;scrollbar-width:thin;scrollbar-color:#d1d5db transparent}
         ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
         button{font-family:inherit}
-      `}</style>
+      
+        /* Vapi voice layer — force light theme bottom bar */
+        div[style*="Press orb"] { background:#f3f4f6 !important; border-top:1px solid #e5e7eb !important; }`}</style>
 
       <div style={{ position:"fixed", inset:0, zIndex:0, pointerEvents:"none", background:"transparent" }}/>
 
       {/* Header */}
       <header style={{ position:"sticky", top:0, zIndex:50 }}>
         {/* Top row: brand + controls */}
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 20px", background:"#111827", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"7px 20px", background:"#111827", borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <div>
@@ -3282,7 +3284,7 @@ export default function ICBOS() {
             <button
               onClick={() => { setShowPulsePopover(p => !p); setShowNotifs(false); }}
               title="Agent activity"
-              style={{ width:28, height:28, borderRadius:"50%", border:`1px solid ${isAnyAgentRunning ? "rgba(56,189,248,0.4)" : "rgba(255,255,255,0.2)"}`, background: isAnyAgentRunning ? "rgba(56,189,248,0.12)" : "rgba(255,255,255,0.08)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}
+              style={{ width:28, height:28, borderRadius:"50%", border:`1px solid ${isAnyAgentRunning ? "rgba(56,189,248,0.3)" : "rgba(255,255,255,0.08)"}`, background: isAnyAgentRunning ? "rgba(56,189,248,0.1)" : "rgba(255,255,255,0.04)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}
             >
               <span style={{ width:8, height:8, borderRadius:"50%", background: isAnyAgentRunning ? "#38bdf8" : "#4b5563", display:"block" }}/>
               {isAnyAgentRunning && <span style={{ position:"absolute", width:14, height:14, borderRadius:"50%", background:"rgba(56,189,248,0.3)", animation:"pr 1.2s ease-out infinite" }}/>}
@@ -3303,7 +3305,7 @@ export default function ICBOS() {
                     All agents idle
                   </div>
                 )}
-                <button onClick={() => { setTab("agents"); setShowPulsePopover(false); }} style={{ marginTop:10, fontSize:10, color:"#818cf8", background:"rgba(99,102,241,0.08)", border:"1px solid rgba(99,102,241,0.12)", borderRadius:6, padding:"4px 10px", cursor:"pointer", width:"100%" }}>
+                <button onClick={() => { setTab("agents"); setShowPulsePopover(false); }} style={{ marginTop:10, fontSize:10, color:"#374151", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 10px", cursor:"pointer", width:"100%" }}>
                   Open Agents Tab →
                 </button>
               </div>
@@ -3315,7 +3317,7 @@ export default function ICBOS() {
             <button
               onClick={() => { setShowNotifs(p => !p); setShowPulsePopover(false); }}
               title="Notifications"
-              style={{ width:28, height:28, borderRadius:"50%", border:`1px solid ${unreadCount > 0 ? "rgba(251,191,36,0.5)" : "rgba(255,255,255,0.2)"}`, background: unreadCount > 0 ? "rgba(251,191,36,0.1)" : "rgba(255,255,255,0.08)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, position:"relative" }}
+              style={{ width:28, height:28, borderRadius:"50%", border:`1px solid ${unreadCount > 0 ? "rgba(251,191,36,0.25)" : "rgba(255,255,255,0.08)"}`, background: unreadCount > 0 ? "rgba(251,191,36,0.06)" : "rgba(255,255,255,0.04)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, position:"relative" }}
             >
               🔔
               {unreadCount > 0 && (
@@ -3357,7 +3359,7 @@ export default function ICBOS() {
           </div>
 
           {/* Sign Out */}
-         <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color: isPrincipal?"#4f46e5":isConsultant?"#059669":"#6b7280", background: isPrincipal?"#eef2ff":isConsultant?"#d1fae5":"#f3f4f6", border:`1px solid ${isPrincipal?"#c7d2fe":isConsultant?"#6ee7b7":"#d1d5db"}`, borderRadius:5, padding:"3px 8px", fontFamily:M }}>{userRole}</span>
+         <span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color: isPrincipal?"#818cf8":isConsultant?"#34d399":"#9ca3af", background: isPrincipal?"rgba(99,102,241,0.15)":isConsultant?"rgba(52,211,153,0.12)":"rgba(255,255,255,0.06)", border:`1px solid ${isPrincipal?"rgba(99,102,241,0.3)":isConsultant?"rgba(52,211,153,0.25)":"rgba(255,255,255,0.15)"}`, borderRadius:5, padding:"3px 8px", fontFamily:M }}>{userRole}</span>
           <button onClick={async () => { await supabase.auth.signOut(); window.location.reload(); }} style={{ fontSize:10, color:"#374151", background:"#ffffff", border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>Sign Out</button>
 
         </div>
@@ -3368,8 +3370,8 @@ export default function ICBOS() {
         {tab==="overview"&&(
           icbos.isBootstrapping ? (
             <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:200,gap:12}}>
-              <span style={{width:8,height:8,borderRadius:"50%",background:"#6366f1",animation:"pr 1.2s ease-out infinite"}}/>
-              <span style={{fontSize:12,color:"#9ca3af",fontFamily:M}}>Loading IC-BOS...</span>
+              <span style={{width:8,height:8,borderRadius:"50%",background:"#374151",animation:"pr 1.2s ease-out infinite"}}/>
+              <span style={{fontSize:12,color:"#6b7280",fontFamily:M}}>Loading IC-BOS...</span>
             </div>
           ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -3402,12 +3404,12 @@ export default function ICBOS() {
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>{TASKS.filter(t=>t.priority==="high").map((t,i)=><TaskItem key={t.id} task={t} delay={i*40}/>)}</div>
               </Panel>
             </div>
-            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#818cf8", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()}/></Panel>
+            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#374151", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()}/></Panel>
           </div>
           )
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#a5b4fc",background:"rgba(99,102,241,0.1)",border:"1px solid rgba(99,102,241,0.2)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"rgba(99,102,241,0.1)",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
