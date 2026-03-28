@@ -119,8 +119,7 @@ export const useOverview = () => {
       // Active pipeline deal count + value
       supabase
         .from('pipeline_deals')
-        .select('id, estimated_value, stage')
-        .neq('stage', 'Closed Won').neq('stage', 'Closed Lost'),
+        .select('id, estimated_value, stage'),
     ]);
 
     // Propagate the first error encountered
@@ -197,7 +196,6 @@ export const usePipeline = () => {
           ehr_difficulty, ehr_timeline, ehr_notes,
           notes, assigned_to, created_at, updated_at
         `)
-        .neq('stage', 'Closed Lost')
         .order('days_in_stage', { ascending: false }),
     [],
     []
@@ -779,7 +777,7 @@ export const useProposalTargets = () => {
         supabase
           .from('pipeline_deals')
           .select('id, practice_name, specialty, ehr, tier, providers, contact_name, contact_email')
-          .neq('stage', 'Closed Won').neq('stage', 'Closed Lost')
+          .in('stage', ['Cold', 'Discovery', 'Proposal', 'Negotiation'])
           .order('practice_name'),
 
         supabase
@@ -828,7 +826,7 @@ export const useSalesPrep = () => {
           payer_mix, no_show_baseline, ehr_difficulty, ehr_timeline,
           ehr_notes, notes
         `)
-        .neq('stage', 'Closed Won').neq('stage', 'Closed Lost')
+        .in('stage', ['Cold', 'Discovery', 'Proposal', 'Negotiation'])
         .order('next_action_date'),
     [],
     []
