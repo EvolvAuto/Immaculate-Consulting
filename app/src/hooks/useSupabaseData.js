@@ -109,11 +109,11 @@ export const useOverview = () => {
       // Open (incomplete) critical/high priority tasks
       supabase
         .from('tasks')
-       .select('id, text, priority, due_date, category')
+        .select('id, text, priority, due, category')
         .eq('completed', false)
         .in('priority', ['Critical', 'High'])
         .order('priority')
-        .order('due_date')
+        .order('due')
         .limit(5),
 
       // Active pipeline deal count + value
@@ -190,14 +190,14 @@ export const usePipeline = () => {
       supabase
         .from('pipeline_deals')
         .select(`
-         id, practice_name, specialty, ehr, stage, tier,
-          estimated_value, close_probability, contact_name, contact_email, contact_phone,
-          next_action, next_action_date, days_in_stage,
+          id, practice_name, specialty, ehr, stage, tier,
+          estimated_value, close_probability, contact_name, contact_title,
+          next_action, next_action_date, days_in_stage, stage_entered_at,
           providers, payer_mix, no_show_baseline,
           ehr_difficulty, ehr_timeline, ehr_notes,
           notes, assigned_to, created_at, updated_at
         `)
-        .not('stage', 'in', '("Closed Won","Closed Lost")')
+        .not('stage', 'in', '("Closed Lost")')
         .order('days_in_stage', { ascending: false }),
     [],
     []
@@ -853,10 +853,10 @@ export const useTasks = () => {
   const fetchTasks = useCallback(async () => {
     const { data: rows, error: err } = await supabase
       .from('tasks')
-      .select('id, text, due_date, priority, category, completed, client_id, notes, created_at')
+      .select('id, text, due, priority, category, completed, assigned_to, created_at')
       .eq('completed', false) // Default view: open tasks only
       .order('priority') // Critical → High → Medium → Low
-      .order('due_date');
+      .order('due');
 
     if (err) {
       logQueryError('fetchTasks', err);
@@ -938,11 +938,11 @@ export const useCommunications = (clientId = null) => {
       let query = supabase
         .from('communications')
         .select(`
-          id, comm_date, type, subject, note, created_at,
+          id, date, type, note, created_at,
           clients ( id, name ),
           users   ( id, full_name )
         `)
-        .order('comm_date', { ascending: false })
+        .order('date', { ascending: false })
         .limit(100);
 
       if (clientId) query = query.eq('client_id', clientId);
