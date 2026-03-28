@@ -937,7 +937,7 @@ export const useCommunications = (clientId = null) => {
     async () => {
       let query = supabase
         .from('communications')
-.select(`
+        .select(`
           id, comm_date, type, subject, note, created_at,
           clients ( id, name ),
           users   ( id, full_name )
