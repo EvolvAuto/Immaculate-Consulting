@@ -241,7 +241,7 @@ function Waveform({ side = "left" }) {
       {bars.map((h, i) => (
         <div key={i} style={{
           width: 2.5, height: h, borderRadius: 2,
-          background: i === 4 || i === 6 ? "rgba(42,182,215,0.85)" : "rgba(42,182,215,0.5)",
+          background: i === 4 || i === 6 ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.5)",
           animation: `ic-wave ${durations[i]}s ease-in-out ${delays[i]}s infinite alternate`,
         }} />
       ))}
@@ -371,33 +371,33 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
           maxWidth: 720, margin: "0 auto",
           display: "flex", alignItems: "center", justifyContent: "space-between",
           gap: 14,
-          background: "linear-gradient(135deg, #060f22, #0a1e3a)",
-          border: "1px solid rgba(42,182,215,0.5)",
+          background: "#2d3748",
+          border: "1px solid #4b5563",
           borderRadius: 40,
           padding: "10px 14px 10px 20px",
-          boxShadow: "0 0 0 1px rgba(42,182,215,0.1), 0 0 28px rgba(42,182,215,0.18), inset 0 0 32px rgba(42,182,215,0.05)",
-          animation: "ic-bar-glow 2s ease-in-out infinite",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
+          animation: "ic-bar-pulse 2s ease-in-out infinite",
           position: "relative", overflow: "hidden",
         }}>
           <style>{`
-            @keyframes ic-bar-glow {
-              0%,100% { box-shadow: 0 0 0 1px rgba(42,182,215,0.1), 0 0 28px rgba(42,182,215,0.18); border-color: rgba(42,182,215,0.5); }
-              50%      { box-shadow: 0 0 0 1px rgba(42,182,215,0.2), 0 0 46px rgba(42,182,215,0.35); border-color: rgba(42,182,215,0.75); }
+            @keyframes ic-bar-pulse {
+              0%,100% { border-color: #4b5563; }
+              50%      { border-color: #6b7280; }
             }
             @keyframes ic-top-glow {
-              0%,100% { opacity: 0.55; }
-              50%      { opacity: 1; }
+              0%,100% { opacity: 0.4; }
+              50%      { opacity: 0.7; }
             }
             @keyframes ic-text-pulse {
-              0%,100% { text-shadow: 0 0 18px rgba(42,182,215,0.55); color: #e8f6ff; }
-              50%      { text-shadow: 0 0 32px rgba(42,182,215,0.9), 0 0 55px rgba(42,182,215,0.4); color: #ffffff; }
+              0%,100% { color: #e5e7eb; }
+              50%      { color: #ffffff; }
             }
           `}</style>
 
           {/* Top edge glow */}
           <div style={{
             position: "absolute", top: 0, left: "15%", right: "15%", height: 1,
-            background: "linear-gradient(90deg, transparent, rgba(42,182,215,0.8), rgba(160,235,255,1), rgba(42,182,215,0.8), transparent)",
+            background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.15), rgba(255,255,255,0.35), rgba(255,255,255,0.15), transparent)",
             animation: "ic-top-glow 2s ease-in-out infinite",
             pointerEvents: "none",
           }} />
@@ -405,7 +405,7 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
           <Waveform side="left" />
 
           <div style={{
-            fontSize: 15, fontWeight: 700, letterSpacing: 0.3, color: "#ffffff",
+            fontSize: 15, fontWeight: 700, letterSpacing: 0.3,
             animation: "ic-text-pulse 2s ease-in-out infinite",
             flex: 1, textAlign: "center",
           }}>
