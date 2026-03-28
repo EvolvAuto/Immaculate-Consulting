@@ -129,7 +129,7 @@ function RevChart({ data }) {
   );
 }
 
-function PipelineBoard({ canEdit = true, onRefresh }) {
+function PipelineBoard({ canEdit = true, onRefresh, onConvert }) {
   const { PIPELINE } = useData();
   const [proposalStates, setProposalStates] = useState({});
   const [outreachStates, setOutreachStates] = useState({});
@@ -137,6 +137,7 @@ function PipelineBoard({ canEdit = true, onRefresh }) {
   const [expandedOutreach, setExpandedOutreach] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(null);
+  const [convertingDeal, setConvertingDeal] = useState(null); // tracks deal being converted
 
   const handleDeleteDeal = async (deal) => {
     if (deleteConfirm !== deal.id) {
@@ -230,7 +231,7 @@ const handleGenerateOutreach = async (deal) => {
               <div style={{ fontSize:10, color:"#374151", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
                 <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
-                <span style={{ fontSize:8, fontWeight:600, color:"#111", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
+                <span style={{ fontSize:8, fontWeight:700, color:"#ffffff", background:c.dot, borderRadius:4, padding:"2px 7px" }}>T{d.tier}</span>
               </div>
               <div style={{ fontSize:10, color:"#6b7280", marginTop:5 }}>→ {d.nextAction}</div>
               {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
@@ -264,6 +265,18 @@ const handleGenerateOutreach = async (deal) => {
                   )}
                 </div>
               )}
+              {/* Convert to Client — closed-won only */}
+              {d.stage === "closed-won" && canEdit && onConvert && (
+                <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
+                  <button
+                    onClick={() => onConvert(d)}
+                    style={{ width:"100%", padding:"6px 0", borderRadius:6, border:"1px solid #16a34a", background:"#f0fdf4", color:"#15803d", cursor:"pointer", fontSize:10, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}
+                  >
+                    ✓ Convert to Active Client
+                  </button>
+                </div>
+              )}
+
               {/* Agent 1 — Generate Proposal button */}
               <div style={{ marginTop:d.stage==="cold"?4:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
                 {ps === 'done' && <div style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
@@ -304,6 +317,7 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
   const [expandedReport, setExpandedReport] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(null);
+  const [convertingDeal, setConvertingDeal] = useState(null); // tracks deal being converted
 
   const handleDeleteClient = async (client) => {
     if (deleteConfirm !== client.id) {
@@ -989,7 +1003,7 @@ function OnboardingTab({ onRefresh }) {
                 <select
                   value={onboardingUpdateStatus}
                   onChange={e => setOnboardingUpdateStatus(e.target.value)}
-                  style={{ background:"#f9fafb", color:"#374151", border:"1px solid #d1d5db", borderRadius:6, padding:"6px 8px", fontSize:12 }}
+                  style={{ background:"#f9fafb", color:"#374151", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 8px", fontSize:12 }}
                 >
                   <option value="note">📝 Note</option>
                   <option value="milestone">🏆 Milestone</option>
@@ -1000,12 +1014,12 @@ function OnboardingTab({ onRefresh }) {
                   value={onboardingUpdateText}
                   onChange={e => setOnboardingUpdateText(e.target.value)}
                   placeholder="Log a progress update..."
-                  style={{ flex:1, background:"#f9fafb", color:"#111827", border:"1px solid #d1d5db", borderRadius:6, padding:"6px 12px", fontSize:13 }}
+                  style={{ flex:1, background:"#f9fafb", color:"#111827", border:"1px solid rgba(255,255,255,0.1)", borderRadius:6, padding:"6px 12px", fontSize:13 }}
                 />
                 <button
                   onClick={() => saveOnboardingUpdate(proj)}
                   disabled={savingUpdate || !onboardingUpdateText.trim()}
-                  style={{ background:"#374151", color:"#ffffff", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
+                  style={{ background:"#374151", color:"#111827", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
                 >
                   {savingUpdate ? "..." : "Log"}
                 </button>
@@ -1057,14 +1071,14 @@ function ProfitabilityTab() {
               <div><span style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{c.name}</span><span style={{ fontSize:11, color:"#6b7280", marginLeft:8 }}>Tier {c.tier} · {c.ehr}</span></div>
               <span style={{ fontSize:20, fontWeight:800, color:rateColor, fontFamily:M }}>${Math.round(c.p.effectiveRate)}<span style={{ fontSize:11, fontWeight:400 }}>/hr</span></span>
             </div>
-            <div style={{ height:8, borderRadius:4, background:"#e5e7eb", marginBottom:10 }}>
+            <div style={{ height:8, borderRadius:4, background:"#ffffff", marginBottom:10 }}>
               <div style={{ height:"100%", borderRadius:4, background:rateColor, width:`${barW}%`, transition:"width 0.8s" }}/>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:8, fontSize:11 }}>
               {[
-                { l:"MRR", v:`$${c.monthlyFee.toLocaleString()}`, cl:"#374151" },
+                { l:"MRR", v:`$${c.monthlyFee.toLocaleString()}`, cl:"#f0f0f0" },
                 { l:"Platform Cost", v:`$${c.platformCost}`, cl:"#f87171" },
-                { l:"Hours/wk", v:`${c.weeklyHoursSpent}h`, cl:"#374151" },
+                { l:"Hours/wk", v:`${c.weeklyHoursSpent}h`, cl:"#38bdf8" },
                 { l:"Monthly Profit", v:`$${Math.round(c.p.monthlyProfit).toLocaleString()}`, cl:"#4ade80" },
                 { l:"Margin", v:`${Math.round(c.p.margin)}%`, cl:c.p.margin>=70?"#4ade80":"#fbbf24" },
               ].map((m,j)=>(
@@ -2173,7 +2187,7 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
                 return (<button key={ao.id} onClick={()=>toggleAddOn(ao.id)} style={{ padding:"8px 10px", borderRadius:7, border:`1px solid ${active?"#374151":"#e5e7eb"}`, background:active?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left", transition:"all 0.15s" }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                     <span style={{ fontSize:11, fontWeight:active?600:400, color:active?"#111827":"#6b7280" }}>{ao.name}</span>
-                    <span style={{ width:14, height:14, borderRadius:4, border:`2px solid ${active?"#374151":"#d1d5db"}`, background:active?"#374151":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white" }}>{active&&"✓"}</span>
+                    <span style={{ width:14, height:14, borderRadius:4, border:`2px solid ${active?"#374151":"#d1d5db"}`, background:active?"#6366f1":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"white" }}>{active&&"✓"}</span>
                   </div>
                   <div style={{ fontSize:10, color:"#6b7280", fontFamily:M, marginTop:3 }}>{ao.priceRange} + ${ao.monthly}/mo</div>
                 </button>);
@@ -2884,7 +2898,7 @@ function CommsTab({ onTabNav }) {
               <div style={{
                 background: isAgentEntry ? "#eff6ff" : "#ffffff",
                 border: `1px solid ${isAgentEntry ? "#bfdbfe" : "#f0f0f0"}`,
-                borderLeft: isAgentEntry ? "3px solid #2563eb" : "1px solid #e5e7eb",
+                borderLeft: isAgentEntry ? "3px solid #6366f1" : "1px solid #f9fafb",
                 borderRadius:8,
                 padding:"8px 14px"
               }}>
@@ -3242,10 +3256,8 @@ export default function ICBOS() {
         ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
         button{font-family:inherit}
       
-        /* Vapi voice layer — charcoal bottom bar with white bold text */
-        div[style*="Press orb"] { background:#1f2937 !important; border-top:1px solid #374151 !important; }
-        div[style*="Press orb"] p,
-        div[style*="Press orb"] span:not([style*="width"]):not([style*="border-radius"]) { color:#ffffff !important; font-weight:700 !important; }`}</style>
+        /* Vapi voice layer — force light theme bottom bar */
+        div[style*="Press orb"] { background:#f3f4f6 !important; border-top:1px solid #e5e7eb !important; }`}</style>
 
       <div style={{ position:"fixed", inset:0, zIndex:0, pointerEvents:"none", background:"transparent" }}/>
 
@@ -3404,12 +3416,12 @@ export default function ICBOS() {
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>{TASKS.filter(t=>t.priority==="high").map((t,i)=><TaskItem key={t.id} task={t} delay={i*40}/>)}</div>
               </Panel>
             </div>
-            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#374151", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()}/></Panel>
+            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#374151", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})}/></Panel>
           </div>
           )
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
@@ -3440,7 +3452,7 @@ export default function ICBOS() {
         {tab==="comms"&&<CommsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
-{showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
+{(showForm==="client" || showForm?.type==="client")&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} initialData={showForm?.prefill || null} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
       {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.pipeline.refetch(); }}/>}
       {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.tasks.refetch(); }}/>}
       {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.invoices.refetch(); icbos.financials.refetch(); }}/>}
