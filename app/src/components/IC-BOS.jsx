@@ -779,7 +779,7 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
   );
 }
 // ONBOARDING TRACKER (Feature 9) — with Agent 3 inline UI
-function OnboardingTab() {
+function OnboardingTab({ onRefresh }) {
   const { ONBOARDING } = useData();
   const [planStates, setPlanStates] = useState({});
   const [planResults, setPlanResults] = useState({});
@@ -895,7 +895,7 @@ function OnboardingTab() {
                             phases: updated,
                             ...(isLastPhase ? {actual_go_live: new Date().toISOString().split("T")[0]} : {})
                           }).eq("id", proj.id);
-                          icbos.onboarding.refetch();
+                          if (onRefresh) onRefresh();
                         }}
                         style={{ fontSize:9, fontWeight:600, padding:"3px 9px", borderRadius:5, border:"1px solid rgba(74,222,128,0.2)", background:"rgba(74,222,128,0.08)", color:"#4ade80", cursor:"pointer", whiteSpace:"nowrap", fontFamily:"inherit" }}
                       >
@@ -3403,7 +3403,7 @@ export default function ICBOS() {
         )}
         {tab==="invoicing"&&<InvoicingTab canInvoice={canInvoice} canEdit={canEdit}/>}
         {tab==="automations"&&<AutoTab/>}
-        {tab==="onboarding"&&<OnboardingTab/>}
+        {tab==="onboarding"&&<OnboardingTab onRefresh={()=>icbos.onboarding.refetch()}/>}
         {tab==="capacity"&&<CapTab/>}
         {tab==="team"&&<TeamTab webhookSecret={import.meta.env.VITE_VAPI_WEBHOOK_SECRET}/>}
         {tab==="profitability"&&<ProfitabilityTab/>}
