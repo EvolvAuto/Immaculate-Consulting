@@ -3355,6 +3355,7 @@ export default function ICBOS() {
         {tab==="proposal"&&<ProposalTab/>}
         {tab==="salesprep"&&<SalesPrepTab/>}
         {tab==="tasks"&&<TasksView onShowForm={()=>setShowForm("task")} canEdit={canEdit}/>}
+        {tab==="comms"&&<CommsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
 {showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
