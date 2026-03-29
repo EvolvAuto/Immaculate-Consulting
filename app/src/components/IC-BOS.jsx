@@ -765,8 +765,7 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
   const handleExport = () => {
     const rows = [["Invoice","Client","Type","Amount","Usage","Total","Status","Issued","Due"]];
     filtered.forEach(i => rows.push([i.id, i.client, i.type, i.amount, i.usageCost, i.total, i.status, i.issued, i.due]));
-    const csv = rows.map(r => r.map(v => `"${v ?? ""}"`).join(",")).join("
-");
+    const csv = rows.map(r => r.map(v => `"${String(v ?? "")}"`).join(",")).join("\n");
     const a = document.createElement("a");
     a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
     a.download = `invoices-${kpiMonth}.csv`;
