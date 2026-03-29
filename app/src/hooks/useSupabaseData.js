@@ -109,7 +109,7 @@ export const useOverview = () => {
       // Open (incomplete) critical/high priority tasks
       supabase
         .from('tasks')
-        .select('id, text, priority, due, category')
+        .select('id, text, priority, due_date, category')
         .eq('completed', false)
         .in('priority', ['Critical', 'High'])
         .order('priority')
@@ -191,7 +191,7 @@ export const usePipeline = () => {
         .from('pipeline_deals')
         .select(`
           id, practice_name, specialty, ehr, stage, tier,
-          estimated_value, close_probability, contact_name, contact_email, contact_phone,
+          estimated_value, close_probability, contact_name, contact_title,
           next_action, next_action_date, days_in_stage, stage_entered_at,
           providers, payer_mix, no_show_baseline,
           ehr_difficulty, ehr_timeline, ehr_notes,
@@ -822,8 +822,8 @@ export const useSalesPrep = () => {
         .from('pipeline_deals')
         .select(`
           id, practice_name, specialty, ehr, stage, tier,
-          estimated_value, close_probability, contact_name, contact_email, contact_phone,
-          next_action, next_action_date, providers,
+          estimated_value, close_probability, contact_name, contact_title,
+          contact_email, next_action, next_action_date, providers,
           payer_mix, no_show_baseline, ehr_difficulty, ehr_timeline,
           ehr_notes, notes
         `)
@@ -852,7 +852,7 @@ export const useTasks = () => {
   const fetchTasks = useCallback(async () => {
     const { data: rows, error: err } = await supabase
       .from('tasks')
-      .select('id, text, due, priority, category, completed, assigned_to, created_at')
+      .select('id, text, due_date, priority, category, completed, assigned_to, created_at')
       .eq('completed', false) // Default view: open tasks only
       .order('priority') // Critical → High → Medium → Low
       .order('due');
@@ -908,7 +908,7 @@ export const useTasks = () => {
   const addTask = useCallback(async (taskData) => {
     const { data: newTask, error: err } = await supabase
       .from('tasks')
-      .insert([{ ...taskData, completed: false }])
+      .insert([{ text: taskData.text, due_date: taskData.due || taskData.due_date || null, priority: taskData.priority, category: taskData.category, completed: false }])
       .select()
       .single();
 
@@ -937,11 +937,11 @@ export const useCommunications = (clientId = null) => {
       let query = supabase
         .from('communications')
         .select(`
-          id, date, type, note, created_at,
+          id, comm_date, type, subject, note, created_at,
           clients ( id, name ),
           users   ( id, full_name )
         `)
-        .order('date', { ascending: false })
+        .order('comm_date', { ascending: false })
         .limit(100);
 
       if (clientId) query = query.eq('client_id', clientId);
@@ -970,7 +970,7 @@ export const useLogCommunication = () => {
 
     const { data, error } = await supabase
       .from('communications')
-      .insert([{ ...commData, user_id: user?.id }])
+      .insert([{ client_id: commData.client_id, comm_date: commData.comm_date || commData.date || new Date().toISOString().split('T')[0], type: commData.type, note: commData.note, user_id: user?.id }])
       .select()
       .single();
 
