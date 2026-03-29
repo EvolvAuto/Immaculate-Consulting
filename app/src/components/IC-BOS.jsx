@@ -585,7 +585,7 @@ function ClientsTab({ onShowForm, onEditClient, canEdit = true, onDeleted }) {
 
           return (
            <div key={c.id} style={{ background: isAtRisk?"#fef2f2":"#ffffff", border:`1px solid ${isAtRisk?"#fca5a5":"#e5e7eb"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
-              {canEdit && onEditClient && <button onClick={()=>onEditClient(c)} style={{ position:"absolute", top:10, right:10, fontSize:9.5, color:"#6b7280", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:5, padding:"2px 8px", cursor:"pointer", zIndex:1 }}>Edit</button>}
+              
               {/* Top row */}
               <div style={{ display:"grid", gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1fr auto", gap:8, alignItems:"center", fontSize:12 }}>
                <div>
@@ -619,8 +619,9 @@ function ClientsTab({ onShowForm, onEditClient, canEdit = true, onDeleted }) {
                 </div>
                 <span style={{ fontFamily:M, color:"#111827" }}>${c.monthlyFee.toLocaleString()}</span>
                 <span style={{ fontSize:10.5, color:"#374151" }}>{c.nextMilestone}</span>
-                {/* Analyze + Report buttons */}
+                {/* Analyze + Report + Edit buttons */}
                 <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
+                  {canEdit && onEditClient && <button onClick={()=>onEditClient(c)} style={{ fontSize:9.5, color:"#6b7280", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:5, padding:"2px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>Edit</button>}
                   {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
                   {as==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Running...</span>}
                   {as==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
