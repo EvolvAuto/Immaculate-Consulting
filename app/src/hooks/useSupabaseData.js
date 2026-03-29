@@ -191,7 +191,7 @@ export const usePipeline = () => {
         .from('pipeline_deals')
         .select(`
           id, practice_name, specialty, ehr, stage, tier,
-          estimated_value, close_probability, contact_name, contact_title,
+          estimated_value, close_probability, contact_name, contact_email, contact_phone,
           next_action, next_action_date, days_in_stage, stage_entered_at,
           providers, payer_mix, no_show_baseline,
           ehr_difficulty, ehr_timeline, ehr_notes,
@@ -822,8 +822,8 @@ export const useSalesPrep = () => {
         .from('pipeline_deals')
         .select(`
           id, practice_name, specialty, ehr, stage, tier,
-          estimated_value, close_probability, contact_name, contact_title,
-          contact_email, next_action, next_action_date, providers,
+          estimated_value, close_probability, contact_name, contact_email, contact_phone,
+          next_action, next_action_date, providers,
           payer_mix, no_show_baseline, ehr_difficulty, ehr_timeline,
           ehr_notes, notes
         `)
