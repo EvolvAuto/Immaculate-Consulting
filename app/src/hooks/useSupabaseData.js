@@ -113,14 +113,14 @@ export const useOverview = () => {
         .eq('completed', false)
         .in('priority', ['Critical', 'High'])
         .order('priority')
-        .order('due')
+        .order('due_date')
         .limit(5),
 
       // Active pipeline deal count + value
       supabase
         .from('pipeline_deals')
         .select('id, estimated_value, stage')
-        .not('stage', 'in', '("Closed Won","Closed Lost")'),
+        .neq('stage', 'Closed Won').neq('stage', 'Closed Lost'),
     ]);
 
     // Propagate the first error encountered
@@ -191,7 +191,7 @@ export const usePipeline = () => {
         .from('pipeline_deals')
         .select(`
           id, practice_name, specialty, ehr, stage, tier,
-          estimated_value, close_probability, contact_name, contact_title,
+          estimated_value, close_probability, contact_name, contact_email, contact_phone,
           next_action, next_action_date, days_in_stage, stage_entered_at,
           providers, payer_mix, no_show_baseline,
           ehr_difficulty, ehr_timeline, ehr_notes,
@@ -778,7 +778,7 @@ export const useProposalTargets = () => {
         supabase
           .from('pipeline_deals')
           .select('id, practice_name, specialty, ehr, tier, providers, contact_name, contact_email')
-          .not('stage', 'in', '("Closed Won","Closed Lost")')
+          .in('stage', ['Cold', 'Discovery', 'Proposal', 'Negotiation'])
           .order('practice_name'),
 
         supabase
@@ -822,12 +822,12 @@ export const useSalesPrep = () => {
         .from('pipeline_deals')
         .select(`
           id, practice_name, specialty, ehr, stage, tier,
-          estimated_value, close_probability, contact_name, contact_title,
-          contact_email, next_action, next_action_date, providers,
+          estimated_value, close_probability, contact_name, contact_email, contact_phone,
+          next_action, next_action_date, providers,
           payer_mix, no_show_baseline, ehr_difficulty, ehr_timeline,
           ehr_notes, notes
         `)
-        .not('stage', 'in', '("Closed Won","Closed Lost")')
+        .in('stage', ['Cold', 'Discovery', 'Proposal', 'Negotiation'])
         .order('next_action_date'),
     [],
     []
@@ -855,7 +855,7 @@ export const useTasks = () => {
       .select('id, text, due_date, priority, category, completed, assigned_to, created_at')
       .eq('completed', false) // Default view: open tasks only
       .order('priority') // Critical → High → Medium → Low
-      .order('due');
+      .order('due_date');
 
     if (err) {
       logQueryError('fetchTasks', err);
@@ -908,7 +908,7 @@ export const useTasks = () => {
   const addTask = useCallback(async (taskData) => {
     const { data: newTask, error: err } = await supabase
       .from('tasks')
-      .insert([{ text: taskData.text, due_date: taskData.due || taskData.due_date || null, priority: taskData.priority, category: taskData.category, completed: false }])
+      .insert([{ ...taskData, completed: false }])
       .select()
       .single();
 
@@ -970,7 +970,7 @@ export const useLogCommunication = () => {
 
     const { data, error } = await supabase
       .from('communications')
-      .insert([{ client_id: commData.client_id, comm_date: commData.comm_date || commData.date || new Date().toISOString().split('T')[0], type: commData.type, note: commData.note, user_id: user?.id }])
+      .insert([{ ...commData, user_id: user?.id }])
       .select()
       .single();
 
