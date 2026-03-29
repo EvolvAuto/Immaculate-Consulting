@@ -378,7 +378,7 @@ const handleGenerateOutreach = async (deal) => {
 // FEATURE TABS
 // ═══════════════════════════════════════════════════════════════════════
 // CLIENTS TAB (with Agent 5 inline UI)
-function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
+function ClientsTab({ onShowForm, onEditClient, canEdit = true, onDeleted }) {
   const { CLIENTS } = useData();
   const [analyzeStates, setAnalyzeStates] = useState({});
   const [analyzeResults, setAnalyzeResults] = useState({});
@@ -585,7 +585,7 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
 
           return (
            <div key={c.id} style={{ background: isAtRisk?"#fef2f2":"#ffffff", border:`1px solid ${isAtRisk?"#fca5a5":"#e5e7eb"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
-              {canEdit && <button onClick={()=>setShowForm({type:"edit-client",client:c})} style={{ position:"absolute", top:10, right:36, fontSize:9.5, color:"#6b7280", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:5, padding:"2px 8px", cursor:"pointer" }}>Edit</button>}
+              {canEdit && onEditClient && <button onClick={()=>onEditClient(c)} style={{ position:"absolute", top:10, right:10, fontSize:9.5, color:"#6b7280", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:5, padding:"2px 8px", cursor:"pointer", zIndex:1 }}>Edit</button>}
               {/* Top row */}
               <div style={{ display:"grid", gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1fr auto", gap:8, alignItems:"center", fontSize:12 }}>
                <div>
@@ -3736,7 +3736,7 @@ export default function ICBOS() {
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
        {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})} onViewDeal={(deal)=>setShowForm({type:"deal-detail",deal})}/></>}
-      {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} canEdit={canEdit} onDeleted={()=>icbos.clients.refetch()}/>}
+      {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onEditClient={canEdit?(c)=>setShowForm({type:"edit-client",client:c}):null} canEdit={canEdit} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -3777,18 +3777,62 @@ export default function ICBOS() {
         </div>
         <button onClick={()=>setShowForm(null)} style={{ fontSize:18, color:"#6b7280", background:"none", border:"none", cursor:"pointer" }}>x</button>
       </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-        {[["Value","$"+showForm.deal.value.toLocaleString()+"/mo"],["Stage",showForm.deal.stage],["Tier","T"+showForm.deal.tier],["Providers",showForm.deal.providers],["EHR",showForm.deal.ehr],["Days in Stage",showForm.deal.daysInStage+"d"],["Close Probability",(showForm.deal.closeProbability||"--")+"%"],["No-Show Baseline",Math.round((showForm.deal.noShowBaseline||0)*100)+"%"]].map(([l,v])=>(
-          <div key={l} style={{ background:"#f9fafb", borderRadius:7, padding:"10px 12px" }}>
-            <div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:M, marginBottom:3 }}>{l}</div>
-            <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{v}</div>
+      {(()=>{
+        const d = showForm.deal;
+        const [f,setF] = React.useState({ next_action: d.nextAction||"", close_probability: d.closeProbability||"", value: d.value||0, contact: d.contact||"", ehr_notes: d.ehrNotes||"" });
+        const [saving,setSaving] = React.useState(false);
+        const [saved,setSaved] = React.useState(false);
+        const [err,setErr] = React.useState(null);
+        const handleSave = async () => {
+          if (!d.supabase_id) { setErr("Mock data — connect live Supabase data first"); return; }
+          setSaving(true); setErr(null);
+          const { error } = await supabase.from("pipeline_deals").update({
+            next_action: f.next_action||null,
+            close_probability: f.close_probability ? Number(f.close_probability) : null,
+            value: Number(f.value),
+            contact_name: f.contact||null,
+            ehr_notes: f.ehr_notes||null,
+          }).eq("id", d.supabase_id);
+          setSaving(false);
+          if (error) { setErr(error.message); } else { setSaved(true); setTimeout(()=>{ setShowForm(null); icbos.pipeline.refetch(); }, 900); }
+        };
+        const inp = (label,key,type="text",hint)=>(
+          <div>
+            <div style={{ fontSize:10, fontWeight:600, color:"#6b7280", marginBottom:4, textTransform:"uppercase", fontFamily:M }}>{label}{hint&&<span style={{ fontSize:9, color:"#9ca3af", marginLeft:5, fontWeight:400 }}>{hint}</span>}</div>
+            <input type={type} value={f[key]||""} onChange={e=>setF(p=>({...p,[key]:e.target.value}))} style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:13, background:"#f9fafb", color:"#111827", outline:"none", boxSizing:"border-box" }}/>
           </div>
-        ))}
-      </div>
-      {showForm.deal.contact&&<div style={{ background:"#f9fafb", borderRadius:7, padding:"10px 12px" }}><div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:M, marginBottom:3 }}>Contact</div><div style={{ fontSize:13, color:"#111827" }}>{showForm.deal.contact}</div></div>}
-      {showForm.deal.nextAction&&<div style={{ background:"#f9fafb", borderRadius:7, padding:"10px 12px" }}><div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:M, marginBottom:3 }}>Next Action</div><div style={{ fontSize:13, color:"#111827" }}>{showForm.deal.nextAction}</div></div>}
-      {showForm.deal.ehrNotes&&<div style={{ background:"#f9fafb", borderRadius:7, padding:"10px 12px" }}><div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:M, marginBottom:3 }}>EHR Notes</div><div style={{ fontSize:12, color:"#374151" }}>{showForm.deal.ehrNotes}</div></div>}
-      {showForm.deal.stage==="closed-won"&&<button onClick={()=>setShowForm({type:"client",prefill:showForm.deal})} style={{ padding:"10px 0", borderRadius:7, border:"1px solid #16a34a", background:"#f0fdf4", color:"#15803d", fontWeight:700, fontSize:12, cursor:"pointer" }}>+ Convert to Active Client</button>}
+        );
+        return (
+          <>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              {[["Value","$"+d.value.toLocaleString()+"/mo"],["Stage",d.stage],["Tier","T"+d.tier],["EHR",d.ehr],["Days in Stage",d.daysInStage+"d"],["Providers",d.providers]].map(([l,v])=>(
+                <div key={l} style={{ background:"#f9fafb", borderRadius:7, padding:"10px 12px" }}>
+                  <div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:M, marginBottom:3 }}>{l}</div>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ borderTop:"1px solid #e5e7eb", paddingTop:14 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#111827", marginBottom:12 }}>Edit Deal</div>
+              {inp("Monthly Value ($)","value","number")}
+              {inp("Next Action","next_action","text")}
+              {inp("Contact Name","contact","text")}
+              {inp("Close Probability","close_probability","number","0-100")}
+              <div>
+                <div style={{ fontSize:10, fontWeight:600, color:"#6b7280", marginBottom:4, textTransform:"uppercase", fontFamily:M }}>EHR Notes</div>
+                <textarea value={f.ehr_notes} onChange={e=>setF(p=>({...p,ehr_notes:e.target.value}))} rows={3} style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:13, background:"#f9fafb", color:"#111827", outline:"none", resize:"vertical", boxSizing:"border-box" }}/>
+              </div>
+              {err&&<div style={{ fontSize:11, color:"#f87171", background:"rgba(248,113,113,0.08)", borderRadius:6, padding:"8px 10px" }}>{err}</div>}
+              {saved&&<div style={{ fontSize:12, color:"#15803d", textAlign:"center" }}>Saved</div>}
+              <div style={{ display:"flex", gap:8, marginTop:4 }}>
+                <button onClick={()=>setShowForm(null)} style={{ flex:1, padding:"9px 0", borderRadius:6, border:"1px solid #d1d5db", background:"#f9fafb", color:"#6b7280", cursor:"pointer", fontSize:12 }}>Cancel</button>
+                <button onClick={handleSave} disabled={saving} style={{ flex:2, padding:"9px 0", borderRadius:6, border:"none", background:"#374151", color:"#ffffff", cursor:"pointer", fontSize:12, fontWeight:700, opacity:saving?0.6:1 }}>{saving?"Saving...":"Save Changes"}</button>
+              </div>
+            </div>
+            {d.stage==="closed-won"&&<div style={{ borderTop:"1px solid #e5e7eb", paddingTop:14 }}><button onClick={()=>setShowForm({type:"client",prefill:showForm.deal})} style={{ width:"100%", padding:"10px 0", borderRadius:7, border:"1px solid #16a34a", background:"#f0fdf4", color:"#15803d", fontWeight:700, fontSize:12, cursor:"pointer" }}>+ Convert to Active Client</button></div>}
+          </>
+        );
+      })()}
     </div>
   </div>
 )}
