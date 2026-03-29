@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from "react";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import VapiAssistant from "./VapiAssistant";
 import { AddClientPanel, AddDealPanel, AddTaskPanel, AddInvoicePanel, AddCommPanel, AddOnboardingPanel } from "./ICBOSForms";
 import AgentsTab from "./AgentsTab";
@@ -135,7 +138,28 @@ function RevChart({ data }) {
     </div>
   );
 }
-
+// ─── SortableDealCard ─────────────────────────────────────────────────────────
+// Thin wrapper that gives each deal card drag handles via @dnd-kit/sortable.
+// All existing card content is passed through as children.
+function SortableDealCard({ id, children }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+        cursor: "grab",
+        touchAction: "none",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
 function PipelineBoard({ canEdit = true, onRefresh, onConvert, onViewDeal }) {
   const { PIPELINE } = useData();
   const [proposalStates, setProposalStates] = useState({});
@@ -245,18 +269,35 @@ const handleGenerateOutreach = async (deal) => {
       setOutreachStates(prev => ({ ...prev, [deal.id]: "error" }));
     }
   };
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    // over.id is the stage key when dropped on a column — move deal to that stage
+    const deal = PIPELINE.find(d => d.id === active.id);
+    if (!deal || !deal.supabase_id) return;
+    const newStageUI = over.id;
+    if (!STAGES.includes(newStageUI)) return;
+    const STAGE_TO_DB = { "cold":"Cold","discovery":"Discovery","proposal":"Proposal","negotiation":"Negotiation","closed-won":"Closed Won" };
+    const newStageDB = STAGE_TO_DB[newStageUI];
+    await supabase.from("pipeline_deals").update({ stage: newStageDB, days_in_stage: 0, stage_entered_at: new Date().toISOString() }).eq("id", deal.supabase_id);
+    if (onRefresh) onRefresh();
+  };
+
   return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
     <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:8 }}>
       {STAGES.map(stg=>{
         const deals=PIPELINE.filter(d=>d.stage===stg); const c=STAGE_COLORS[stg];
-        return (<div key={stg} style={{ minWidth:185, flex:"1 0 185px" }}>
+        return (<div key={stg} id={stg} style={{ minWidth:185, flex:"1 0 185px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:6, padding:"0 2px" }}>
             <span style={{ width:6, height:6, borderRadius:"50%", background:c.dot }}/><span style={{ fontSize:10, fontWeight:600, color:c.text, textTransform:"uppercase", letterSpacing:"0.05em", fontFamily:M }}>{STAGE_LABELS[stg]}</span>
             <span style={{ fontSize:9, color:"#6b7280", marginLeft:"auto", fontFamily:M }}>${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}</span>
           </div>
           {deals.map(d=>{
             const ps = proposalStates[d.id];
-            return (<div key={d.id} style={{ background:c.bg, border:`1px solid ${c.border}40`, borderRadius:9, padding:"10px 12px", marginBottom:6, position:"relative" }}>
+            return (<SortableDealCard key={d.id} id={d.id}><div style={{ background:c.bg, border:`1px solid ${c.border}40`, borderRadius:9, padding:"10px 12px", marginBottom:6, position:"relative" }}>
               {canEdit && (
                 <button
                   onClick={() => handleDeleteDeal(d)}
@@ -367,11 +408,12 @@ const handleGenerateOutreach = async (deal) => {
                   </div>
                 )}
               </div>
-            </div>);
+           </div></SortableDealCard>);
           })}
         </div>);
       })}
     </div>
+    </DndContext>
   );
 }
 // ═══════════════════════════════════════════════════════════════════════
@@ -1071,7 +1113,10 @@ function OnboardingTab({ onRefresh, canEdit = true }) {
                 return (
                   <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:"1px solid #f0f0f0" }}>
                     <div style={{ width:8, height:8, borderRadius:"50%", flexShrink:0, background:isDone?"#4ade80":isActive?"#fbbf24":"#4b5563" }}/>
-                  <span style={{ flex:1, fontSize:11, color:isDone?"#6b7280":isActive?"#111827":"#9ca3af", fontWeight:isActive?600:400 }}>{ph.name}{ph.target_date&&<span style={{ fontSize:9, color:"#9ca3af", marginLeft:5, fontFamily:M }}>{ph.target_date}</span>}</span>
+                 <div style={{ flex:1 }}>
+                      <span style={{ fontSize:11, color:isDone?"#6b7280":isActive?"#111827":"#9ca3af", fontWeight:isActive?600:400 }}>{ph.name}</span>
+                      {ph.target_date && <span style={{ fontSize:9, color:"#9ca3af", marginLeft:6, fontFamily:M }}>{ph.target_date}</span>}
+                    </div>
                     <div style={{ width:80, height:5, borderRadius:3, background:"#e5e7eb", overflow:"hidden" }}>
                       <div style={{ height:"100%", borderRadius:3, background:isDone?"#4ade80":isActive?"#fbbf24":"transparent", width:isDone?"100%":isActive?"50%":"0%" }}/>
                     </div>
@@ -1124,6 +1169,19 @@ function OnboardingTab({ onRefresh, canEdit = true }) {
                       </button>
                     )}
                     {!isDone && !isActive && <span style={{ fontSize:9, fontWeight:600, color:"#9ca3af", background:"#f9fafb", padding:"2px 7px", borderRadius:4, fontFamily:M }}>Upcoming</span>}
+                    {!isDone && canEdit && (
+                      <input
+                        type="date"
+                        defaultValue={ph.target_date || ""}
+                        title="Set target date"
+                        onChange={async e => {
+                          const updated = proj.phases.map((p,j) => j===i ? {...p, target_date: e.target.value} : p);
+                          await supabase.from("onboarding_projects").update({ phases: updated }).eq("id", proj.id);
+                          if (onRefresh) onRefresh();
+                        }}
+                        style={{ fontSize:9, border:"1px solid #d1d5db", borderRadius:4, padding:"2px 5px", color:"#374151", background:"#f9fafb", cursor:"pointer", fontFamily:"inherit", width:105 }}
+                      />
+                    )}
                   </div>
                 );
               })}
