@@ -378,7 +378,7 @@ const handleGenerateOutreach = async (deal) => {
 // FEATURE TABS
 // ═══════════════════════════════════════════════════════════════════════
 // CLIENTS TAB (with Agent 5 inline UI)
-function ClientsTab({ onShowForm, onEditClient, canEdit = true, onDeleted }) {
+function ClientsTab({ onShowForm, onEditClient, onViewClient, canEdit = true, onDeleted }) {
   const { CLIENTS } = useData();
   const [analyzeStates, setAnalyzeStates] = useState({});
   const [analyzeResults, setAnalyzeResults] = useState({});
@@ -619,9 +619,10 @@ function ClientsTab({ onShowForm, onEditClient, canEdit = true, onDeleted }) {
                 </div>
                 <span style={{ fontFamily:M, color:"#111827" }}>${c.monthlyFee.toLocaleString()}</span>
                 <span style={{ fontSize:10.5, color:"#374151" }}>{c.nextMilestone}</span>
-                {/* Analyze + Report + Edit buttons */}
+                {/* Analyze + Report + Edit + View buttons */}
                 <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
                   {canEdit && onEditClient && <button onClick={()=>onEditClient(c)} style={{ fontSize:9.5, color:"#6b7280", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:5, padding:"2px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>Edit</button>}
+                  {onViewClient && <button onClick={()=>onViewClient(c)} style={{ fontSize:9.5, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:5, padding:"2px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>View</button>}
                   {(!as||as===null)&&canEdit&&<button onClick={()=>handleAnalyze(c)} style={{ fontSize:9.5, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Analyze</button>}
                   {as==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Running...</span>}
                   {as==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
@@ -3356,6 +3357,126 @@ function TasksView({ onShowForm, canEdit }) {
 // ═══════════════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════════════
+// ─── ClientDetailPanel ───────────────────────────────────────────────────────
+function ClientDetailPanel({ client, onClose }) {
+  const { COMMS, INVOICES, ONBOARDING } = useData();
+  const M = "ui-monospace,SFMono-Regular,Menlo,monospace";
+
+  const clientComms = COMMS.filter(c => c.client === client.name)
+    .sort((a,b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 8);
+
+  const clientInvoices = INVOICES.filter(i => i.client === client.name)
+    .sort((a,b) => new Date(b.issued) - new Date(a.issued))
+    .slice(0, 6);
+
+  const clientOnboarding = ONBOARDING.find(o => o.client === client.name);
+
+  const roi = calcClientROI(client);
+
+  const sc = client.healthScore >= 90 ? "#4ade80" : client.healthScore >= 70 ? "#fbbf24" : "#f87171";
+
+  const typeColor = { call:"#38bdf8", email:"#a78bfa", meeting:"#fbbf24", note:"#94a3b8" };
+
+  const statusColor = { paid:"#4ade80", pending:"#fbbf24", overdue:"#f87171" };
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)", display:"flex", justifyContent:"flex-end" }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ width:560, height:"100vh", overflowY:"auto", background:"#ffffff", borderLeft:"1px solid #e5e7eb", padding:"24px", display:"flex", flexDirection:"column", gap:18, animation:"slideIn 0.25s ease both" }}>
+
+        {/* Header */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+          <div>
+            <div style={{ fontSize:17, fontWeight:700, color:"#111827" }}>{client.name}</div>
+            <div style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>T{client.tier} · {client.ehr} · {client.status}</div>
+          </div>
+          <button onClick={onClose} style={{ fontSize:18, color:"#6b7280", background:"none", border:"none", cursor:"pointer", flexShrink:0 }}>x</button>
+        </div>
+
+        {/* KPI row */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8 }}>
+          {[
+            ["Health", client.healthScore, sc, ""],
+            ["MRR", "$"+client.monthlyFee.toLocaleString(), "#111827", ""],
+            ["ROI to Date", "$"+Math.round(roi.totalToDate).toLocaleString(), "#4ade80", ""],
+            ["No-Show", client.noShowCurrent+"%", "#111827", "from "+client.noShowBefore+"%"],
+          ].map(([l,v,c,sub])=>(
+            <div key={l} style={{ background:"#f9fafb", borderRadius:8, padding:"10px 12px", textAlign:"center" }}>
+              <div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:M, marginBottom:3 }}>{l}</div>
+              <div style={{ fontSize:16, fontWeight:800, color:c, fontFamily:M }}>{v}</div>
+              {sub && <div style={{ fontSize:9, color:"#9ca3af", marginTop:1 }}>{sub}</div>}
+            </div>
+          ))}
+        </div>
+
+        {/* Onboarding status */}
+        {clientOnboarding && (
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, color:"#111827", marginBottom:8 }}>Onboarding</div>
+            <div style={{ display:"flex", gap:4, marginBottom:6 }}>
+              {clientOnboarding.phases.map((ph,i) => {
+                const done = ["complete","Complete"].includes(ph.status);
+                const active = ["in-progress","In Progress"].includes(ph.status);
+                return (
+                  <div key={i} style={{ flex:1 }}>
+                    <div style={{ height:5, borderRadius:3, background:done?"#4ade80":active?"#fbbf24":"#e5e7eb", marginBottom:3 }}/>
+                    <div style={{ fontSize:8, color:done?"#4ade80":active?"#fbbf24":"#9ca3af", textAlign:"center", fontFamily:M, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{ph.name}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ fontSize:10, color:"#6b7280" }}>
+              Go-live: <span style={{ fontWeight:600, color:"#111827" }}>{clientOnboarding.targetGoLive}</span>
+              {clientOnboarding.daysToGoLive > 0 && <span style={{ color:"#fbbf24", marginLeft:6 }}>{clientOnboarding.daysToGoLive}d remaining</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Recent invoices */}
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:"#111827", marginBottom:8 }}>Invoices</div>
+          {clientInvoices.length === 0
+            ? <div style={{ fontSize:11, color:"#9ca3af" }}>No invoices found</div>
+            : clientInvoices.map((inv,i) => (
+              <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom:"1px solid #f0f0f0" }}>
+                <div>
+                  <div style={{ fontSize:11, fontWeight:600, color:"#111827" }}>{inv.label || inv.type || "Invoice"}</div>
+                  <div style={{ fontSize:10, color:"#6b7280" }}>Issued {inv.issued}{inv.due ? " · Due "+inv.due : ""}</div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:12, fontWeight:700, color:"#111827", fontFamily:M }}>${inv.total.toLocaleString()}</span>
+                  <span style={{ fontSize:9, fontWeight:600, color:statusColor[inv.status]||"#9ca3af", background:"rgba(0,0,0,0.04)", padding:"2px 7px", borderRadius:4, fontFamily:M, textTransform:"uppercase" }}>{inv.status}</span>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+        {/* Comms history */}
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, color:"#111827", marginBottom:8 }}>Communication History</div>
+          {clientComms.length === 0
+            ? <div style={{ fontSize:11, color:"#9ca3af" }}>No communications logged</div>
+            : clientComms.map((comm,i) => (
+              <div key={i} style={{ display:"flex", gap:10, padding:"8px 0", borderBottom:"1px solid #f0f0f0" }}>
+                <div style={{ width:6, height:6, borderRadius:"50%", background:typeColor[comm.type]||"#94a3b8", flexShrink:0, marginTop:4 }}/>
+                <div style={{ flex:1 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:2 }}>
+                    <span style={{ fontSize:10, fontWeight:600, color:typeColor[comm.type]||"#374151", textTransform:"capitalize", fontFamily:M }}>{comm.type}</span>
+                    <span style={{ fontSize:9, color:"#9ca3af" }}>{comm.date}</span>
+                  </div>
+                  <div style={{ fontSize:11, color:"#374151", lineHeight:1.5 }}>{comm.note}</div>
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+      </div>
+    </div>
+  );
+}
 // ─── DealDetailPanel ─────────────────────────────────────────────────────────
 function DealDetailPanel({ deal, onClose, onConverted, onSaved }) {
   const M = "ui-monospace,SFMono-Regular,Menlo,monospace";
@@ -3903,7 +4024,7 @@ export default function ICBOS() {
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
        {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})} onViewDeal={(deal)=>setShowForm({type:"deal-detail",deal})}/></>}
-      {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onEditClient={canEdit?(c)=>setShowForm({type:"edit-client",client:c}):null} canEdit={canEdit} onDeleted={()=>icbos.clients.refetch()}/>}
+      {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onEditClient={canEdit?(c)=>setShowForm({type:"edit-client",client:c}):null} onViewClient={(c)=>setShowForm({type:"client-detail",client:c})} canEdit={canEdit} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
@@ -3942,6 +4063,12 @@ export default function ICBOS() {
     onConverted={()=>setShowForm({type:"client", prefill:showForm.deal})}
   />
 )}
+    {showForm?.type==="client-detail" && (
+  <ClientDetailPanel
+    client={showForm.client}
+    onClose={()=>setShowForm(null)}
+  />
+)} 
       {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.pipeline.refetch(); }}/>}
       {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.tasks.refetch(); }}/>}
       {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.invoices.refetch(); icbos.financials.refetch(); }}/>}
