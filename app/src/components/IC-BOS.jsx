@@ -136,7 +136,7 @@ function RevChart({ data }) {
   );
 }
 
-function PipelineBoard({ canEdit = true, onRefresh }) {
+function PipelineBoard({ canEdit = true, onRefresh, onConvert, onViewDeal }) {
   const { PIPELINE } = useData();
   const [proposalStates, setProposalStates] = useState({});
   const [outreachStates, setOutreachStates] = useState({});
@@ -267,7 +267,7 @@ const handleGenerateOutreach = async (deal) => {
                   {deleteLoading===d.id ? "…" : deleteConfirm===d.id ? "!" : "×"}
                 </button>
               )}
-              <div style={{ fontSize:12, fontWeight:600, color:"#111827", paddingRight: canEdit ? 20 : 0 }}>{d.practice}</div>
+             <div onClick={() => onViewDeal && onViewDeal(d)} style={{ fontSize:12, fontWeight:600, color:"#111827", paddingRight: canEdit ? 20 : 0, cursor: onViewDeal ? "pointer" : "default", textDecoration: onViewDeal ? "underline" : "none", textDecorationColor:"#d1d5db" }}>{d.practice}</div>
               <div style={{ fontSize:10, color:"#374151", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
                 <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
@@ -306,6 +306,81 @@ const handleGenerateOutreach = async (deal) => {
                   )}
                 </div>
               )}
+
+              {/* Convert to Client — closed-won only */}
+              {d.stage === "closed-won" && canEdit && onConvert && (
+                <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
+                  <button
+                    onClick={() => onConvert(d)}
+                    style={{ width:"100%", padding:"7px 0", borderRadius:6, border:"1px solid #16a34a", background:"#f0fdf4", color:"#15803d", cursor:"pointer", fontSize:10.5, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}
+                  >
+                    ✓ Convert to Active Client
+                  </button>
+                </div>
+              )}
+```
+
+**Line 3716** — replace:
+```
+<PipelineBoard onRefresh={()=>icbos.pipeline.refetch()}/>
+```
+with:
+```
+<PipelineBoard onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})} onViewDeal={(deal)=>setShowForm({type:"deal-detail",deal})}/>
+```
+
+**Line 3721** — replace:
+```
+<PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/>
+```
+with:
+```
+<PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})} onViewDeal={(deal)=>setShowForm({type:"deal-detail",deal})}/>
+```
+
+**Line 3752** — replace:
+```
+{showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
+```
+with:
+```
+{(showForm==="client"||showForm?.type==="client")&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} initialData={showForm?.prefill||null} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
+{showForm?.type==="deal-detail"&&(
+  <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)", display:"flex", justifyContent:"flex-end" }} onClick={e=>e.target===e.currentTarget&&setShowForm(null)}>
+    <div style={{ width:480, height:"100vh", overflowY:"auto", background:"#ffffff", borderLeft:"1px solid #e5e7eb", padding:"24px", display:"flex", flexDirection:"column", gap:14, animation:"slideIn 0.25s ease both" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div><div style={{ fontSize:16, fontWeight:700, color:"#111827" }}>{showForm.deal.practice}</div><div style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>{showForm.deal.specialty} · {showForm.deal.ehr}</div></div>
+        <button onClick={()=>setShowForm(null)} style={{ fontSize:18, color:"#6b7280", background:"none", border:"none", cursor:"pointer" }}>✕</button>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        {[["Value",`$${showForm.deal.value.toLocaleString()}/mo`],["Stage",showForm.deal.stage],["Tier",`T${showForm.deal.tier}`],["Providers",showForm.deal.providers],["EHR",showForm.deal.ehr],["Days in Stage",`${showForm.deal.daysInStage}d`],["Close Probability",`${showForm.deal.closeProbability||"—"}%`],["No-Show Baseline",`${Math.round((showForm.deal.noShowBaseline||0)*100)}%`]].map(([l,v])=>(
+          <div key={l} style={{ background:"#f9fafb", borderRadius:7, padding:"10px 12px" }}>
+            <div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:"var(--mono)", marginBottom:3 }}>{l}</div>
+            <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{v}</div>
+          </div>
+        ))}
+      </div>
+      {showForm.deal.contact&&<div style={{ background:"#f9fafb", borderRadius:7, padding:"10px 12px" }}><div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:"var(--mono)", marginBottom:3 }}>Contact</div><div style={{ fontSize:13, color:"#111827" }}>{showForm.deal.contact}</div></div>}
+      {showForm.deal.nextAction&&<div style={{ background:"#f9fafb", borderRadius:7, padding:"10px 12px" }}><div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:"var(--mono)", marginBottom:3 }}>Next Action</div><div style={{ fontSize:13, color:"#111827" }}>{showForm.deal.nextAction}</div></div>}
+      {showForm.deal.ehrNotes&&<div style={{ background:"#f9fafb", borderRadius:7, padding:"10px 12px" }}><div style={{ fontSize:9, color:"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:"var(--mono)", marginBottom:3 }}>EHR Notes</div><div style={{ fontSize:12, color:"#374151" }}>{showForm.deal.ehrNotes}</div></div>}
+      {showForm.deal.stage==="closed-won"&&<button onClick={()=>setShowForm({type:"client",prefill:showForm.deal})} style={{ padding:"10px 0", borderRadius:7, border:"1px solid #16a34a", background:"#f0fdf4", color:"#15803d", fontWeight:700, fontSize:12, cursor:"pointer" }}>✓ Convert to Active Client</button>}
+    </div>
+  </div>
+)}
+```
+
+---
+
+## CHANGE 2 — Client edit inline
+
+**Line 577** — replace:
+```
+            <div key={c.id} style={{ background: isAtRisk?"#fef2f2":"#ffffff", border:`1px solid ${isAtRisk?"#fca5a5":"#e5e7eb"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
+```
+with:
+```
+            <div key={c.id} style={{ background: isAtRisk?"#fef2f2":"#ffffff", border:`1px solid ${isAtRisk?"#fca5a5":"#e5e7eb"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
+              {canEdit && <button onClick={()=>setShowForm({type:"edit-client",client:c})} style={{ position:"absolute", top:10, right:36, fontSize:9.5, color:"#6b7280", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:5, padding:"2px 8px", cursor:"pointer" }}>Edit</button>}
 
              {/* Agent 7 — Generate Outreach button (Cold stage only) */}
               {d.stage === "cold" && (
@@ -575,6 +650,7 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
 
           return (
             <div key={c.id} style={{ background: isAtRisk?"#fef2f2":"#ffffff", border:`1px solid ${isAtRisk?"#fca5a5":"#e5e7eb"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
+              {canEdit && <button onClick={()=>setShowForm({type:"edit-client",client:c})} style={{ position:"absolute", top:10, right:36, fontSize:9.5, color:"#6b7280", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:5, padding:"2px 8px", cursor:"pointer" }}>Edit</button>}
               {/* Top row */}
               <div style={{ display:"grid", gridTemplateColumns:"2fr .7fr .8fr .8fr .8fr 1fr auto", gap:8, alignItems:"center", fontSize:12 }}>
                <div>
@@ -3753,6 +3829,36 @@ export default function ICBOS() {
       {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.tasks.refetch(); }}/>}
       {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.invoices.refetch(); icbos.financials.refetch(); }}/>}
      {showForm==="onboarding"&&<AddOnboardingPanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.onboarding.refetch(); }}/>}
+     {showForm?.type==="edit-client"&&(
+  <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)", display:"flex", justifyContent:"flex-end" }} onClick={e=>e.target===e.currentTarget&&setShowForm(null)}>
+    <div style={{ width:440, height:"100vh", overflowY:"auto", background:"#ffffff", borderLeft:"1px solid #e5e7eb", padding:"24px", display:"flex", flexDirection:"column", gap:14, animation:"slideIn 0.25s ease both" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+        <div style={{ fontSize:16, fontWeight:700, color:"#111827" }}>Edit — {showForm.client.name}</div>
+        <button onClick={()=>setShowForm(null)} style={{ fontSize:18, color:"#6b7280", background:"none", border:"none", cursor:"pointer" }}>✕</button>
+      </div>
+      {(()=>{
+        const [f,setF] = React.useState({ health_score: showForm.client.healthScore, monthly_fee: showForm.client.monthlyFee, notes: showForm.client.notes||"", primary_contact: showForm.client.primaryContact||"", contact_email: showForm.client.contactEmail||"", renewal_date: showForm.client.renewalDate||"" });
+        const [saving,setSaving] = React.useState(false);
+        const [saved,setSaved] = React.useState(false);
+        const handleSave = async ()=>{ setSaving(true); const {error}=await supabase.from("clients").update({ health_score:Number(f.health_score), monthly_fee:Number(f.monthly_fee), notes:f.notes||null, primary_contact:f.primary_contact||null, contact_email:f.contact_email||null, renewal_date:f.renewal_date||null }).eq("id",showForm.client.id); setSaving(false); if(!error){setSaved(true);setTimeout(()=>{setShowForm(null);icbos.clients.refetch();},1000);} };
+        const inp = (label,key,type="text")=><div><div style={{fontSize:10,fontWeight:600,color:"#6b7280",marginBottom:4,textTransform:"uppercase",fontFamily:"var(--mono)"}}>{label}</div><input type={type} value={f[key]??""} onChange={e=>setF(p=>({...p,[key]:e.target.value}))} style={{width:"100%",padding:"8px 10px",borderRadius:6,border:"1px solid #d1d5db",fontSize:13,background:"#f9fafb",color:"#111827",outline:"none",boxSizing:"border-box"}}/></div>;
+        return (<>
+          {inp("Health Score (0-100)","health_score","number")}
+          {inp("Monthly Fee ($)","monthly_fee","number")}
+          {inp("Primary Contact","primary_contact")}
+          {inp("Contact Email","contact_email","email")}
+          {inp("Renewal Date","renewal_date","date")}
+          <div><div style={{fontSize:10,fontWeight:600,color:"#6b7280",marginBottom:4,textTransform:"uppercase",fontFamily:"var(--mono)"}}>Notes</div><textarea value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} style={{width:"100%",padding:"8px 10px",borderRadius:6,border:"1px solid #d1d5db",fontSize:13,background:"#f9fafb",color:"#111827",outline:"none",resize:"vertical",minHeight:80,boxSizing:"border-box"}}/></div>
+          {saved&&<div style={{fontSize:12,color:"#15803d",textAlign:"center"}}>✓ Saved</div>}
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setShowForm(null)} style={{flex:1,padding:"9px 0",borderRadius:6,border:"1px solid #d1d5db",background:"#f9fafb",color:"#6b7280",cursor:"pointer",fontSize:12}}>Cancel</button>
+            <button onClick={handleSave} disabled={saving} style={{flex:2,padding:"9px 0",borderRadius:6,border:"none",background:"#374151",color:"#ffffff",cursor:"pointer",fontSize:12,fontWeight:700,opacity:saving?0.6:1}}>{saving?"Saving...":"Save Changes"}</button>
+          </div>
+        </>);
+      })()}
+    </div>
+  </div>
+)}
     {/* Voice Layer — Vapi SDK */}
       <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
   </div>
