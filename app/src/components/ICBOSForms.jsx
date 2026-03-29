@@ -313,7 +313,7 @@ export function AddClientPanel({ onClose, onSaved, supabase, initialData = null 
     city: "", state: "NC", notes: "",
   };
 
-  // Pre-fill from pipeline deal when converting a closed-won deal to active client
+  // Pre-fill from pipeline deal when converting closed-won to active client
   const prefill = initialData ? {
     name:            initialData.practice        || "",
     tier:            String(initialData.tier     || "2"),
@@ -322,7 +322,7 @@ export function AddClientPanel({ onClose, onSaved, supabase, initialData = null 
     providers:       String(initialData.providers|| ""),
     no_show_before:  String(initialData.noShowBaseline || ""),
     primary_contact: initialData.contact         || "",
-    notes:           `Converted from pipeline deal.${initialData.nextAction ? " Next action: " + initialData.nextAction : ""}`,
+    notes:           `Converted from pipeline.${initialData.nextAction ? " Next action: " + initialData.nextAction : ""}`,
   } : null;
 
   const [fields, setFields] = useState(prefill ? { ...blank, ...prefill } : blank);
@@ -910,38 +910,21 @@ export function AddOnboardingPanel({ onClose, onSaved, supabase, clients = [] })
     if (!fields.target_go_live) { setError("Target go-live date is required."); return; }
     setError(""); setSaving(true);
 
-    // Auto-generate 5 standard phases evenly distributed between kickoff and go-live
-    const kickoff  = new Date(fields.kickoff_date);
-    const goLive   = new Date(fields.target_go_live);
+    const kickoff   = new Date(fields.kickoff_date);
+    const goLive    = new Date(fields.target_go_live);
     const totalDays = Math.ceil((goLive - kickoff) / 86400000);
     const phaseLen  = Math.floor(totalDays / 5);
 
-    const phaseNames = ["Discovery", "Build", "Testing", "Training & Go-Live", "Optimize"];
-    const phases = phaseNames.map((name, i) => {
-      const start = new Date(kickoff);
-      start.setDate(start.getDate() + i * phaseLen);
+    const phases = ["Discovery","Build","Testing","Training & Go-Live","Optimize"].map((name, i) => {
       const end = new Date(kickoff);
       end.setDate(end.getDate() + (i + 1) * phaseLen - 1);
-      return {
-        name,
-        phase: i + 1,
-        status: i === 0 ? "in-progress" : "upcoming",
-        progress: 0,
-        target_date: end.toISOString().split("T")[0],
-        completed_date: null,
-      };
+      return { name, phase: i+1, status: i===0 ? "in-progress" : "upcoming", progress: 0, target_date: end.toISOString().split("T")[0], completed_date: null };
     });
 
     const { error: err } = await supabase.from("onboarding_projects").insert([{
-      client_id:        fields.client_id,
-      kickoff_date:     fields.kickoff_date,
-      target_go_live:   fields.target_go_live,
-      notes:            fields.notes || null,
-      phases:           phases,
-      risks:            [],
-      blockers:         [],
-      current_phase:    1,
-      overall_progress: 0,
+      client_id: fields.client_id, kickoff_date: fields.kickoff_date,
+      target_go_live: fields.target_go_live, notes: fields.notes || null,
+      phases, risks: [], blockers: [], current_phase: 1, overall_progress: 0,
     }]);
 
     setSaving(false);
@@ -953,19 +936,11 @@ export function AddOnboardingPanel({ onClose, onSaved, supabase, clients = [] })
   const clientOptions = clients.map(c => ({ value: c.id, label: c.name }));
 
   return (
-    <SlidePanel
-      title="Start Onboarding Project"
-      onClose={onClose}
-      onSave={handleSave}
-      saving={saving}
-      saved={saved}
-    >
+    <SlidePanel title="Start Onboarding Project" onClose={onClose} onSave={handleSave} saving={saving} saved={saved}>
       {error && <div style={S.errorMsg}>⚠ {error}</div>}
-
       <Field label="Client *">
         <Select value={fields.client_id} onChange={set("client_id")} options={clientOptions} />
       </Field>
-
       <div style={S.row}>
         <Field label="Kickoff Date">
           <Input value={fields.kickoff_date} onChange={set("kickoff_date")} type="date" />
@@ -974,14 +949,11 @@ export function AddOnboardingPanel({ onClose, onSaved, supabase, clients = [] })
           <Input value={fields.target_go_live} onChange={set("target_go_live")} type="date" />
         </Field>
       </div>
-
       <Field label="Notes">
-        <Textarea value={fields.notes} onChange={set("notes")}
-          placeholder="Key context, EHR access status, special considerations..." />
+        <Textarea value={fields.notes} onChange={set("notes")} placeholder="Key context, EHR access status, special considerations..." />
       </Field>
-
       <div style={{ fontSize:11, color:"#6b7280", padding:"10px 12px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:7, lineHeight:1.6 }}>
-        5 standard phases will be auto-generated: Discovery, Build, Testing, Training & Go-Live, and Optimize — evenly distributed between kickoff and go-live.
+        5 phases auto-generated: Discovery, Build, Testing, Training & Go-Live, Optimize — evenly distributed between kickoff and go-live.
       </div>
     </SlidePanel>
   );
