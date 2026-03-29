@@ -278,16 +278,19 @@ function Input({ value, onChange, placeholder, type = "text" }) {
   );
 }
 
-function Select({ value, onChange, options }) {
+function Select({ value, onChange, options, labels }) {
   return (
     <select className="ic-input" value={value ?? ""} onChange={e => onChange(e.target.value)} style={S.select}>
       <option value="">Select...</option>
-      {options.map(o => (
-        <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>
+      {options.map((o, i) => (
+        <option key={o.value ?? o} value={o.value ?? o}>
+          {labels ? labels[i] : (o.label ?? o)}
+        </option>
       ))}
     </select>
   );
 }
+
 
 function Textarea({ value, onChange, placeholder }) {
   return (
@@ -311,6 +314,7 @@ export function AddClientPanel({ onClose, onSaved, supabase, initialData = null 
     go_live_date: "", renewal_date: "",
     primary_contact: "", contact_email: "", contact_phone: "",
     city: "", state: "NC", notes: "",
+    engagement_type: "managed", selected_services: [],
   };
 
   // Pre-fill from pipeline deal when converting closed-won to active client
@@ -537,6 +541,7 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
     next_action: "", next_action_date: "",
     providers: "", payer_mix: "", no_show_baseline: "",
     ehr_difficulty: "", ehr_timeline: "", ehr_notes: "", notes: "",
+    engagement_type: "managed", selected_services: [],
   };
 
   const [fields, setFields] = useState(blank);
