@@ -1130,7 +1130,7 @@ function OnboardingTab({ onRefresh }) {
                 <button
                   onClick={() => saveOnboardingUpdate(proj)}
                   disabled={savingUpdate || !onboardingUpdateText.trim()}
-                  style={{ background:"#374151", color:"#111827", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
+                  style={{ background:"#374151", color:"#ffffff", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
                 >
                   {savingUpdate ? "..." : "Log"}
                 </button>
