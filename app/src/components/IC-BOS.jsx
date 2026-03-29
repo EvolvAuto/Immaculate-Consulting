@@ -264,10 +264,10 @@ const handleGenerateOutreach = async (deal) => {
               <div style={{ fontSize:10, color:"#374151", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
                 <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
-                <span style={{ fontSize:8, fontWeight:700, color:"#ffffff", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
+                <span style={{ fontSize:8, fontWeight:600, color:"#111", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
               </div>
               <div style={{ fontSize:10, color:"#6b7280", marginTop:5 }}>→ {d.nextAction}</div>
-              {d.daysInStage > 0 && <div style={{ fontSize:9, color:d.daysInStage>7?"#f87171":"#9ca3af", marginTop:3, fontFamily:M }}>{d.daysInStage>7?"⚠ ":""}{d.daysInStage}d in stage</div>}
+              {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
 
               {/* Stage progression controls */}
               {canEdit && d.supabase_id && (
@@ -711,15 +711,10 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
 }
 // INVOICING (Feature 8) — with Agent 8 collections inline UI
 function InvoicingTab({ canInvoice = true, canEdit = true }) {
-  const { INVOICES, CLIENTS } = useData();
+  const { INVOICES } = useData();
   const [followUpStates, setFollowUpStates] = useState({});
   const [followUpResults, setFollowUpResults] = useState({});
   const [expandedEmail, setExpandedEmail] = useState({});
-  // Filters
-  const [filterClient, setFilterClient] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterType,   setFilterType]   = useState("all");
-  const [search,       setSearch]       = useState("");
 
   const marchInvs = INVOICES.filter(i=>i.issued.startsWith("Mar"));
   const totalBilled = marchInvs.reduce((s,i)=>s+i.total,0);
@@ -729,20 +724,6 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
   const totalAR = INVOICES.filter(i=>i.status!=="paid").reduce((s,i)=>s+i.total,0);
   const oldestOverdue = overdue.length>0 ? overdue.reduce((oldest,inv)=>new Date(inv.due)<new Date(oldest.due)?inv:oldest) : null;
   const stColors = { paid:"#4ade80", pending:"#fbbf24", overdue:"#f87171" };
-
-  // Unique values for filter dropdowns
-  const clientNames = [...new Set(INVOICES.map(i=>i.client))].sort();
-  const invoiceTypes = [...new Set(INVOICES.map(i=>i.type).filter(Boolean))].sort();
-
-  // Apply all filters
-  const filtered = INVOICES.filter(inv => {
-    if (filterClient !== "all" && inv.client !== filterClient) return false;
-    if (filterStatus !== "all" && inv.status !== filterStatus) return false;
-    if (filterType   !== "all" && inv.type   !== filterType)   return false;
-    if (search && !inv.client.toLowerCase().includes(search.toLowerCase()) &&
-        !inv.id.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
 
   const handleDraftFollowUp = async (inv) => {
     setFollowUpStates(prev=>({...prev,[inv.id]:"loading"}));
@@ -798,49 +779,12 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
         <KPI label="Overdue" value={overdue.reduce((s,i)=>s+i.total,0)} prefix="$" spark={[0,0,2000,0,0,6555]} sparkColor="#f87171" delay={180}/>
       </div>
 
-      {/* Filter bar */}
-      <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-        <input
-          value={search}
-          onChange={e=>setSearch(e.target.value)}
-          placeholder="Search client or invoice #..."
-          style={{ flex:"1 1 180px", padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none" }}
-        />
-        <select value={filterClient} onChange={e=>setFilterClient(e.target.value)}
-          style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
-          <option value="all">All Clients</option>
-          {clientNames.map(n=><option key={n} value={n}>{n}</option>)}
-        </select>
-        <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}
-          style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
-          <option value="all">All Statuses</option>
-          <option value="paid">Paid</option>
-          <option value="pending">Pending</option>
-          <option value="overdue">Overdue</option>
-        </select>
-        <select value={filterType} onChange={e=>setFilterType(e.target.value)}
-          style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
-          <option value="all">All Types</option>
-          {invoiceTypes.map(t=><option key={t} value={t}>{t}</option>)}
-        </select>
-        {(filterClient!=="all"||filterStatus!=="all"||filterType!=="all"||search) && (
-          <button onClick={()=>{setFilterClient("all");setFilterStatus("all");setFilterType("all");setSearch("");}}
-            style={{ fontSize:11, color:"#6b7280", background:"transparent", border:"1px solid #d1d5db", borderRadius:5, padding:"5px 10px", cursor:"pointer" }}>
-            Clear
-          </button>
-        )}
-        <span style={{ fontSize:11, color:"#9ca3af", marginLeft:"auto" }}>{filtered.length} of {INVOICES.length}</span>
-      </div>
-
       {/* Invoice rows */}
       <div style={{ background:"#ffffff", border:"1px solid #e5e7eb", borderRadius:12, overflow:"hidden" }}>
         <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, padding:"10px 16px", borderBottom:"1px solid #e5e7eb", fontSize:9.5, fontWeight:600, color:"#6b7280", textTransform:"uppercase", fontFamily:M }}>
           <span>Invoice</span><span>Client</span><span>Type</span><span>Amount</span><span>Usage</span><span>Total</span><span>Status</span><span>Action</span>
         </div>
-        {filtered.length === 0 && (
-          <div style={{ padding:"32px 0", textAlign:"center", fontSize:12, color:"#9ca3af" }}>No invoices match the current filters.</div>
-        )}
-        {filtered.map((inv,i)=>{
+        {INVOICES.map((inv,i)=>{
           const fs = followUpStates[inv.id];
           const fr = followUpResults[inv.id];
           const isOverdue = inv.status==="overdue";
@@ -879,10 +823,7 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
         {fr.escalation_level&&<span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color:fr.escalation_level==="final"?"#f87171":fr.escalation_level==="firm"?"#fbbf24":"#4ade80", background:fr.escalation_level==="final"?"rgba(248,113,113,0.1)":fr.escalation_level==="firm"?"rgba(251,191,36,0.1)":"rgba(74,222,128,0.1)", border:`1px solid ${fr.escalation_level==="final"?"rgba(248,113,113,0.2)":fr.escalation_level==="firm"?"rgba(251,191,36,0.2)":"rgba(74,222,128,0.2)"}`, borderRadius:4, padding:"1px 6px" }}>{fr.escalation_level}</span>}
         {fr.flag_for_service_pause&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:4, padding:"1px 6px" }}>⚠ FLAG: SERVICE PAUSE</span>}
       </div>
-      <div style={{ display:"flex", gap:6 }}>
-        <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
-        <button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:false}))} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>✕ Collapse</button>
-      </div>
+      <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
     </div>
     {fr.subject&&<div style={{ fontSize:10, fontWeight:600, color:"#111827", marginBottom:8, padding:"6px 10px", background:"#ffffff", borderRadius:5 }}>Subject: {fr.subject}</div>}
     <div style={{ fontSize:11, color:"#374151", lineHeight:1.6, padding:"10px 12px", background:"#f9fafb", borderRadius:7, whiteSpace:"pre-wrap" }}>
@@ -1130,7 +1071,7 @@ function OnboardingTab({ onRefresh }) {
                 <button
                   onClick={() => saveOnboardingUpdate(proj)}
                   disabled={savingUpdate || !onboardingUpdateText.trim()}
-                  style={{ background:"#374151", color:"#ffffff", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
+                  style={{ background:"#374151", color:"#111827", border:"none", borderRadius:6, padding:"6px 14px", fontSize:13, cursor:"pointer", opacity: savingUpdate ? 0.6 : 1 }}
                 >
                   {savingUpdate ? "..." : "Log"}
                 </button>
@@ -3191,7 +3132,7 @@ export default function ICBOS() {
     value:          Number(d.estimated_value  ?? 0),
     contact:        d.contact_name        ?? "",
     nextAction:     d.next_action         ?? "",
-    daysInStage:    d.stage_entered_at ? Math.floor((Date.now() - new Date(d.stage_entered_at)) / 86400000) : (d.days_in_stage ?? 0),
+    daysInStage:    d.days_in_stage       ?? 0,
     tier:           d.tier                ?? 1,
     providers:      d.providers           ?? 1,
     payer:          d.payer_mix           ?? "",
@@ -3199,7 +3140,6 @@ export default function ICBOS() {
     ehrDifficulty:  d.ehr_difficulty      ?? "3/5",
     ehrTimeline:    d.ehr_timeline        ?? "4-6 weeks",
     ehrNotes:       d.ehr_notes           ?? "",
-    stageEnteredAt: d.stage_entered_at    ?? null,
   }));
 
   const CLIENTS = (icbos.clients.data ?? []).map(c => ({
