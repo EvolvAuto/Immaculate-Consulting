@@ -129,7 +129,7 @@ function RevChart({ data }) {
   );
 }
 
-function PipelineBoard({ canEdit = true, onRefresh, onConvert }) {
+function PipelineBoard({ canEdit = true, onRefresh }) {
   const { PIPELINE } = useData();
   const [proposalStates, setProposalStates] = useState({});
   const [outreachStates, setOutreachStates] = useState({});
@@ -330,18 +330,6 @@ const handleGenerateOutreach = async (deal) => {
                   )}
                 </div>
               )}
-              {/* Convert to Client — closed-won stage only */}
-              {d.stage === "closed-won" && canEdit && onConvert && (
-                <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
-                  <button
-                    onClick={() => onConvert(d)}
-                    style={{ width:"100%", padding:"7px 0", borderRadius:6, border:"1px solid #16a34a", background:"#f0fdf4", color:"#15803d", cursor:"pointer", fontSize:10.5, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}
-                  >
-                    ✓ Convert to Active Client
-                  </button>
-                </div>
-              )}
-
               {/* Agent 1 — Generate Proposal button */}
               <div style={{ marginTop:d.stage==="cold"?4:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
                 {ps === 'done' && <div style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
@@ -723,10 +711,15 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
 }
 // INVOICING (Feature 8) — with Agent 8 collections inline UI
 function InvoicingTab({ canInvoice = true, canEdit = true }) {
-  const { INVOICES } = useData();
+  const { INVOICES, CLIENTS } = useData();
   const [followUpStates, setFollowUpStates] = useState({});
   const [followUpResults, setFollowUpResults] = useState({});
   const [expandedEmail, setExpandedEmail] = useState({});
+  // Filters
+  const [filterClient, setFilterClient] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterType,   setFilterType]   = useState("all");
+  const [search,       setSearch]       = useState("");
 
   const marchInvs = INVOICES.filter(i=>i.issued.startsWith("Mar"));
   const totalBilled = marchInvs.reduce((s,i)=>s+i.total,0);
@@ -736,6 +729,20 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
   const totalAR = INVOICES.filter(i=>i.status!=="paid").reduce((s,i)=>s+i.total,0);
   const oldestOverdue = overdue.length>0 ? overdue.reduce((oldest,inv)=>new Date(inv.due)<new Date(oldest.due)?inv:oldest) : null;
   const stColors = { paid:"#4ade80", pending:"#fbbf24", overdue:"#f87171" };
+
+  // Unique values for filter dropdowns
+  const clientNames = [...new Set(INVOICES.map(i=>i.client))].sort();
+  const invoiceTypes = [...new Set(INVOICES.map(i=>i.type).filter(Boolean))].sort();
+
+  // Apply all filters
+  const filtered = INVOICES.filter(inv => {
+    if (filterClient !== "all" && inv.client !== filterClient) return false;
+    if (filterStatus !== "all" && inv.status !== filterStatus) return false;
+    if (filterType   !== "all" && inv.type   !== filterType)   return false;
+    if (search && !inv.client.toLowerCase().includes(search.toLowerCase()) &&
+        !inv.id.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
 
   const handleDraftFollowUp = async (inv) => {
     setFollowUpStates(prev=>({...prev,[inv.id]:"loading"}));
@@ -791,12 +798,49 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
         <KPI label="Overdue" value={overdue.reduce((s,i)=>s+i.total,0)} prefix="$" spark={[0,0,2000,0,0,6555]} sparkColor="#f87171" delay={180}/>
       </div>
 
+      {/* Filter bar */}
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+        <input
+          value={search}
+          onChange={e=>setSearch(e.target.value)}
+          placeholder="Search client or invoice #..."
+          style={{ flex:"1 1 180px", padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none" }}
+        />
+        <select value={filterClient} onChange={e=>setFilterClient(e.target.value)}
+          style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
+          <option value="all">All Clients</option>
+          {clientNames.map(n=><option key={n} value={n}>{n}</option>)}
+        </select>
+        <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}
+          style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
+          <option value="all">All Statuses</option>
+          <option value="paid">Paid</option>
+          <option value="pending">Pending</option>
+          <option value="overdue">Overdue</option>
+        </select>
+        <select value={filterType} onChange={e=>setFilterType(e.target.value)}
+          style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
+          <option value="all">All Types</option>
+          {invoiceTypes.map(t=><option key={t} value={t}>{t}</option>)}
+        </select>
+        {(filterClient!=="all"||filterStatus!=="all"||filterType!=="all"||search) && (
+          <button onClick={()=>{setFilterClient("all");setFilterStatus("all");setFilterType("all");setSearch("");}}
+            style={{ fontSize:11, color:"#6b7280", background:"transparent", border:"1px solid #d1d5db", borderRadius:5, padding:"5px 10px", cursor:"pointer" }}>
+            Clear
+          </button>
+        )}
+        <span style={{ fontSize:11, color:"#9ca3af", marginLeft:"auto" }}>{filtered.length} of {INVOICES.length}</span>
+      </div>
+
       {/* Invoice rows */}
       <div style={{ background:"#ffffff", border:"1px solid #e5e7eb", borderRadius:12, overflow:"hidden" }}>
         <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, padding:"10px 16px", borderBottom:"1px solid #e5e7eb", fontSize:9.5, fontWeight:600, color:"#6b7280", textTransform:"uppercase", fontFamily:M }}>
           <span>Invoice</span><span>Client</span><span>Type</span><span>Amount</span><span>Usage</span><span>Total</span><span>Status</span><span>Action</span>
         </div>
-        {INVOICES.map((inv,i)=>{
+        {filtered.length === 0 && (
+          <div style={{ padding:"32px 0", textAlign:"center", fontSize:12, color:"#9ca3af" }}>No invoices match the current filters.</div>
+        )}
+        {filtered.map((inv,i)=>{
           const fs = followUpStates[inv.id];
           const fr = followUpResults[inv.id];
           const isOverdue = inv.status==="overdue";
@@ -835,7 +879,10 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
         {fr.escalation_level&&<span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color:fr.escalation_level==="final"?"#f87171":fr.escalation_level==="firm"?"#fbbf24":"#4ade80", background:fr.escalation_level==="final"?"rgba(248,113,113,0.1)":fr.escalation_level==="firm"?"rgba(251,191,36,0.1)":"rgba(74,222,128,0.1)", border:`1px solid ${fr.escalation_level==="final"?"rgba(248,113,113,0.2)":fr.escalation_level==="firm"?"rgba(251,191,36,0.2)":"rgba(74,222,128,0.2)"}`, borderRadius:4, padding:"1px 6px" }}>{fr.escalation_level}</span>}
         {fr.flag_for_service_pause&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:4, padding:"1px 6px" }}>⚠ FLAG: SERVICE PAUSE</span>}
       </div>
-      <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
+      <div style={{ display:"flex", gap:6 }}>
+        <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
+        <button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:false}))} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>✕ Collapse</button>
+      </div>
     </div>
     {fr.subject&&<div style={{ fontSize:10, fontWeight:600, color:"#111827", marginBottom:8, padding:"6px 10px", background:"#ffffff", borderRadius:5 }}>Subject: {fr.subject}</div>}
     <div style={{ fontSize:11, color:"#374151", lineHeight:1.6, padding:"10px 12px", background:"#f9fafb", borderRadius:7, whiteSpace:"pre-wrap" }}>
@@ -3481,12 +3528,12 @@ export default function ICBOS() {
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>{TASKS.filter(t=>t.priority==="high").map((t,i)=><TaskItem key={t.id} task={t} delay={i*40}/>)}</div>
               </Panel>
             </div>
-            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#374151", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})}/></Panel>
+            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#374151", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()}/></Panel>
           </div>
           )
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})}/></>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
@@ -3517,7 +3564,7 @@ export default function ICBOS() {
         {tab==="comms"&&<CommsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
-{(showForm==="client"||showForm?.type==="client")&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} initialData={showForm?.prefill||null} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
+{showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
       {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.pipeline.refetch(); }}/>}
       {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.tasks.refetch(); }}/>}
       {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.invoices.refetch(); icbos.financials.refetch(); }}/>}
