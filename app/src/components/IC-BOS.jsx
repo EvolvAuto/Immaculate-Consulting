@@ -129,7 +129,7 @@ function RevChart({ data }) {
   );
 }
 
-function PipelineBoard({ canEdit = true, onRefresh }) {
+function PipelineBoard({ canEdit = true, onRefresh, onConvert }) {
   const { PIPELINE } = useData();
   const [proposalStates, setProposalStates] = useState({});
   const [outreachStates, setOutreachStates] = useState({});
@@ -264,10 +264,10 @@ const handleGenerateOutreach = async (deal) => {
               <div style={{ fontSize:10, color:"#374151", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
                 <span style={{ fontSize:12, fontWeight:700, color:c.text, fontFamily:M }}>${d.value.toLocaleString()}/mo</span>
-                <span style={{ fontSize:8, fontWeight:600, color:"#111", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
+                <span style={{ fontSize:8, fontWeight:700, color:"#ffffff", background:c.dot, borderRadius:4, padding:"1px 6px" }}>T{d.tier}</span>
               </div>
               <div style={{ fontSize:10, color:"#6b7280", marginTop:5 }}>→ {d.nextAction}</div>
-              {d.daysInStage>5&&<div style={{ fontSize:9, color:"#f87171", marginTop:3, fontFamily:M }}>⚠ {d.daysInStage}d in stage</div>}
+              {d.daysInStage > 0 && <div style={{ fontSize:9, color:d.daysInStage>7?"#f87171":"#9ca3af", marginTop:3, fontFamily:M }}>{d.daysInStage>7?"⚠ ":""}{d.daysInStage}d in stage</div>}
 
               {/* Stage progression controls */}
               {canEdit && d.supabase_id && (
@@ -330,6 +330,18 @@ const handleGenerateOutreach = async (deal) => {
                   )}
                 </div>
               )}
+              {/* Convert to Client — closed-won stage only */}
+              {d.stage === "closed-won" && canEdit && onConvert && (
+                <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
+                  <button
+                    onClick={() => onConvert(d)}
+                    style={{ width:"100%", padding:"7px 0", borderRadius:6, border:"1px solid #16a34a", background:"#f0fdf4", color:"#15803d", cursor:"pointer", fontSize:10.5, fontWeight:700, display:"flex", alignItems:"center", justifyContent:"center", gap:5 }}
+                  >
+                    ✓ Convert to Active Client
+                  </button>
+                </div>
+              )}
+
               {/* Agent 1 — Generate Proposal button */}
               <div style={{ marginTop:d.stage==="cold"?4:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
                 {ps === 'done' && <div style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Proposal created — check Proposals tab</div>}
@@ -3132,7 +3144,7 @@ export default function ICBOS() {
     value:          Number(d.estimated_value  ?? 0),
     contact:        d.contact_name        ?? "",
     nextAction:     d.next_action         ?? "",
-    daysInStage:    d.days_in_stage       ?? 0,
+    daysInStage:    d.stage_entered_at ? Math.floor((Date.now() - new Date(d.stage_entered_at)) / 86400000) : (d.days_in_stage ?? 0),
     tier:           d.tier                ?? 1,
     providers:      d.providers           ?? 1,
     payer:          d.payer_mix           ?? "",
@@ -3140,6 +3152,7 @@ export default function ICBOS() {
     ehrDifficulty:  d.ehr_difficulty      ?? "3/5",
     ehrTimeline:    d.ehr_timeline        ?? "4-6 weeks",
     ehrNotes:       d.ehr_notes           ?? "",
+    stageEnteredAt: d.stage_entered_at    ?? null,
   }));
 
   const CLIENTS = (icbos.clients.data ?? []).map(c => ({
@@ -3468,12 +3481,12 @@ export default function ICBOS() {
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>{TASKS.filter(t=>t.priority==="high").map((t,i)=><TaskItem key={t.id} task={t} delay={i*40}/>)}</div>
               </Panel>
             </div>
-            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#374151", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()}/></Panel>
+            <Panel title="Sales Pipeline" action={<button onClick={()=>setTab("pipeline")} style={{ fontSize:10, color:"#374151", background:"none", border:"none", cursor:"pointer" }}>View all →</button>}><PipelineBoard onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})}/></Panel>
           </div>
           )
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()}/></>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&(
@@ -3504,7 +3517,7 @@ export default function ICBOS() {
         {tab==="comms"&&<CommsTab onTabNav={(tabId)=>setTab(tabId)}/>}
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
-{showForm==="client"&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
+{(showForm==="client"||showForm?.type==="client")&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} initialData={showForm?.prefill||null} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
       {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.pipeline.refetch(); }}/>}
       {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.tasks.refetch(); }}/>}
       {showForm==="invoice"&&<AddInvoicePanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>{ setShowForm(null); icbos.invoices.refetch(); icbos.financials.refetch(); }}/>}
