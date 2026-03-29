@@ -3701,6 +3701,65 @@ function EditClientPanel({ client, onClose, onSaved }) {
     </div>
   );
 }
+// ─── FinancialsTab ────────────────────────────────────────────────────────────
+function FinancialsTab({ FINANCIALS }) {
+  const M = "ui-monospace,SFMono-Regular,Menlo,monospace";
+  const [finView, setFinView] = useState("actual");
+  const growthRate = 0.08;
+  const projRevenue = [1,2,3].map(n => Math.round(FINANCIALS.mrr * Math.pow(1+growthRate, n)));
+  const projExpenses = [1,2,3].map(n => Math.round(FINANCIALS.monthlyExpenses * Math.pow(1.03, n)));
+  const projHistory = ["Next Mo","Mo+2","Mo+3"].map((month,i) => ({ month, revenue: projRevenue[i], expenses: projExpenses[i] }));
+  const displayHistory = finView==="projected" ? [...FINANCIALS.revenueHistory.slice(-3), ...projHistory] : FINANCIALS.revenueHistory;
+  const displayMRR = finView==="projected" ? projRevenue[0] : FINANCIALS.mrr;
+  const displayExpenses = finView==="projected" ? projExpenses[0] : FINANCIALS.monthlyExpenses;
+  const displayNet = displayMRR - displayExpenses;
+  const displayMargin = displayMRR>0 ? Math.round((displayNet/displayMRR)*100) : 0;
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:14}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Financial Overview</h2>
+        <div style={{display:"flex",gap:2,background:"#f3f4f6",borderRadius:7,padding:2}}>
+          {["actual","projected"].map(v=>(
+            <button key={v} onClick={()=>setFinView(v)} style={{fontSize:10,fontWeight:600,padding:"4px 12px",borderRadius:5,border:"none",cursor:"pointer",background:finView===v?"#ffffff":"transparent",color:finView===v?"#111827":"#6b7280",boxShadow:finView===v?"0 1px 3px rgba(0,0,0,0.08)":"none",textTransform:"capitalize",transition:"all 0.15s"}}>
+              {v==="actual"?"Actual":"Projected"}
+            </button>
+          ))}
+        </div>
+      </div>
+      {finView==="projected"&&(
+        <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:8,padding:"8px 14px",fontSize:10,color:"#92400e"}}>
+          Projection assumes 8% MoM revenue growth · 3% expense growth from current actuals
+        </div>
+      )}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+        <KPI label="MRR" value={displayMRR} prefix="$" change={finView==="projected"?8:12.2} spark={displayHistory.map(r=>r.revenue)} sparkColor="#94a3b8"/>
+        <KPI label="ARR" value={displayMRR*12} prefix="$" spark={displayHistory.map(r=>r.revenue*12)} sparkColor="#4ade80" delay={60}/>
+        <KPI label={finView==="projected"?"Proj. Net":"Net / Mo"} value={displayNet} prefix="$" spark={displayHistory.map(r=>r.revenue-r.expenses)} sparkColor={displayNet>=0?"#4ade80":"#f87171"} delay={120}/>
+        <KPI label="Net Margin" value={displayMargin} suffix="%" spark={[58,60,63,65,67,69]} sparkColor="#4ade80" delay={180}/>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <Panel title={finView==="projected"?"Revenue Projection":"Revenue Trend"}>
+          <RevChart data={displayHistory}/>
+        </Panel>
+        <Panel title="Monthly P&L">
+          {[
+            {l:"Revenue",     v:"$"+displayMRR.toLocaleString(),                   c:"#374151"},
+            {l:"Expenses",    v:"-$"+displayExpenses.toLocaleString(),              c:"#f87171"},
+            {l:"Net",         v:"$"+displayNet.toLocaleString(),                    c:displayNet>=0?"#4ade80":"#f87171"},
+            {l:"A/R",         v:"$"+FINANCIALS.accountsReceivable.toLocaleString(), c:"#fbbf24"},
+            ...(finView==="projected"?[{l:"Mo+3 MRR", v:"$"+projRevenue[2].toLocaleString(), c:"#fbbf24"}]:[]),
+          ].map((m,i)=>(
+            <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f0f0f0"}}>
+              <span style={{fontSize:12,color:"#374151"}}>{m.l}</span>
+              <span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span>
+            </div>
+          ))}
+        </Panel>
+      </div>
+    </div>
+  );
+}
 export default function ICBOS() {
   const [tab, setTab] = useState("overview");
 
@@ -4084,21 +4143,7 @@ export default function ICBOS() {
        {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})} onViewDeal={(deal)=>setShowForm({type:"deal-detail",deal})}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onEditClient={canEdit?(c)=>setShowForm({type:"edit-client",client:c}):null} onViewClient={(c)=>setShowForm({type:"client-detail",client:c})} canEdit={canEdit} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
-        {tab==="financials"&&(
-          <div style={{display:"flex",flexDirection:"column",gap:14}}>
-            <h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Financial Overview</h2>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
-              <KPI label="MRR" value={FINANCIALS.mrr} prefix="$" change={12.2} spark={FINANCIALS.revenueHistory.map(r=>r.revenue)} sparkColor="#94a3b8"/>
-              <KPI label="ARR" value={FINANCIALS.arr} prefix="$" spark={FINANCIALS.revenueHistory.map(r=>r.revenue*12)} sparkColor="#4ade80" delay={60}/>
-              <KPI label="Cash" value={FINANCIALS.cashOnHand} prefix="$" spark={[32e3,35e3,38e3,41e3,45e3,48200]} sparkColor="#38bdf8" delay={120}/>
-              <KPI label="Net Margin" value={FINANCIALS.monthlyExpenses>0?Math.round(((FINANCIALS.mrr-FINANCIALS.monthlyExpenses)/FINANCIALS.mrr)*100):0} suffix="%" spark={[58,60,63,65,67,69]} sparkColor="#4ade80" delay={180}/>
-            </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-              <Panel title="Revenue Trend"><RevChart data={FINANCIALS.revenueHistory}/></Panel>
-              <Panel title="Monthly P&L">{[{l:"Revenue",v:`$${FINANCIALS.mrr.toLocaleString()}`,c:"#374151"},{l:"Expenses",v:`-$${FINANCIALS.monthlyExpenses.toLocaleString()}`,c:"#f87171"},{l:"Net",v:`$${(FINANCIALS.mrr-FINANCIALS.monthlyExpenses).toLocaleString()}`,c:"#4ade80"},{l:"A/R",v:`$${FINANCIALS.accountsReceivable.toLocaleString()}`,c:"#fbbf24"}].map((m,i)=>(<div key={i} style={{display:"flex",justifyContent:"space-between",padding:"7px 0",borderBottom:"1px solid #f0f0f0"}}><span style={{fontSize:12,color:"#374151"}}>{m.l}</span><span style={{fontSize:12,fontWeight:600,color:m.c,fontFamily:M}}>{m.v}</span></div>))}</Panel>
-            </div>
-          </div>
-        )}
+        {tab==="financials"&&<FinancialsTab FINANCIALS={FINANCIALS}/>}
         {tab==="invoicing"&&<InvoicingTab canInvoice={canInvoice} canEdit={canEdit}/>}
         {tab==="automations"&&<AutoTab/>}
         {tab==="onboarding"&&<OnboardingTab onRefresh={()=>icbos.onboarding.refetch()} canEdit={canEdit}/>}
