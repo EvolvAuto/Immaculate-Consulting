@@ -381,9 +381,7 @@ with:
 ```
             <div key={c.id} style={{ background: isAtRisk?"#fef2f2":"#ffffff", border:`1px solid ${isAtRisk?"#fca5a5":"#e5e7eb"}`, borderRadius:12, padding:"14px 16px", animation:`fu 0.4s ease ${i*50}ms both`, position:"relative" }}>
               {canEdit && <button onClick={()=>setShowForm({type:"edit-client",client:c})} style={{ position:"absolute", top:10, right:36, fontSize:9.5, color:"#6b7280", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:5, padding:"2px 8px", cursor:"pointer" }}>Edit</button>}
-
-             {/* Agent 7 — Generate Outreach button (Cold stage only) */}
-              {d.stage === "cold" && (
+              {/* Top row */}
                 <div style={{ marginTop:8, paddingTop:8, borderTop:"1px solid #e5e7eb" }}>
                   {outreachStates[d.id] === "loading" && <div style={{ fontSize:9, color:"#38bdf8", fontFamily:M, textAlign:"center", padding:"4px 0", display:"flex", alignItems:"center", justifyContent:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", display:"inline-block", animation:"pr 1.2s ease-out infinite" }}/>Writing outreach...</div>}
                   {outreachStates[d.id] === "error" && <div style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error — try again</div>}
