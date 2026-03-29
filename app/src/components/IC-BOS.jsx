@@ -102,11 +102,18 @@ function Panel({ title, subtitle, action, children, style:s }) {
 }
 
 function TaskItem({ task, delay=0 }) {
-  const [done,setDone]=useState(false);
-  const pc={high:"#f87171",medium:"#fbbf24",low:"#6b7280"};
+  const [done,setDone]=useState(task.completed||false);
+  const pc={high:"#f87171",medium:"#fbbf24",low:"#6b7280",critical:"#dc2626"};
+  const handleToggle = async () => {
+    const newVal = !done;
+    setDone(newVal);
+    await supabase.from("tasks")
+      .update({ completed: newVal, completed_at: newVal ? new Date().toISOString() : null })
+      .eq("id", task.id).catch(()=>{});
+  };
   return (
     <div style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 12px", borderRadius:7, background:done?"#f0fdf4":"#ffffff", border:`1px solid ${done?"#bbf7d0":"#e5e7eb"}`, animation:`fu 0.3s ease ${delay}ms both`, opacity:done?0.4:1, transition:"all 0.3s" }}>
-      <button onClick={()=>setDone(!done)} style={{ width:16, height:16, borderRadius:4, border:`2px solid ${done?"#4ade80":pc[task.priority]}`, background:done?"#4ade80":"transparent", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>{done&&<span style={{color:"#111",fontSize:10,fontWeight:800}}>✓</span>}</button>
+      <button onClick={handleToggle} style={{ width:16, height:16, borderRadius:4, border:`2px solid ${done?"#4ade80":pc[task.priority]||pc.low}`, background:done?"#4ade80":"transparent", cursor:"pointer", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>{done&&<span style={{color:"#111",fontSize:10,fontWeight:800}}>✓</span>}</button>
       <span style={{ flex:1, fontSize:12, color:done?"#9ca3af":"#1f2937", textDecoration:done?"line-through":"none" }}>{task.text}</span>
       <span style={{ fontSize:10, color:"#6b7280", fontFamily:M, flexShrink:0 }}>{task.due}</span>
     </div>
@@ -711,38 +718,87 @@ function ClientsTab({ onShowForm, canEdit = true, onDeleted }) {
 }
 // INVOICING (Feature 8) — with Agent 8 collections inline UI
 function InvoicingTab({ canInvoice = true, canEdit = true }) {
-  const { INVOICES, CLIENTS } = useData();
+  const { INVOICES } = useData();
   const [followUpStates, setFollowUpStates] = useState({});
   const [followUpResults, setFollowUpResults] = useState({});
   const [expandedEmail, setExpandedEmail] = useState({});
+  const [markingPaid, setMarkingPaid] = useState(null);
   // Filters
   const [filterClient, setFilterClient] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterType,   setFilterType]   = useState("all");
+  const [filterMonth,  setFilterMonth]  = useState("all");
   const [search,       setSearch]       = useState("");
+  // Sort
+  const [sortCol,  setSortCol]  = useState("due");
+  const [sortDir,  setSortDir]  = useState("asc"); // overdue oldest first by default
 
-  const marchInvs = INVOICES.filter(i=>i.issued.startsWith("Mar"));
-  const totalBilled = marchInvs.reduce((s,i)=>s+i.total,0);
-  const collected = marchInvs.filter(i=>i.status==="paid").reduce((s,i)=>s+i.total,0);
+  // Dynamic month list from data
+  const months = [...new Set(INVOICES.map(i => i.issued?.slice(0,3)).filter(Boolean))].sort();
+  const clientNames = [...new Set(INVOICES.map(i=>i.client))].sort();
+  const invoiceTypes = [...new Set(INVOICES.map(i=>i.type).filter(Boolean))].sort();
+
+  // Active month for KPIs (dynamic based on filter)
+  const kpiMonth = filterMonth === "all" ? (months[months.length-1] || "Mar") : filterMonth;
+  const kpiInvs = INVOICES.filter(i=>i.issued?.startsWith(kpiMonth));
+  const totalBilled = kpiInvs.reduce((s,i)=>s+i.total,0);
+  const collected = kpiInvs.filter(i=>i.status==="paid").reduce((s,i)=>s+i.total,0);
   const overdue = INVOICES.filter(i=>i.status==="overdue");
   const pending = INVOICES.filter(i=>i.status==="pending");
   const totalAR = INVOICES.filter(i=>i.status!=="paid").reduce((s,i)=>s+i.total,0);
   const oldestOverdue = overdue.length>0 ? overdue.reduce((oldest,inv)=>new Date(inv.due)<new Date(oldest.due)?inv:oldest) : null;
   const stColors = { paid:"#4ade80", pending:"#fbbf24", overdue:"#f87171" };
 
-  // Unique values for filter dropdowns
-  const clientNames = [...new Set(INVOICES.map(i=>i.client))].sort();
-  const invoiceTypes = [...new Set(INVOICES.map(i=>i.type).filter(Boolean))].sort();
+  // Mark as Paid handler
+  const handleMarkPaid = async (inv) => {
+    if (markingPaid === inv.id) return;
+    setMarkingPaid(inv.id);
+    const today = new Date().toISOString().split("T")[0];
+    const { error } = await supabase.from("invoices")
+      .update({ status: "Paid", paid_date: today })
+      .eq("id", inv.supabase_id || inv.id);
+    setMarkingPaid(null);
+    if (!error) window.location.reload();
+  };
 
-  // Apply all filters
-  const filtered = INVOICES.filter(inv => {
-    if (filterClient !== "all" && inv.client !== filterClient) return false;
-    if (filterStatus !== "all" && inv.status !== filterStatus) return false;
-    if (filterType   !== "all" && inv.type   !== filterType)   return false;
-    if (search && !inv.client.toLowerCase().includes(search.toLowerCase()) &&
-        !inv.id.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  // CSV export
+  const handleExport = () => {
+    const rows = [["Invoice","Client","Type","Amount","Usage","Total","Status","Issued","Due"]];
+    filtered.forEach(i => rows.push([i.id, i.client, i.type, i.amount, i.usageCost, i.total, i.status, i.issued, i.due]));
+    const csv = rows.map(r => r.map(v => `"${v ?? ""}"`).join(",")).join("
+");
+    const a = document.createElement("a");
+    a.href = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+    a.download = `invoices-${kpiMonth}.csv`;
+    a.click();
+  };
+
+  // Sort toggle helper
+  const toggleSort = (col) => {
+    if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("asc"); }
+  };
+  const SortIcon = ({ col }) => sortCol === col ? (sortDir === "asc" ? " ↑" : " ↓") : " ↕";
+
+  // Filter + sort
+  const filtered = INVOICES
+    .filter(inv => {
+      if (filterClient !== "all" && inv.client !== filterClient) return false;
+      if (filterStatus !== "all" && inv.status !== filterStatus) return false;
+      if (filterType   !== "all" && inv.type   !== filterType)   return false;
+      if (filterMonth  !== "all" && !inv.issued?.startsWith(filterMonth)) return false;
+      if (search && !inv.client?.toLowerCase().includes(search.toLowerCase()) &&
+          !inv.id?.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    })
+    .sort((a,b) => {
+      let av, bv;
+      if (sortCol === "due")    { av = new Date(a.due);  bv = new Date(b.due); }
+      else if (sortCol === "total")  { av = a.total;         bv = b.total; }
+      else if (sortCol === "status") { const o={overdue:0,pending:1,paid:2}; av=o[a.status]??3; bv=o[b.status]??3; }
+      else { av = a[sortCol]; bv = b[sortCol]; }
+      return sortDir === "asc" ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+    });
 
   const handleDraftFollowUp = async (inv) => {
     setFollowUpStates(prev=>({...prev,[inv.id]:"loading"}));
@@ -798,48 +854,45 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
         <KPI label="Overdue" value={overdue.reduce((s,i)=>s+i.total,0)} prefix="$" spark={[0,0,2000,0,0,6555]} sparkColor="#f87171" delay={180}/>
       </div>
 
-      {/* Filter bar */}
+      {/* Filter + export bar */}
       <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-        <input
-          value={search}
-          onChange={e=>setSearch(e.target.value)}
-          placeholder="Search client or invoice #..."
-          style={{ flex:"1 1 180px", padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none" }}
-        />
-        <select value={filterClient} onChange={e=>setFilterClient(e.target.value)}
-          style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search client or invoice #..."
+          style={{ flex:"1 1 160px", padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none" }}/>
+        <select value={filterClient} onChange={e=>setFilterClient(e.target.value)} style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
           <option value="all">All Clients</option>
           {clientNames.map(n=><option key={n} value={n}>{n}</option>)}
         </select>
-        <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)}
-          style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
+        <select value={filterStatus} onChange={e=>setFilterStatus(e.target.value)} style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
           <option value="all">All Statuses</option>
           <option value="paid">Paid</option>
           <option value="pending">Pending</option>
           <option value="overdue">Overdue</option>
         </select>
-        <select value={filterType} onChange={e=>setFilterType(e.target.value)}
-          style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
+        <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
+          <option value="all">All Months</option>
+          {months.map(m=><option key={m} value={m}>{m}</option>)}
+        </select>
+        <select value={filterType} onChange={e=>setFilterType(e.target.value)} style={{ padding:"6px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", cursor:"pointer" }}>
           <option value="all">All Types</option>
           {invoiceTypes.map(t=><option key={t} value={t}>{t}</option>)}
         </select>
-        {(filterClient!=="all"||filterStatus!=="all"||filterType!=="all"||search) && (
-          <button onClick={()=>{setFilterClient("all");setFilterStatus("all");setFilterType("all");setSearch("");}}
-            style={{ fontSize:11, color:"#6b7280", background:"transparent", border:"1px solid #d1d5db", borderRadius:5, padding:"5px 10px", cursor:"pointer" }}>
-            Clear
-          </button>
+        {(filterClient!=="all"||filterStatus!=="all"||filterType!=="all"||filterMonth!=="all"||search) && (
+          <button onClick={()=>{setFilterClient("all");setFilterStatus("all");setFilterType("all");setFilterMonth("all");setSearch("");}}
+            style={{ fontSize:11, color:"#6b7280", background:"transparent", border:"1px solid #d1d5db", borderRadius:5, padding:"5px 10px", cursor:"pointer" }}>Clear</button>
         )}
-        <span style={{ fontSize:11, color:"#9ca3af", marginLeft:"auto" }}>{filtered.length} of {INVOICES.length}</span>
+        <button onClick={handleExport} style={{ fontSize:11, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:5, padding:"5px 10px", cursor:"pointer", marginLeft:"auto" }}>⬇ Export CSV</button>
+        <span style={{ fontSize:11, color:"#9ca3af" }}>{filtered.length} of {INVOICES.length}</span>
       </div>
 
       {/* Invoice rows */}
       <div style={{ background:"#ffffff", border:"1px solid #e5e7eb", borderRadius:12, overflow:"hidden" }}>
         <div style={{ display:"grid", gridTemplateColumns:"1.2fr 1.8fr 1.2fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr", gap:6, padding:"10px 16px", borderBottom:"1px solid #e5e7eb", fontSize:9.5, fontWeight:600, color:"#6b7280", textTransform:"uppercase", fontFamily:M }}>
-          <span>Invoice</span><span>Client</span><span>Type</span><span>Amount</span><span>Usage</span><span>Total</span><span>Status</span><span>Action</span>
+          <span>Invoice</span><span>Client</span><span>Type</span><span>Amount</span><span>Usage</span>
+          <span onClick={()=>toggleSort("total")} style={{ cursor:"pointer" }}>Total<SortIcon col="total"/></span>
+          <span onClick={()=>toggleSort("status")} style={{ cursor:"pointer" }}>Status<SortIcon col="status"/></span>
+          <span onClick={()=>toggleSort("due")} style={{ cursor:"pointer" }}>Due / Action<SortIcon col="due"/></span>
         </div>
-        {filtered.length === 0 && (
-          <div style={{ padding:"32px 0", textAlign:"center", fontSize:12, color:"#9ca3af" }}>No invoices match the current filters.</div>
-        )}
+        {filtered.length===0&&<div style={{ padding:"32px 0", textAlign:"center", fontSize:12, color:"#9ca3af" }}>No invoices match filters.</div>}
         {filtered.map((inv,i)=>{
           const fs = followUpStates[inv.id];
           const fr = followUpResults[inv.id];
@@ -863,10 +916,17 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
                     </span>
                   )}
                 </div>
-                <div>
+                <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                  {(inv.status==="pending"||inv.status==="overdue") && canEdit && (
+                    <button
+                      onClick={()=>handleMarkPaid(inv)}
+                      disabled={markingPaid===inv.id}
+                      style={{ fontSize:9, fontWeight:700, color:"#15803d", background:"#f0fdf4", border:"1px solid #16a34a", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap", opacity:markingPaid===inv.id?0.6:1 }}
+                    >{markingPaid===inv.id?"Saving...":"✓ Mark Paid"}</button>
+                  )}
                   {isOverdue&&(!fs||fs===null)&&<button onClick={()=>handleDraftFollowUp(inv)} style={{ fontSize:9, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Draft Follow-up</button>}
                   {fs==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:3 }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Drafting...</span>}
-                  {fs==="done"&&<button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:!prev[inv.id]}))} style={{ fontSize:9, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer" }}>{expandedEmail[inv.id]?"Hide":"View Email"}</button>}
+                  {fs==="done"&&<button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:!prev[inv.id]}))} style={{ fontSize:9, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer" }}>{expandedEmail[inv.id]?"✕ Collapse":"View Email"}</button>}
                   {fs==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
                 </div>
               </div>
@@ -879,10 +939,7 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
         {fr.escalation_level&&<span style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", color:fr.escalation_level==="final"?"#f87171":fr.escalation_level==="firm"?"#fbbf24":"#4ade80", background:fr.escalation_level==="final"?"rgba(248,113,113,0.1)":fr.escalation_level==="firm"?"rgba(251,191,36,0.1)":"rgba(74,222,128,0.1)", border:`1px solid ${fr.escalation_level==="final"?"rgba(248,113,113,0.2)":fr.escalation_level==="firm"?"rgba(251,191,36,0.2)":"rgba(74,222,128,0.2)"}`, borderRadius:4, padding:"1px 6px" }}>{fr.escalation_level}</span>}
         {fr.flag_for_service_pause&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.1)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:4, padding:"1px 6px" }}>⚠ FLAG: SERVICE PAUSE</span>}
       </div>
-      <div style={{ display:"flex", gap:6 }}>
-        <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
-        <button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:false}))} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>✕ Collapse</button>
-      </div>
+      <button onClick={()=>{navigator.clipboard?.writeText(`Subject: ${fr.subject||""}\n\n${fr.body||""}`);}} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
     </div>
     {fr.subject&&<div style={{ fontSize:10, fontWeight:600, color:"#111827", marginBottom:8, padding:"6px 10px", background:"#ffffff", borderRadius:5 }}>Subject: {fr.subject}</div>}
     <div style={{ fontSize:11, color:"#374151", lineHeight:1.6, padding:"10px 12px", background:"#f9fafb", borderRadius:7, whiteSpace:"pre-wrap" }}>
@@ -1057,7 +1114,26 @@ function OnboardingTab({ onRefresh }) {
             {proj.risks.length>0&&(
               <div style={{ padding:"10px 14px", background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.1)", borderRadius:8, marginBottom:12 }}>
                 <div style={{ fontSize:10, fontWeight:600, color:"#fbbf24", fontFamily:M, marginBottom:4 }}>RISKS</div>
-                {proj.risks.map((r,i)=><div key={i} style={{ fontSize:11, color:"#111827", marginBottom:2 }}>• {r}</div>)}
+                {proj.risks.map((r,ri)=>(
+                  <div key={ri} style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2 }}>
+                    <span style={{ fontSize:11, color:"#111827", flex:1 }}>• {r}</span>
+                    <button onClick={async()=>{
+                      const updated = proj.risks.filter((_,x)=>x!==ri);
+                      await supabase.from("onboarding_projects").update({risks:updated}).eq("id",proj.id);
+                      window.location.reload();
+                    }} style={{ fontSize:10, color:"#9ca3af", background:"transparent", border:"none", cursor:"pointer" }}>✕</button>
+                  </div>
+                ))}
+                <div style={{ display:"flex", gap:6, marginTop:6 }}>
+                  <input id={`risk-${proj.id}`} placeholder="Add risk..." style={{ flex:1, padding:"4px 8px", borderRadius:5, border:"1px solid #fde68a", fontSize:11, background:"#ffffff", outline:"none" }}/>
+                  <button onClick={async()=>{
+                    const inp=document.getElementById(`risk-${proj.id}`);
+                    const val=inp?.value?.trim();
+                    if(!val)return;
+                    await supabase.from("onboarding_projects").update({risks:[...proj.risks,val]}).eq("id",proj.id);
+                    window.location.reload();
+                  }} style={{ fontSize:10, fontWeight:600, color:"#d97706", background:"#ffffff", border:"1px solid #fde68a", borderRadius:5, padding:"4px 8px", cursor:"pointer" }}>+ Add</button>
+                </div>
               </div>
             )}
 
@@ -1731,6 +1807,22 @@ function RenewalsTab({ canEdit = true }) {
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 {risk&&<span style={{ fontSize:9, fontWeight:700, color:"#f87171", background:"rgba(248,113,113,0.12)", padding:"2px 8px", borderRadius:5, fontFamily:M }}>AT RISK</span>}
                 <span style={{ fontSize:11, fontWeight:600, color:bc, fontFamily:M }}>{d}d</span>
+                {canEdit && (
+                  <select defaultValue="" onChange={async(e)=>{
+                    const outcome=e.target.value; if(!outcome)return;
+                    await supabase.from("communications").insert([{
+                      client_id:c.id, comm_date:new Date().toISOString().split("T")[0],
+                      type:"Note", subject:`Renewal — ${outcome}`, note:`Renewal outcome logged: ${outcome}`
+                    }]);
+                    e.target.value=""; alert(`Logged: ${outcome}`);
+                  }} style={{ fontSize:9, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:5, padding:"3px 6px", cursor:"pointer" }}>
+                    <option value="">Log Outcome...</option>
+                    <option value="Renewed">✓ Renewed</option>
+                    <option value="Deferred 30d">⏳ Deferred 30d</option>
+                    <option value="Deferred 60d">⏳ Deferred 60d</option>
+                    <option value="Churned">✗ Churned</option>
+                  </select>
+                )}
                 {/* Predict Risk button */}
                 {(!ps||ps===null)&&<button onClick={()=>handlePredictRisk(c)} style={{ fontSize:9.5, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Predict Risk</button>}
                 {ps==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Analyzing...</span>}
@@ -2438,9 +2530,14 @@ function AutoTab() {
         <KPI label="Cost Today" value={Math.round(AUTOMATIONS.reduce((s,a)=>s+a.costToday,0)*100)/100} prefix="$" spark={[12,14,16,17,18,19]} sparkColor="#fbbf24" delay={120}/>
         <KPI label="Errors 24h" value={AUTOMATIONS.reduce((s,a)=>s+a.errors24h,0)} spark={[2,1,3,0,1,9]} sparkColor={crit.length?"#f87171":"#4ade80"} delay={180}/>
       </div>
-      {crit.length>0&&<div style={{ background:"rgba(248,113,113,0.06)", border:"1px solid rgba(248,113,113,0.12)", borderRadius:10, padding:"12px 16px" }}>
-        <div style={{ fontSize:10, fontWeight:700, color:"#f87171", fontFamily:M, marginBottom:6 }}>⚠ CRITICAL</div>
-        {crit.map(a=><div key={a.id} style={{ fontSize:12, color:"#111827" }}><strong>{a.client}</strong> → {a.name}: {a.successRate}% success</div>)}
+      {crit.length>0&&<div style={{ background:"#fef2f2", border:"1px solid #fca5a5", borderRadius:10, padding:"12px 16px" }}>
+        <div style={{ fontSize:10, fontWeight:700, color:"#dc2626", fontFamily:M, marginBottom:6 }}>⚠ CRITICAL — ACTION REQUIRED</div>
+        {crit.map(a=>(
+          <div key={a.id} style={{ marginBottom:6 }}>
+            <div style={{ fontSize:12, color:"#111827" }}><strong>{a.client}</strong> → {a.name}: {a.successRate}% success</div>
+            {a.lastError && <div style={{ fontSize:10, color:"#dc2626", fontFamily:M, marginTop:2, padding:"4px 8px", background:"#fee2e2", borderRadius:4 }}>Error: {a.lastError}</div>}
+          </div>
+        ))}
       </div>}
       {AUTOMATIONS.map((a,i)=>(<div key={a.id} style={{ display:"grid", gridTemplateColumns:"2fr 1fr 0.7fr 0.7fr 0.7fr 0.5fr", alignItems:"center", gap:6, padding:"10px 16px", background:"#ffffff", border:`1px solid ${a.status==="critical"?"#fca5a5":"#e5e7eb"}`, borderRadius:8, animation:`fu 0.3s ease ${i*40}ms both`, fontSize:12 }}>
         <div><div style={{ fontWeight:600, color:"#111827" }}>{a.client}</div><div style={{ fontSize:10, color:"#6b7280" }}>{a.name}</div></div>
@@ -2738,7 +2835,7 @@ function CapTab() {
   const netMRR = FINANCIALS.mrr - FINANCIALS.monthlyExpenses - teamMonthlyCost;
 
   // Hiring trigger analysis
-  const hiringNeeded = teamPct > 80;
+  const hiringNeeded = teamPct > 85;
   const clientsPerConsultant = CLIENTS.length / team.length;
   const revenuePerConsultant = FINANCIALS.mrr / team.length;
 
@@ -2824,7 +2921,7 @@ function CapTab() {
       {/* Hiring trigger alert */}
       {hiringNeeded && (
         <div style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.12)", borderRadius: 10, padding: "12px 16px", animation: "fu 0.4s ease both" }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#fbbf24", marginBottom: 4 }}>📢 HIRING SIGNAL — Team at {teamPct}% capacity</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", marginBottom: 4 }}>⚠️ HIRING SIGNAL — Team at {teamPct}% capacity</div>
           <div style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.5 }}>
             With only {teamFree}h/wk free, you can't comfortably onboard a new Tier 2+ client without overloading. Consider adding capacity before closing the next deal. See hiring scenarios below.
           </div>
@@ -2944,7 +3041,7 @@ function CapTab() {
 }
 
 // Comms Tab (Feature 7) — with agent visual tokens + recording upload shortcut
-function CommsTab({ onTabNav }) {
+function CommsTab({ onTabNav, canEdit = true }) {
   const { COMMS, CLIENTS } = useData();
   const [clientFilter, setClientFilter] = useState("all");
   const tc = { email:"#38bdf8", call:"#4ade80", meeting:"#c084fc", sms:"#fbbf24", note:"#94a3b8" };
@@ -2952,7 +3049,7 @@ function CommsTab({ onTabNav }) {
 
   const all = [...COMMS]
     .filter(c => clientFilter === "all" || c.clients?.id === clientFilter)
-    .sort((a,b) => new Date(b.date) - new Date(a.date));
+    .sort((a,b) => new Date(b.comm_date||b.date) - new Date(a.comm_date||a.date));
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14, maxWidth:680 }}>
@@ -3020,10 +3117,23 @@ function CommsTab({ onTabNav }) {
                       <span style={{ fontSize:8, fontWeight:700, color:"#374151", background:"#f9fafb", padding:"1px 5px", borderRadius:3, fontFamily:M }}>🤖 AGENT</span>
                     )}
                   </div>
-                  <span style={{ fontSize:10, color:"#6b7280", fontFamily:M }}>{c.date}</span>
+                  <span style={{ fontSize:10, color:"#6b7280", fontFamily:M }}>{c.comm_date || c.date}</span>
+                  {canEdit && (
+                    <button
+                      onClick={async ()=>{
+                        if (!window.confirm("Delete this entry?")) return;
+                        await supabase.from("communications").delete().eq("id", c.id);
+                        window.location.reload();
+                      }}
+                      style={{ fontSize:10, color:"#9ca3af", background:"transparent", border:"none", cursor:"pointer", padding:"0 2px", lineHeight:1 }}
+                      title="Delete entry"
+                    >✕</button>
+                  )}
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                   <span style={{ fontSize:9, color:tc[c.type], fontWeight:600, textTransform:"uppercase", fontFamily:M }}>{c.type}</span>
+                  {c.subject && <span style={{ fontSize:10, fontWeight:600, color:"#111827" }}>{c.subject}</span>}
+                  {c.subject && <span style={{ fontSize:10, color:"#9ca3af" }}>—</span>}
                   <span style={{ fontSize:11, color:"#374151" }}>{c.note}</span>
                 </div>
                 {/* View Transcript / View Analysis buttons for call entries */}
@@ -3051,6 +3161,35 @@ function TasksView({ onShowForm, canEdit }) {
   const [completedTasks, setCompletedTasks] = useState([]);
   const [completedLoading, setCompletedLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [selected, setSelected] = useState(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const categories = ["Client","Sales","Operations","Finance","Admin"];
+  const priorities  = ["Critical","High","Medium","Low"];
+
+  const handleBulkComplete = async () => {
+    if (selected.size === 0) return;
+    setBulkLoading(true);
+    const today = new Date().toISOString();
+    for (const id of selected) {
+      await supabase.from("tasks")
+        .update({ completed: true, completed_at: today })
+        .eq("id", id);
+    }
+    setBulkLoading(false);
+    setSelected(new Set());
+    window.location.reload();
+  };
+
+  const toggleSelect = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
 
   const fetchCompleted = async () => {
     setCompletedLoading(true);
@@ -3078,7 +3217,12 @@ function TasksView({ onShowForm, canEdit }) {
       const y = pMap[b.priority] !== undefined ? pMap[b.priority] : 2;
       return x - y;
     })
-    .filter(t => !search || t.text?.toLowerCase().includes(search.toLowerCase()));
+    .filter(t => {
+      if (search && !t.text?.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterCategory !== "all" && t.category !== filterCategory) return false;
+      if (filterPriority !== "all" && t.priority !== filterPriority) return false;
+      return true;
+    });
 
   const filteredCompleted = completedTasks.filter(t =>
     !search || t.text?.toLowerCase().includes(search.toLowerCase())
@@ -3089,7 +3233,15 @@ function TasksView({ onShowForm, canEdit }) {
       {/* Header */}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <h2 style={{ fontSize:17, fontWeight:700, color:"#111827" }}>Action Items</h2>
-        {canEdit && <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Task</button>}
+        <div style={{ display:"flex", gap:6 }}>
+          {selected.size > 0 && (
+            <button onClick={handleBulkComplete} disabled={bulkLoading}
+              style={{ fontSize:11, fontWeight:700, color:"#15803d", background:"#f0fdf4", border:"1px solid #16a34a", borderRadius:6, padding:"5px 12px", cursor:"pointer", opacity:bulkLoading?0.6:1 }}>
+              {bulkLoading ? "Completing..." : `✓ Complete ${selected.size}`}
+            </button>
+          )}
+          {canEdit && <button onClick={onShowForm} style={{ fontSize:11, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"5px 12px", cursor:"pointer" }}>+ Add Task</button>}
+        </div>
       </div>
 
       {/* Search bar */}
@@ -3111,7 +3263,40 @@ function TasksView({ onShowForm, canEdit }) {
             {search ? "No tasks match your search." : "No open tasks — you're all caught up! 🎉"}
           </div>
         )}
-        {filteredActive.map((t,i) => <TaskItem key={t.id} task={t} delay={i*30}/>)}
+        {/* Category + Priority filter chips */}
+      <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:4 }}>
+        {["all","Client","Sales","Operations","Finance","Admin"].map(c => (
+          <button key={c} onClick={()=>setFilterCategory(c)}
+            style={{ fontSize:10, padding:"3px 9px", borderRadius:5, border:`1px solid ${filterCategory===c?"#374151":"#e5e7eb"}`, background:filterCategory===c?"#f3f4f6":"#ffffff", color:filterCategory===c?"#111827":"#6b7280", cursor:"pointer" }}>
+            {c === "all" ? "All Categories" : c}
+          </button>
+        ))}
+        <span style={{ width:1, background:"#e5e7eb", margin:"0 2px" }}/>
+        {["all","Critical","High","Medium","Low"].map(p => {
+          const pc = {Critical:"#dc2626",High:"#d97706",Medium:"#6b7280",Low:"#9ca3af"};
+          return (
+            <button key={p} onClick={()=>setFilterPriority(p)}
+              style={{ fontSize:10, padding:"3px 9px", borderRadius:5, border:`1px solid ${filterPriority===p?(pc[p]||"#374151"):"#e5e7eb"}`, background:filterPriority===p?"#f9fafb":"#ffffff", color:filterPriority===p?(pc[p]||"#111827"):"#6b7280", cursor:"pointer" }}>
+              {p === "all" ? "All Priorities" : p}
+            </button>
+          );
+        })}
+        {(filterCategory!=="all"||filterPriority!=="all") && (
+          <button onClick={()=>{setFilterCategory("all");setFilterPriority("all");}} style={{ fontSize:10, color:"#9ca3af", background:"transparent", border:"none", cursor:"pointer", marginLeft:4 }}>✕ Clear</button>
+        )}
+      </div>
+      <div style={{ fontSize:11, color:"#9ca3af", marginBottom:4 }}>{filteredActive.length} task{filteredActive.length!==1?"s":""}{(filterCategory!=="all"||filterPriority!=="all")?" (filtered)":""}</div>
+
+      {/* Bulk select + task rows */}
+      {filteredActive.map((t,i) => (
+        <div key={t.id} style={{ display:"flex", alignItems:"center", gap:6 }}>
+          {canEdit && (
+            <input type="checkbox" checked={selected.has(t.id)} onChange={()=>toggleSelect(t.id)}
+              style={{ width:13, height:13, cursor:"pointer", accentColor:"#374151", flexShrink:0 }}/>
+          )}
+          <div style={{ flex:1 }}><TaskItem task={t} delay={i*30}/></div>
+        </div>
+      ))}
       </div>
 
       {/* Completed toggle */}
