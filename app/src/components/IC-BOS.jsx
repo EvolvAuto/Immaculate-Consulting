@@ -4453,35 +4453,56 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
 
             {/* Pipeline summary */}
             <div style={{ background:"#ffffff", borderRadius:10, border:"1px solid #e5e7eb", padding:"12px 14px" }}>
-              <div style={{ fontSize:11, fontWeight:700, color:"#111827", marginBottom:8 }}>Pipeline</div>
-              {["cold","discovery","proposal","negotiation","closed-won"].map(stg => {
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#111827" }}>Pipeline</div>
+                <span style={{ fontSize:10, color:"#6b7280", fontFamily:M }}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</span>
+              </div>
+              {PIPELINE.length === 0 && <div style={{ fontSize:11, color:"#9ca3af" }}>No deals in pipeline</div>}
+              {["discovery","proposal","negotiation","cold","closed-won"].map(stg => {
                 const deals = PIPELINE.filter(d => d.stage === stg);
                 if (deals.length === 0) return null;
                 const c = STAGE_COLORS[stg];
-               return (
-                  <div key={stg}>
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom:"1px solid #f0f0f0", fontSize:12 }}>
-                      <span style={{ color:c.text, fontWeight:600, textTransform:"capitalize" }}>{STAGE_LABELS[stg]}</span>
-                      <span style={{ fontFamily:M, color:"#374151" }}>{deals.length} deal{deals.length>1?"s":""} · ${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}/mo</span>
+                return (
+                  <div key={stg} style={{ marginBottom:10 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:5 }}>
+                      <span style={{ width:6, height:6, borderRadius:"50%", background:c.dot, flexShrink:0 }}/>
+                      <span style={{ fontSize:9, fontWeight:700, color:c.text, textTransform:"uppercase", letterSpacing:"0.05em", fontFamily:M }}>{STAGE_LABELS[stg]}</span>
+                      <span style={{ fontSize:9, color:"#9ca3af", marginLeft:"auto", fontFamily:M }}>${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}/mo</span>
                     </div>
-                    {deals.filter(d=>d.contact||d.contactPhone).map((d,di)=>(
-                      <div key={di} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 8px", background:"#f9fafb", borderRadius:6, marginTop:3, marginBottom:2 }}>
-                        <span style={{ fontSize:11, color:"#374151" }}>{d.practice}</span>
-                        <div style={{ display:"flex", gap:6 }}>
-                          {d.contactPhone && (
-                            <a href={"tel:"+d.contactPhone} style={{ fontSize:10, fontWeight:600, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:5, padding:"3px 8px", textDecoration:"none", minHeight:28, display:"flex", alignItems:"center" }}>
-                              Call
-                            </a>
-                          )}
-                          {d.contactEmail && (
-                            <a href={"mailto:"+d.contactEmail} style={{ fontSize:10, fontWeight:600, color:"#38bdf8", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:5, padding:"3px 8px", textDecoration:"none", minHeight:28, display:"flex", alignItems:"center" }}>
-                              Email
-                            </a>
-                          )}
+                    {deals.map((d,di)=>(
+                      <div key={di} style={{ background:c.bg, border:`1px solid ${c.border}40`, borderRadius:8, padding:"10px 12px", marginBottom:6 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontSize:12, fontWeight:600, color:"#111827" }}>{d.practice}</div>
+                            <div style={{ fontSize:10, color:"#374151", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
+                            <div style={{ fontSize:11, fontWeight:700, color:c.text, fontFamily:M, marginTop:4 }}>${d.value.toLocaleString()}/mo</div>
+                            {d.nextAction && <div style={{ fontSize:10, color:"#6b7280", marginTop:3 }}>→ {d.nextAction}</div>}
+                          </div>
+                          <span style={{ fontSize:8, fontWeight:700, color:"#ffffff", background:c.dot, borderRadius:4, padding:"2px 6px", flexShrink:0, marginLeft:8 }}>T{d.tier}</span>
                         </div>
+                        {(d.contactPhone || d.contactEmail || d.contact) && (
+                          <div style={{ display:"flex", gap:6, marginTop:8, paddingTop:8, borderTop:`1px solid ${c.border}30` }}>
+                            {d.contact && <span style={{ fontSize:10, color:"#6b7280", flex:1, alignSelf:"center" }}>{d.contact}</span>}
+                            {d.contactPhone && (
+                              <a href={"tel:"+d.contactPhone}
+                                style={{ fontSize:11, fontWeight:600, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:6, padding:"6px 14px", textDecoration:"none", minHeight:36, display:"flex", alignItems:"center" }}>
+                                Call
+                              </a>
+                            )}
+                            {d.contactEmail && (
+                              <a href={"mailto:"+d.contactEmail}
+                                style={{ fontSize:11, fontWeight:600, color:"#38bdf8", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:6, padding:"6px 14px", textDecoration:"none", minHeight:36, display:"flex", alignItems:"center" }}>
+                                Email
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
+                );
+              })}
+            </div>
                 );
               })}
             </div>
@@ -4673,6 +4694,8 @@ export default function ICBOS() {
     stage:          (d.stage ?? "cold").toLowerCase().replace(/\s+/g, "-"),
     value:          Number(d.estimated_value  ?? 0),
     contact:        d.contact_name        ?? "",
+    contactPhone:   d.contact_phone       ?? "",
+    contactEmail:   d.contact_email       ?? "",
     nextAction:     d.next_action         ?? "",
     daysInStage:    d.stage_entered_at ? Math.floor((Date.now() - new Date(d.stage_entered_at)) / 86400000) : (d.days_in_stage ?? 0),
     tier:           d.tier                ?? 1,
