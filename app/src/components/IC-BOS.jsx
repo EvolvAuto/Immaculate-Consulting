@@ -1138,7 +1138,6 @@ function OnboardingTab({ onRefresh, canEdit = true }) {
                       <div style={{ height:"100%", borderRadius:3, background:isDone?"#4ade80":isActive?"#fbbf24":"transparent", width:isDone?"100%":isActive?"50%":"0%" }}/>
                     </div>
               
-                    )}
                     {isDone && (
                       <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                         <span style={{ fontSize:9, fontWeight:600, color:"#4ade80", background:"rgba(74,222,128,0.1)", padding:"2px 7px", borderRadius:4, fontFamily:M }}>Complete</span>
