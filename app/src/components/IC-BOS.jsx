@@ -4325,9 +4325,20 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
   const [mobileTab, setMobileTab] = useState("overview");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [discoveryTranscript, setDiscoveryTranscript] = useState("");
+  const [discoveryDeal, setDiscoveryDeal] = useState(null);
+  const [discoveryState, setDiscoveryState] = useState(null);
+  const [discoveryResult, setDiscoveryResult] = useState(null);
+  const [prospectState, setProspectState] = useState(null);
+  const [prospectResult, setProspectResult] = useState(null);
+  const [prospectForm, setProspectForm] = useState({ practice_name:"", specialty:"", location:"North Carolina" });
+  const [healthChainStates, setHealthChainStates] = useState({});
+  const [healthChainResults, setHealthChainResults] = useState({});
+  const [collectionsStates, setCollectionsStates] = useState({});
+  const [collectionsResults, setCollectionsResults] = useState({});
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
-  const TABS_ORDER = ["overview", "tasks", "notifs"];
+  const TABS_ORDER = ["overview", "tasks", "notifs", "agents"];
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -4369,10 +4380,11 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
   const pipeVal = PIPELINE.reduce((s,d) => s + d.value, 0);
   const atRiskClients = CLIENTS.filter(c => c.healthScore < 70);
 
-  const mobileTabs = [
+ const mobileTabs = [
     { id:"overview", label:"Overview", icon:"◉" },
     { id:"tasks",    label:"Tasks",    icon:"✓", badge: highTasks.length },
     { id:"notifs",   label:"Alerts",   icon:"⚠", badge: critCount + overdueInvs.length },
+    { id:"agents",   label:"Agents",   icon:"⚡" },
   ];
 
   return (
@@ -4442,10 +4454,38 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
             {atRiskClients.length > 0 && (
               <div style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.15)", borderRadius:10, padding:"12px 14px" }}>
                 <div style={{ fontSize:11, fontWeight:700, color:"#f87171", marginBottom:6 }}>⚠ {atRiskClients.length} At-Risk Client{atRiskClients.length>1?"s":""}</div>
-                {atRiskClients.map(c=>(
-                  <div key={c.id} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:"1px solid rgba(248,113,113,0.1)", fontSize:12 }}>
+               {atRiskClients.map(c=>(
+                  <div key={c.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 0", borderBottom:"1px solid rgba(248,113,113,0.1)", fontSize:12 }}>
                     <span style={{ color:"#111827", fontWeight:500 }}>{c.name}</span>
-                    <span style={{ color:"#f87171", fontFamily:M, fontWeight:600 }}>{c.healthScore}</span>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ color:"#f87171", fontFamily:M, fontWeight:600 }}>{c.healthScore}</span>
+                      <button
+                        onClick={async () => {
+                          setHealthChainStates(p=>({...p,[c.id]:"loading"}));
+                          try {
+                            const res = await fetch("https://api.immaculate-consulting.org/api/chains/client-health-escalation", {
+                              method:"POST", headers:{"Content-Type":"application/json","x-vapi-secret":import.meta.env.VITE_VAPI_WEBHOOK_SECRET},
+                              body: JSON.stringify({ client_id: c.supabase_id||null, client_name: c.name, health_score: c.healthScore, tier: c.tier, ehr: c.ehr, no_show_before: c.noShowBefore, no_show_current: c.noShowCurrent, monthly_fee: c.monthlyFee, renewal_date: c.renewalDate, next_milestone: c.nextMilestone })
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error);
+                            setHealthChainResults(p=>({...p,[c.id]:data}));
+                            setHealthChainStates(p=>({...p,[c.id]:"done"}));
+                          } catch { setHealthChainStates(p=>({...p,[c.id]:"error"})); }
+                        }}
+                        disabled={healthChainStates[c.id]==="loading"||healthChainStates[c.id]==="done"}
+                        style={{ fontSize:10, fontWeight:600, color:healthChainStates[c.id]==="done"?"#4ade80":"#f87171", background:healthChainStates[c.id]==="done"?"rgba(74,222,128,0.1)":"rgba(248,113,113,0.08)", border:`1px solid ${healthChainStates[c.id]==="done"?"rgba(74,222,128,0.3)":"rgba(248,113,113,0.2)"}`, borderRadius:5, padding:"4px 8px", cursor:"pointer", minHeight:28 }}
+                      >
+                        {healthChainStates[c.id]==="loading"?"...":healthChainStates[c.id]==="done"?"✓ Done":"⚡"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {Object.entries(healthChainResults).map(([id, result])=>(
+                  <div key={id} style={{ marginTop:6, padding:"8px 10px", background:"rgba(248,113,113,0.04)", borderRadius:7, fontSize:10, color:"#374151" }}>
+                    <div style={{ fontWeight:600, color:"#f87171", marginBottom:3 }}>⚡ Escalation — {result.assessment?.risk_level} risk</div>
+                    <div style={{ lineHeight:1.4 }}>{result.assessment?.risk_summary}</div>
+                    {result.assessment?.intervention_plan?.[0] && <div style={{ marginTop:4, color:"#111827" }}>1. {result.assessment.intervention_plan[0]}</div>}
                   </div>
                 ))}
               </div>
@@ -4604,14 +4644,44 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
               <div style={{ textAlign:"center", padding:"40px 0", fontSize:12, color:"#4ade80" }}>✓ No active alerts</div>
             )}
 
-            {overdueInvs.map((inv,i)=>(
+           {overdueInvs.map((inv,i)=>(
               <div key={i} style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.15)", borderRadius:10, padding:"12px 14px" }}>
                 <div style={{ fontSize:10, fontWeight:700, color:"#f87171", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Overdue Invoice</div>
                 <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{inv.client}</div>
-                <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
-                  <span style={{ fontSize:12, color:"#374151" }}>Due {inv.due}</span>
-                  <span style={{ fontSize:13, fontWeight:700, color:"#f87171", fontFamily:M }}>${inv.total.toLocaleString()}</span>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
+                  <div>
+                    <div style={{ fontSize:12, color:"#374151" }}>Due {inv.due}</div>
+                    <div style={{ fontSize:13, fontWeight:700, color:"#f87171", fontFamily:M }}>${inv.total.toLocaleString()}</div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const key = inv.id||i;
+                      setCollectionsStates(p=>({...p,[key]:"loading"}));
+                      try {
+                        const daysOverdue = Math.round((Date.now()-new Date(inv.due))/864e5);
+                        const res = await fetch("https://api.immaculate-consulting.org/api/chains/collections-escalation", {
+                          method:"POST", headers:{"Content-Type":"application/json","x-vapi-secret":import.meta.env.VITE_VAPI_WEBHOOK_SECRET},
+                          body: JSON.stringify({ client_name: inv.client, amount: inv.total, days_overdue: daysOverdue, invoice_type: inv.type, due_date: inv.due })
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error);
+                        setCollectionsResults(p=>({...p,[key]:data}));
+                        setCollectionsStates(p=>({...p,[key]:"done"}));
+                      } catch { setCollectionsStates(p=>({...p,[key]:"error"})); }
+                    }}
+                    disabled={collectionsStates[inv.id||i]==="loading"||collectionsStates[inv.id||i]==="done"}
+                    style={{ fontSize:11, fontWeight:600, color:collectionsStates[inv.id||i]==="done"?"#4ade80":"#f87171", background:collectionsStates[inv.id||i]==="done"?"rgba(74,222,128,0.1)":"rgba(248,113,113,0.08)", border:`1px solid ${collectionsStates[inv.id||i]==="done"?"rgba(74,222,128,0.3)":"rgba(248,113,113,0.2)"}`, borderRadius:6, padding:"8px 14px", cursor:"pointer", minHeight:44 }}
+                  >
+                    {collectionsStates[inv.id||i]==="loading"?"...":collectionsStates[inv.id||i]==="done"?"✓ Done":"⚡ Escalate"}
+                  </button>
                 </div>
+                {collectionsResults[inv.id||i] && (
+                  <div style={{ marginTop:8, padding:"8px 10px", background:"rgba(248,113,113,0.04)", borderRadius:7, fontSize:10, color:"#374151" }}>
+                    <div style={{ fontWeight:600, color:"#f87171", marginBottom:3 }}>Severity: {collectionsResults[inv.id||i].sequence?.severity} · {collectionsResults[inv.id||i].completed_steps}/{collectionsResults[inv.id||i].total_steps} steps</div>
+                    <div>{collectionsResults[inv.id||i].sequence?.recommended_action}</div>
+                    <div style={{ marginTop:4, color:"#9ca3af" }}>3-email sequence drafted · Task created</div>
+                  </div>
+                )}
               </div>
             ))}
 
@@ -4633,6 +4703,126 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
                 </div>
               </div>
             ))}
+          </div>
+      )}
+
+        {/* ── AGENTS ── */}
+        {mobileTab === "agents" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <h2 style={{ fontSize:16, fontWeight:700, color:"#111827" }}>Agent Actions</h2>
+
+            {/* Discovery to Close */}
+            <div style={{ background:"#ffffff", borderRadius:10, border:"1px solid #e5e7eb", padding:"14px" }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"#111827", marginBottom:4 }}>⚡ Discovery to Close</div>
+              <div style={{ fontSize:10, color:"#6b7280", marginBottom:10 }}>Paste a call transcript — chain scores fit, generates proposal, creates task</div>
+              <select
+                value={discoveryDeal?.id || ""}
+                onChange={e => setDiscoveryDeal(PIPELINE.find(d=>d.id===e.target.value)||null)}
+                style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", marginBottom:8, fontFamily:"inherit" }}
+              >
+                <option value="">Select a deal...</option>
+                {PIPELINE.filter(d=>d.stage!=="closed-won").map(d=>(
+                  <option key={d.id} value={d.id}>{d.practice} — {STAGE_LABELS[d.stage]}</option>
+                ))}
+              </select>
+              <textarea
+                value={discoveryTranscript}
+                onChange={e=>setDiscoveryTranscript(e.target.value)}
+                placeholder="Paste call transcript here..."
+                rows={5}
+                style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none", resize:"vertical", fontFamily:"inherit", boxSizing:"border-box", marginBottom:8 }}
+              />
+              {discoveryState==="error" && <div style={{ fontSize:11, color:"#f87171", marginBottom:8 }}>Chain failed — try again</div>}
+              <button
+                onClick={async () => {
+                  if (!discoveryTranscript.trim() || !discoveryDeal) return;
+                  setDiscoveryState("loading"); setDiscoveryResult(null);
+                  try {
+                    const res = await fetch("https://api.immaculate-consulting.org/api/chains/discovery-to-close", {
+                      method:"POST", headers:{"Content-Type":"application/json","x-vapi-secret":import.meta.env.VITE_VAPI_WEBHOOK_SECRET},
+                      body: JSON.stringify({ transcript: discoveryTranscript, deal_id: discoveryDeal.id, supabase_id: discoveryDeal.supabase_id||null, practice_name: discoveryDeal.practice, specialty: discoveryDeal.specialty, ehr: discoveryDeal.ehr, tier: discoveryDeal.tier, providers: discoveryDeal.providers, no_show_baseline: discoveryDeal.noShowBaseline, value: discoveryDeal.value, contact_name: discoveryDeal.contact })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error);
+                    setDiscoveryResult(data); setDiscoveryState("done");
+                  } catch { setDiscoveryState("error"); }
+                }}
+                disabled={!discoveryTranscript.trim()||!discoveryDeal||discoveryState==="loading"}
+                style={{ width:"100%", padding:"10px 0", borderRadius:7, border:"none", background:discoveryTranscript.trim()&&discoveryDeal?"#374151":"#e5e7eb", color:discoveryTranscript.trim()&&discoveryDeal?"#ffffff":"#9ca3af", fontSize:13, fontWeight:700, cursor:discoveryTranscript.trim()&&discoveryDeal?"pointer":"not-allowed", minHeight:44 }}
+              >
+                {discoveryState==="loading"?"Running Chain...":"⚡ Run Discovery to Close"}
+              </button>
+              {discoveryState==="done" && discoveryResult && (
+                <div style={{ marginTop:10, padding:"10px 12px", background:"rgba(74,222,128,0.06)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:8 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#4ade80", marginBottom:6 }}>✓ {discoveryResult.completed_steps}/{discoveryResult.total_steps} steps completed</div>
+                  {discoveryResult.analysis && (
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
+                      <div style={{ background:"#ffffff", borderRadius:6, padding:"8px 10px", textAlign:"center" }}>
+                        <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, marginBottom:2 }}>BANT SCORE</div>
+                        <div style={{ fontSize:20, fontWeight:800, color:discoveryResult.analysis.bant_score>=70?"#4ade80":"#fbbf24", fontFamily:M }}>{discoveryResult.analysis.bant_score}</div>
+                      </div>
+                      <div style={{ background:"#ffffff", borderRadius:6, padding:"8px 10px", textAlign:"center" }}>
+                        <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, marginBottom:2 }}>TIER REC</div>
+                        <div style={{ fontSize:20, fontWeight:800, color:"#374151", fontFamily:M }}>{discoveryResult.analysis.recommended_tier}</div>
+                      </div>
+                    </div>
+                  )}
+                  {discoveryResult.analysis?.qualification_summary && <div style={{ fontSize:11, color:"#374151", lineHeight:1.5 }}>{discoveryResult.analysis.qualification_summary}</div>}
+                  {discoveryResult.errors?.length>0 && <div style={{ fontSize:10, color:"#f87171", marginTop:6 }}>{discoveryResult.errors.join(" · ")}</div>}
+                </div>
+              )}
+            </div>
+
+            {/* Prospect Intelligence */}
+            <div style={{ background:"#ffffff", borderRadius:10, border:"1px solid #e5e7eb", padding:"14px" }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"#111827", marginBottom:4 }}>⚡ Prospect Intelligence</div>
+              <div style={{ fontSize:10, color:"#6b7280", marginBottom:10 }}>Research a practice and add to pipeline automatically</div>
+              <input
+                value={prospectForm.practice_name}
+                onChange={e=>setProspectForm(p=>({...p,practice_name:e.target.value}))}
+                placeholder="Practice name *"
+                style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none", boxSizing:"border-box", marginBottom:6, fontFamily:"inherit" }}
+              />
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
+                <input value={prospectForm.specialty} onChange={e=>setProspectForm(p=>({...p,specialty:e.target.value}))} placeholder="Specialty" style={{ padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none", fontFamily:"inherit" }}/>
+                <input value={prospectForm.location} onChange={e=>setProspectForm(p=>({...p,location:e.target.value}))} placeholder="Location" style={{ padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none", fontFamily:"inherit" }}/>
+              </div>
+              {prospectState==="error" && <div style={{ fontSize:11, color:"#f87171", marginBottom:8 }}>Chain failed — try again</div>}
+              <button
+                onClick={async () => {
+                  if (!prospectForm.practice_name.trim()) return;
+                  setProspectState("loading"); setProspectResult(null);
+                  try {
+                    const res = await fetch("https://api.immaculate-consulting.org/api/chains/prospect-intelligence", {
+                      method:"POST", headers:{"Content-Type":"application/json","x-vapi-secret":import.meta.env.VITE_VAPI_WEBHOOK_SECRET},
+                      body: JSON.stringify(prospectForm)
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error);
+                    setProspectResult(data); setProspectState("done");
+                  } catch { setProspectState("error"); }
+                }}
+                disabled={!prospectForm.practice_name.trim()||prospectState==="loading"}
+                style={{ width:"100%", padding:"10px 0", borderRadius:7, border:"none", background:prospectForm.practice_name.trim()?"#374151":"#e5e7eb", color:prospectForm.practice_name.trim()?"#ffffff":"#9ca3af", fontSize:13, fontWeight:700, cursor:prospectForm.practice_name.trim()?"pointer":"not-allowed", minHeight:44 }}
+              >
+                {prospectState==="loading"?"Researching...":"⚡ Run Intelligence Chain"}
+              </button>
+              {prospectState==="done" && prospectResult && (
+                <div style={{ marginTop:10, padding:"10px 12px", background:"rgba(74,222,128,0.06)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:8 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#4ade80", marginBottom:6 }}>✓ Deal added to pipeline</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:6, marginBottom:8 }}>
+                    {[["Fit Score", prospectResult.intel?.fit_score+"/100"], ["Tier", prospectResult.intel?.recommended_tier], ["Value", "$"+(prospectResult.intel?.estimated_monthly_value||0).toLocaleString()+"/mo"]].map(([l,v])=>(
+                      <div key={l} style={{ background:"#ffffff", borderRadius:6, padding:"6px 8px", textAlign:"center" }}>
+                        <div style={{ fontSize:8, color:"#9ca3af", fontFamily:M, marginBottom:2 }}>{l}</div>
+                        <div style={{ fontSize:12, fontWeight:700, color:"#111827", fontFamily:M }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ fontSize:11, color:"#374151", lineHeight:1.5 }}>{prospectResult.intel?.fit_summary}</div>
+                  <button onClick={()=>{ setProspectState(null); setProspectResult(null); setProspectForm({practice_name:"",specialty:"",location:"North Carolina"}); }} style={{ marginTop:8, fontSize:11, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:5, padding:"5px 12px", cursor:"pointer" }}>Research Another</button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
