@@ -1384,6 +1384,8 @@ function SalesPrepTab({ canEdit = true }) {
   const [showTranscriptInput, setShowTranscriptInput] = useState(false);
   const [researchState, setResearchState] = useState(null);
   const [researchResult, setResearchResult] = useState(null);
+  const [chainState, setChainState] = useState(null);
+  const [chainResult, setChainResult] = useState(null);
 
   const prospects = PIPELINE.filter(p=>p.stage!=="closed-won");
   if (!selected) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#9ca3af"}}>Loading...</div>;
@@ -1412,7 +1414,38 @@ function SalesPrepTab({ canEdit = true }) {
       setAnalysisState("error");
     }
   };
-const handleResearchProspect = async () => {
+const handleDiscoveryChain = async () => {
+    if (!transcriptText.trim()) return;
+    setChainState("loading");
+    setChainResult(null);
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/chains/discovery-to-close", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          transcript: transcriptText,
+          deal_id: selected.id,
+          supabase_id: selected.supabase_id || null,
+          practice_name: selected.practice,
+          specialty: selected.specialty,
+          ehr: selected.ehr,
+          tier: selected.tier,
+          providers: selected.providers,
+          no_show_baseline: selected.noShowBaseline,
+          value: selected.value,
+          contact_name: selected.contact,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Chain failed");
+      setChainResult(data);
+      setChainState("done");
+    } catch (err) {
+      setChainState("error");
+    }
+  };
+
+  const handleResearchProspect = async () => {
     setResearchState("loading");
     setResearchResult(null);
     try {
@@ -1513,13 +1546,22 @@ const handleResearchProspect = async () => {
               placeholder="Paste call transcript here..."
               style={{ width:"100%", minHeight:120, padding:"10px 12px", borderRadius:8, border:"1px solid #e5e7eb", background:"#f9fafb", color:"#111827", fontSize:11.5, fontFamily:"inherit", outline:"none", resize:"vertical" }}
             />
-            <button
-              onClick={handleAnalyzeCall}
-              disabled={!transcriptText.trim() || analysisState==="loading"}
-              style={{ padding:"9px 0", borderRadius:8, border:"none", background:transcriptText.trim()?"#374151":"#e5e7eb", color:transcriptText.trim()?"#f9fafb":"#9ca3af", fontSize:12, fontWeight:700, cursor:transcriptText.trim()?"pointer":"not-allowed" }}
-            >
-              {analysisState==="loading" ? "Analyzing..." : "▶ Analyze Call"}
-            </button>
+            <div style={{ display:"flex", gap:8 }}>
+              <button
+                onClick={handleAnalyzeCall}
+                disabled={!transcriptText.trim() || analysisState==="loading"}
+                style={{ flex:1, padding:"9px 0", borderRadius:8, border:"none", background:transcriptText.trim()?"#374151":"#e5e7eb", color:transcriptText.trim()?"#f9fafb":"#9ca3af", fontSize:12, fontWeight:700, cursor:transcriptText.trim()?"pointer":"not-allowed" }}
+              >
+                {analysisState==="loading" ? "Analyzing..." : "▶ Analyze Call"}
+              </button>
+              <button
+                onClick={handleDiscoveryChain}
+                disabled={!transcriptText.trim() || chainState==="loading"}
+                style={{ flex:1, padding:"9px 0", borderRadius:8, border:"1px solid #374151", background:transcriptText.trim()?"#f0fdf4":"#e5e7eb", color:transcriptText.trim()?"#15803d":"#9ca3af", fontSize:12, fontWeight:700, cursor:transcriptText.trim()?"pointer":"not-allowed" }}
+              >
+                {chainState==="loading" ? "Running Chain..." : "⚡ Discovery to Close"}
+              </button>
+            </div>
           </div>
         )}
         {analysisState==="loading" && (
@@ -1571,6 +1613,70 @@ const handleResearchProspect = async () => {
           </div>
         )}
       </div>
+  {/* Chain 1 — Discovery to Close result */}
+      {chainState==="loading" && (
+        <div style={{ background:"#f0fdf4", border:"1px solid rgba(74,222,128,0.2)", borderRadius:10, padding:"14px 18px", display:"flex", alignItems:"center", gap:10 }}>
+          <span style={{ width:8, height:8, borderRadius:"50%", background:"#4ade80", animation:"pr 1.2s ease-out infinite" }}/>
+          <span style={{ fontSize:11, color:"#15803d" }}>Running Discovery to Close chain — analyzing call, generating proposal, creating task...</span>
+        </div>
+      )}
+      {chainState==="error" && (
+        <div style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.1)", borderRadius:10, padding:"12px 16px", fontSize:11, color:"#f87171" }}>
+          Chain failed — check agent logs
+        </div>
+      )}
+      {chainState==="done" && chainResult && (
+        <div style={{ background:"#f9fafb", border:"1px solid #e5e7eb", borderLeft:"3px solid #4ade80", borderRadius:10, padding:"16px 18px", animation:"fu 0.4s ease both" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:"#111827" }}>⚡ Discovery to Close — {chainResult.completed_steps}/{chainResult.total_steps} steps completed</div>
+            <span style={{ fontSize:9, fontWeight:600, color:chainResult.completed_steps===4?"#4ade80":"#fbbf24", background:chainResult.completed_steps===4?"rgba(74,222,128,0.1)":"rgba(251,191,36,0.1)", padding:"2px 8px", borderRadius:4, fontFamily:M }}>{chainResult.completed_steps===4?"COMPLETE":"PARTIAL"}</span>
+          </div>
+          {/* Step indicators */}
+          <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+            {(chainResult.steps||[]).map((s,i)=>(
+              <div key={i} style={{ flex:1, padding:"8px 10px", background:s.status==="done"?"rgba(74,222,128,0.08)":s.status==="error"?"rgba(248,113,113,0.08)":"#f3f4f6", borderRadius:7, border:`1px solid ${s.status==="done"?"rgba(74,222,128,0.2)":s.status==="error"?"rgba(248,113,113,0.2)":"#e5e7eb"}` }}>
+                <div style={{ fontSize:9, color:s.status==="done"?"#4ade80":s.status==="error"?"#f87171":s.status==="skipped"?"#9ca3af":"#38bdf8", fontWeight:600, fontFamily:M, marginBottom:3 }}>{s.status==="done"?"DONE":s.status==="error"?"ERROR":s.status==="skipped"?"SKIP":"RUN"}</div>
+                <div style={{ fontSize:10, color:"#374151", fontWeight:600 }}>{s.name}</div>
+                {s.result && s.result.bant_score && <div style={{ fontSize:9, color:"#6b7280", marginTop:2 }}>BANT: {s.result.bant_score}/100</div>}
+                {s.result && s.result.new_stage && <div style={{ fontSize:9, color:"#4ade80", marginTop:2 }}>Stage: {s.result.new_stage}</div>}
+                {s.result && s.result.reason && <div style={{ fontSize:9, color:"#9ca3af", marginTop:2 }}>{s.result.reason}</div>}
+              </div>
+            ))}
+          </div>
+          {/* Analysis summary */}
+          {chainResult.analysis && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:10 }}>
+              <div style={{ padding:"8px 10px", background:"#ffffff", borderRadius:7, border:"1px solid #e5e7eb" }}>
+                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>BANT Score</div>
+                <div style={{ fontSize:20, fontWeight:800, color:chainResult.analysis.bant_score>=70?"#4ade80":chainResult.analysis.bant_score>=50?"#fbbf24":"#f87171", fontFamily:M }}>{chainResult.analysis.bant_score}<span style={{ fontSize:11, color:"#9ca3af" }}>/100</span></div>
+              </div>
+              <div style={{ padding:"8px 10px", background:"#ffffff", borderRadius:7, border:"1px solid #e5e7eb" }}>
+                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Recommendation</div>
+                <div style={{ fontSize:12, fontWeight:700, color:"#111827" }}>Tier {chainResult.analysis.recommended_tier} · {chainResult.analysis.follow_up_urgency} urgency</div>
+                <div style={{ fontSize:10, color:chainResult.analysis.proceed_to_proposal?"#4ade80":"#fbbf24", marginTop:2 }}>{chainResult.analysis.proceed_to_proposal?"Proposal generated":"Nurture — not ready yet"}</div>
+              </div>
+            </div>
+          )}
+          {chainResult.analysis?.qualification_summary && (
+            <div style={{ padding:"8px 10px", background:"#ffffff", borderRadius:7, border:"1px solid #e5e7eb", marginBottom:10 }}>
+              <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Summary</div>
+              <div style={{ fontSize:11, color:"#374151", lineHeight:1.5 }}>{chainResult.analysis.qualification_summary}</div>
+            </div>
+          )}
+          {chainResult.proposal?.executive_summary && (
+            <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.04)", borderRadius:7, border:"1px solid rgba(74,222,128,0.15)" }}>
+              <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Proposal Executive Summary</div>
+              <div style={{ fontSize:11, color:"#374151", lineHeight:1.5 }}>{chainResult.proposal.executive_summary}</div>
+            </div>
+          )}
+          {chainResult.errors?.length > 0 && (
+            <div style={{ marginTop:8, padding:"6px 10px", background:"rgba(248,113,113,0.05)", borderRadius:6 }}>
+              {chainResult.errors.map((e,i)=><div key={i} style={{ fontSize:10, color:"#f87171" }}>{e}</div>)}
+            </div>
+          )}
+        </div>
+      )}
+
   {/* Agent 9 — Research Prospect */}
       <div style={{ background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:12, padding:"16px 18px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
