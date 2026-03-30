@@ -4444,7 +4444,17 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
               const pc = { critical:"#f87171", high:"#fb923c", medium:"#fbbf24", low:"#94a3b8" };
               return (
                 <div key={t.id||i} style={{ background:"#ffffff", borderRadius:10, border:"1px solid #e5e7eb", padding:"12px 14px", display:"flex", gap:10, alignItems:"flex-start" }}>
-                  <div style={{ width:8, height:8, borderRadius:"50%", background:pc[t.priority]||"#94a3b8", flexShrink:0, marginTop:4 }}/>
+                  <button
+                    onClick={async () => {
+                      if (!t.id) return;
+                      await supabase.from("tasks").update({ completed: true }).eq("id", t.id);
+                      icbos.tasks.refetch();
+                    }}
+                    style={{ width:22, height:22, borderRadius:6, border:"1.5px solid #d1d5db", background:"#f9fafb", flexShrink:0, marginTop:2, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", minWidth:22, minHeight:22 }}
+                    title="Mark complete"
+                  >
+                    <span style={{ fontSize:11, color:"#9ca3af" }}>✓</span>
+                  </button>
                   <div style={{ flex:1 }}>
                     <div style={{ fontSize:13, color:"#111827", lineHeight:1.4 }}>{t.text}</div>
                     <div style={{ display:"flex", gap:8, marginTop:4 }}>
