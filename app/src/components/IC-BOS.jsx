@@ -1187,6 +1187,9 @@ function OnboardingTab({ onRefresh, canEdit = true }) {
   const [planStates, setPlanStates] = useState({});
   const [planResults, setPlanResults] = useState({});
   const [expandedKickoff, setExpandedKickoff] = useState({});
+  const [healthStates, setHealthStates] = useState({});
+  const [healthResults, setHealthResults] = useState({});
+  const [expandedHealth, setExpandedHealth] = useState({});
   const phaseColors = { complete:"#4ade80", "in-progress":"#fbbf24", upcoming:"#4b5563", "Complete":"#4ade80", "In Progress":"#fbbf24", "Not Started":"#4b5563" };
   const [onboardingUpdateText, setOnboardingUpdateText] = useState("");
   const [onboardingUpdateStatus, setOnboardingUpdateStatus] = useState("note");
@@ -1215,6 +1218,35 @@ function OnboardingTab({ onRefresh, canEdit = true }) {
       fetchOnboardingUpdates(proj.id);
     }
     setSavingUpdate(false);
+  };
+
+  const handleHealthCheck = async (proj) => {
+    setHealthStates(prev => ({ ...prev, [proj.id]: "loading" }));
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/chains/onboarding-health-check", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          project_id: proj.id || null,
+          client_id: proj.client_id || null,
+          client_name: proj.client,
+          tier: proj.tier,
+          ehr: proj.ehr,
+          kickoff_date: proj.kickoff,
+          target_go_live: proj.targetGoLive,
+          days_to_go_live: proj.daysToGoLive,
+          phases: proj.phases,
+          risks: proj.risks,
+          blockers: proj.blockers,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Chain failed");
+      setHealthResults(prev => ({ ...prev, [proj.id]: data }));
+      setHealthStates(prev => ({ ...prev, [proj.id]: "done" }));
+    } catch (err) {
+      setHealthStates(prev => ({ ...prev, [proj.id]: "error" }));
+    }
   };
 
   const handleGeneratePlan = async (proj) => {
@@ -1259,11 +1291,22 @@ function OnboardingTab({ onRefresh, canEdit = true }) {
         return (
           <Panel key={proj.id} title={proj.client} subtitle={`Tier ${proj.tier} · ${proj.ehr} · Go-live: ${proj.targetGoLive} (${proj.daysToGoLive}d)`}
             action={
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 {(!ps||ps===null)&&<button onClick={()=>handleGeneratePlan(proj)} style={{ fontSize:10, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}>🤖 Generate Plan</button>}
                 {ps==="loading"&&<span style={{ fontSize:10, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:5 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Generating...</span>}
                 {ps==="done"&&<span style={{ fontSize:10, color:"#4ade80", fontFamily:M }}>✓ Plan ready</span>}
                 {ps==="error"&&<span style={{ fontSize:10, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+                <button
+                  onClick={() => healthStates[proj.id]==="done"
+                    ? setExpandedHealth(prev=>({...prev,[proj.id]:!prev[proj.id]}))
+                    : handleHealthCheck(proj)
+                  }
+                  disabled={healthStates[proj.id]==="loading"}
+                  style={{ fontSize:10, fontWeight:600, color:"#38bdf8", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:6, padding:"4px 10px", cursor:"pointer", opacity:healthStates[proj.id]==="loading"?0.6:1 }}
+                >
+                  {healthStates[proj.id]==="loading"?"Checking...":healthStates[proj.id]==="done"?"⚡ View Health":"⚡ Health Check"}
+                </button>
+                {healthStates[proj.id]==="error"&&<span style={{ fontSize:10, color:"#f87171", fontFamily:M }}>✗ Error</span>}
               </div>
             }
           >
@@ -1372,6 +1415,59 @@ function OnboardingTab({ onRefresh, canEdit = true }) {
                     window.location.reload();
                   }} style={{ fontSize:10, fontWeight:600, color:"#d97706", background:"#ffffff", border:"1px solid #fde68a", borderRadius:5, padding:"4px 8px", cursor:"pointer" }}>+ Add</button>
                 </div>
+              </div>
+            )}
+
+            {/* Chain 5 — Health Check result panel */}
+            {healthStates[proj.id]==="done" && healthResults[proj.id] && expandedHealth[proj.id] && (
+              <div style={{ borderTop:"1px solid #e5e7eb", paddingTop:12, display:"flex", flexDirection:"column", gap:10, animation:"fu 0.3s ease both" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ fontSize:10, fontWeight:700, color:"#111827" }}>⚡ Onboarding Health Check — {healthResults[proj.id].completed_steps}/{healthResults[proj.id].total_steps} steps</span>
+                  <span style={{ fontSize:9, fontWeight:600, textTransform:"uppercase", fontFamily:M,
+                    color:healthResults[proj.id].assessment?.health_status==="blocked"?"#f87171":
+                          healthResults[proj.id].assessment?.health_status==="behind"?"#f87171":
+                          healthResults[proj.id].assessment?.health_status==="at-risk"?"#fbbf24":"#4ade80",
+                    background:healthResults[proj.id].assessment?.health_status==="on-track"?"rgba(74,222,128,0.1)":"rgba(248,113,113,0.1)",
+                    padding:"2px 8px", borderRadius:4 }}>{healthResults[proj.id].assessment?.health_status}</span>
+                </div>
+                <div style={{ padding:"8px 10px", background:"#f9fafb", borderRadius:7 }}>
+                  <div style={{ fontSize:11, color:"#374151", lineHeight:1.5 }}>{healthResults[proj.id].assessment?.health_summary}</div>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  <div style={{ padding:"8px 10px", background:"#f9fafb", borderRadius:7 }}>
+                    <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Risk Factors</div>
+                    {healthResults[proj.id].assessment?.risk_factors?.map((r,i)=><div key={i} style={{ fontSize:10, color:"#374151", marginBottom:2 }}>• {r}</div>)}
+                  </div>
+                  <div style={{ padding:"8px 10px", background:"#f9fafb", borderRadius:7 }}>
+                    <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Recommended Actions</div>
+                    {healthResults[proj.id].assessment?.recommended_actions?.map((a,i)=><div key={i} style={{ fontSize:10, color:"#374151", marginBottom:2 }}>• {a}</div>)}
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <div style={{ flex:1, padding:"6px 10px", background:"#f9fafb", borderRadius:7, textAlign:"center" }}>
+                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:2 }}>Go-live Confidence</div>
+                    <div style={{ fontSize:13, fontWeight:700, color:healthResults[proj.id].assessment?.go_live_confidence==="high"?"#4ade80":healthResults[proj.id].assessment?.go_live_confidence==="medium"?"#fbbf24":"#f87171" }}>{healthResults[proj.id].assessment?.go_live_confidence}</div>
+                  </div>
+                  <div style={{ flex:1, padding:"6px 10px", background:"#f9fafb", borderRadius:7, textAlign:"center" }}>
+                    <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:2 }}>Days Adjustment</div>
+                    <div style={{ fontSize:13, fontWeight:700, color:healthResults[proj.id].assessment?.days_adjustment_needed>0?"#f87171":"#4ade80" }}>
+                      {healthResults[proj.id].assessment?.days_adjustment_needed > 0 ? "+"+healthResults[proj.id].assessment.days_adjustment_needed+"d" : "On track"}
+                    </div>
+                  </div>
+                </div>
+                {healthResults[proj.id].assessment?.client_email && (
+                  <div style={{ padding:"10px 12px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:7 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                      <span style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", fontWeight:600 }}>Client Status Email Draft</span>
+                      <button onClick={()=>navigator.clipboard?.writeText("Subject: "+healthResults[proj.id].assessment.client_email.subject+"\n\n"+healthResults[proj.id].assessment.client_email.body)} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>Copy</button>
+                    </div>
+                    <div style={{ fontSize:10, fontWeight:600, color:"#374151", marginBottom:4 }}>Subj: {healthResults[proj.id].assessment.client_email.subject}</div>
+                    <div style={{ fontSize:11, color:"#374151", lineHeight:1.5 }}>{healthResults[proj.id].assessment.client_email.body}</div>
+                  </div>
+                )}
+                {healthResults[proj.id].errors?.length > 0 && (
+                  <div style={{ fontSize:10, color:"#f87171" }}>{healthResults[proj.id].errors.join(" · ")}</div>
+                )}
               </div>
             )}
 
