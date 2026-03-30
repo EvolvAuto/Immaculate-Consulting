@@ -446,6 +446,39 @@ function ClientsTab({ onShowForm, onEditClient, onViewClient, canEdit = true, on
   const [expandedReport, setExpandedReport] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(null);
+  const [chainStates, setChainStates] = useState({});
+  const [chainResults, setChainResults] = useState({});
+
+  const handleHealthChain = async (client) => {
+    setChainStates(prev => ({ ...prev, [client.id]: "loading" }));
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/chains/client-health-escalation", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          client_id: client.supabase_id || null,
+          client_name: client.name,
+          health_score: client.healthScore,
+          tier: client.tier,
+          ehr: client.ehr,
+          no_show_before: client.noShowBefore,
+          no_show_current: client.noShowCurrent,
+          monthly_fee: client.monthlyFee,
+          weekly_hours_spent: client.weeklyHoursSpent,
+          renewal_date: client.renewalDate,
+          next_milestone: client.nextMilestone,
+          automations: client.automations?.join(", "),
+          notes: client.notes || "",
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Chain failed");
+      setChainResults(prev => ({ ...prev, [client.id]: data }));
+      setChainStates(prev => ({ ...prev, [client.id]: "done" }));
+    } catch (err) {
+      setChainStates(prev => ({ ...prev, [client.id]: "error" }));
+    }
+  };
 
   const handleDeleteClient = async (client) => {
     if (deleteConfirm !== client.id) {
@@ -686,6 +719,16 @@ function ClientsTab({ onShowForm, onEditClient, onViewClient, canEdit = true, on
                   {as==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}><span style={{ width:6, height:6, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Running...</span>}
                   {as==="done"&&<span style={{ fontSize:9, color:"#4ade80", fontFamily:M }}>✓ Done</span>}
                   {as==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
+                  {/* Chain 2 — Health Escalation button (at-risk clients only) */}
+                  {canEdit && c.healthScore < 70 && (
+                    <button
+                      onClick={() => handleHealthChain(c)}
+                      disabled={chainStates[c.id] === "loading"}
+                      style={{ fontSize:9.5, fontWeight:600, color:"#f87171", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:6, padding:"4px 10px", cursor:"pointer", whiteSpace:"nowrap", opacity:chainStates[c.id]==="loading"?0.6:1 }}
+                    >
+                      {chainStates[c.id]==="loading" ? "Running..." : chainStates[c.id]==="done" ? "✓ Escalated" : "⚡ Escalate"}
+                    </button>
+                  )}
                   {/* Monthly Report button */}
                   {canEdit && c.status === "active" && (
                     <button
@@ -701,6 +744,36 @@ function ClientsTab({ onShowForm, onEditClient, onViewClient, canEdit = true, on
                   )}
                 </div>
               </div>
+
+             {/* Chain 2 result panel */}
+              {chainStates[c.id]==="done" && chainResults[c.id] && (
+                <div style={{ marginTop:10, padding:"12px 14px", background:"rgba(248,113,113,0.04)", border:"1px solid rgba(248,113,113,0.12)", borderRadius:9, animation:"fu 0.3s ease both" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <span style={{ fontSize:10, fontWeight:700, color:"#111827" }}>⚡ Health Escalation — {chainResults[c.id].completed_steps}/{chainResults[c.id].total_steps} steps</span>
+                    <span style={{ fontSize:9, fontWeight:600, color:chainResults[c.id].assessment?.risk_level==="critical"?"#f87171":chainResults[c.id].assessment?.risk_level==="high"?"#fb923c":"#fbbf24", fontFamily:M, textTransform:"uppercase" }}>{chainResults[c.id].assessment?.risk_level} risk</span>
+                  </div>
+                  <div style={{ fontSize:11, color:"#374151", lineHeight:1.5, marginBottom:8 }}>{chainResults[c.id].assessment?.risk_summary}</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                    {chainResults[c.id].assessment?.intervention_plan?.map((action,i) => (
+                      <div key={i} style={{ fontSize:10, color:"#374151", display:"flex", gap:6 }}>
+                        <span style={{ color:"#f87171", fontWeight:700, flexShrink:0 }}>{i+1}.</span>
+                        <span>{action}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {chainResults[c.id].assessment?.talking_points?.length > 0 && (
+                    <div style={{ marginTop:8, padding:"8px 10px", background:"#ffffff", borderRadius:6 }}>
+                      <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, fontWeight:600, textTransform:"uppercase", marginBottom:4 }}>Talking Points</div>
+                      {chainResults[c.id].assessment.talking_points.map((t,i) => (
+                        <div key={i} style={{ fontSize:10, color:"#374151", marginBottom:2 }}>• {t}</div>
+                      ))}
+                    </div>
+                  )}
+                  {chainResults[c.id].errors?.length > 0 && (
+                    <div style={{ marginTop:6, fontSize:10, color:"#f87171" }}>{chainResults[c.id].errors.join(" · ")}</div>
+                  )}
+                </div>
+              )}
 
               {/* Analysis result panel */}
               {as==="done"&&ar&&(
