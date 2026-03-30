@@ -1130,19 +1130,14 @@ function OnboardingTab({ onRefresh, canEdit = true }) {
                 return (
                   <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 0", borderBottom:"1px solid #f0f0f0" }}>
                     <div style={{ width:8, height:8, borderRadius:"50%", flexShrink:0, background:isDone?"#4ade80":isActive?"#fbbf24":"#4b5563" }}/>
-                 <div style={{ flex:1 }}>
+                <div style={{ flex:1 }}>
                       <span style={{ fontSize:11, color:isDone?"#6b7280":isActive?"#111827":"#9ca3af", fontWeight:isActive?600:400 }}>{ph.name}</span>
                       {ph.target_date && <span style={{ fontSize:9, color:"#9ca3af", marginLeft:6, fontFamily:M }}>{ph.target_date}</span>}
                     </div>
                     <div style={{ width:80, height:5, borderRadius:3, background:"#e5e7eb", overflow:"hidden" }}>
                       <div style={{ height:"100%", borderRadius:3, background:isDone?"#4ade80":isActive?"#fbbf24":"transparent", width:isDone?"100%":isActive?"50%":"0%" }}/>
                     </div>
-                    {!isDone && canEdit && (
-                      <input type="date" defaultValue={ph.target_date||""} onChange={async e=>{
-                        const updated = proj.phases.map((p,j)=>j===i?{...p,target_date:e.target.value}:p);
-                        await supabase.from("onboarding_projects").update({phases:updated}).eq("id",proj.id);
-                        if(onRefresh)onRefresh();
-                      }} style={{ fontSize:9, border:"1px solid #d1d5db", borderRadius:4, padding:"1px 4px", color:"#374151", background:"#f9fafb", cursor:"pointer", fontFamily:"inherit" }}/>
+              
                     )}
                     {isDone && (
                       <div style={{ display:"flex", alignItems:"center", gap:5 }}>
