@@ -4056,6 +4056,162 @@ function FinancialsTab({ FINANCIALS }) {
     </div>
   );
 }
+// ─── ProspectIntelPanel ───────────────────────────────────────────────────────
+function ProspectIntelPanel({ onClose, onCreated }) {
+  const M = "ui-monospace,SFMono-Regular,Menlo,monospace";
+  const [f, setF] = useState({ practice_name:"", specialty:"", location:"North Carolina", contact_name:"", contact_email:"", contact_phone:"", notes:"" });
+  const [state, setState] = useState(null); // null | loading | done | error
+  const [result, setResult] = useState(null);
+
+  const handleRun = async () => {
+    if (!f.practice_name.trim()) return;
+    setState("loading");
+    try {
+      const res = await fetch("https://api.immaculate-consulting.org/api/chains/prospect-intelligence", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify(f)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Chain failed");
+      setResult(data);
+      setState("done");
+    } catch (err) {
+      setState("error");
+    }
+  };
+
+  const inp = (label, key, placeholder, type="text") => (
+    <div>
+      <div style={{ fontSize:10, fontWeight:600, color:"#6b7280", marginBottom:4, textTransform:"uppercase", fontFamily:M }}>{label}</div>
+      <input type={type} value={f[key]} onChange={e=>setF(p=>({...p,[key]:e.target.value}))} placeholder={placeholder}
+        style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:13, background:"#f9fafb", color:"#111827", outline:"none", boxSizing:"border-box" }}/>
+    </div>
+  );
+
+  const fitColor = result?.intel?.fit_score >= 75 ? "#4ade80" : result?.intel?.fit_score >= 50 ? "#fbbf24" : "#f87171";
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:200, background:"rgba(0,0,0,0.5)", display:"flex", justifyContent:"flex-end" }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ width:520, height:"100vh", overflowY:"auto", background:"#ffffff", borderLeft:"1px solid #e5e7eb", padding:"24px", display:"flex", flexDirection:"column", gap:14, animation:"slideIn 0.25s ease both" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <div style={{ fontSize:16, fontWeight:700, color:"#111827" }}>⚡ Prospect Intelligence</div>
+            <div style={{ fontSize:11, color:"#6b7280", marginTop:2 }}>Research a practice and add to pipeline automatically</div>
+          </div>
+          <button onClick={onClose} style={{ fontSize:18, color:"#6b7280", background:"none", border:"none", cursor:"pointer" }}>x</button>
+        </div>
+
+        {state !== "done" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            {inp("Practice Name *", "practice_name", "e.g. Durham Pediatrics")}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              {inp("Specialty", "specialty", "e.g. Family Medicine")}
+              {inp("Location", "location", "e.g. Durham, NC")}
+            </div>
+            <div style={{ borderTop:"1px solid #e5e7eb", paddingTop:10 }}>
+              <div style={{ fontSize:10, fontWeight:600, color:"#6b7280", marginBottom:8, textTransform:"uppercase", fontFamily:M }}>Contact (optional)</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {inp("Contact Name", "contact_name", "e.g. Dr. Jane Smith")}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                  {inp("Email", "contact_email", "email@practice.com", "email")}
+                  {inp("Phone", "contact_phone", "(919) 555-0100")}
+                </div>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize:10, fontWeight:600, color:"#6b7280", marginBottom:4, textTransform:"uppercase", fontFamily:M }}>Additional Context</div>
+              <textarea value={f.notes} onChange={e=>setF(p=>({...p,notes:e.target.value}))} placeholder="Any known details about the practice..."
+                style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:13, background:"#f9fafb", color:"#111827", outline:"none", resize:"vertical", minHeight:60, boxSizing:"border-box" }}/>
+            </div>
+            {state==="error" && <div style={{ fontSize:11, color:"#f87171", background:"rgba(248,113,113,0.08)", borderRadius:6, padding:"8px 10px" }}>Chain failed — check connection and try again</div>}
+            <button onClick={handleRun} disabled={!f.practice_name.trim() || state==="loading"}
+              style={{ padding:"10px 0", borderRadius:7, border:"none", background:f.practice_name.trim()?"#374151":"#e5e7eb", color:f.practice_name.trim()?"#ffffff":"#9ca3af", fontSize:13, fontWeight:700, cursor:f.practice_name.trim()?"pointer":"not-allowed" }}>
+              {state==="loading" ? "Researching..." : "⚡ Run Intelligence Chain"}
+            </button>
+            {state==="loading" && (
+              <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:11, color:"#38bdf8" }}>
+                <span style={{ width:7, height:7, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>
+                Researching practice, scoring fit, creating pipeline deal...
+              </div>
+            )}
+          </div>
+        )}
+
+        {state==="done" && result && (
+          <div style={{ display:"flex", flexDirection:"column", gap:12, animation:"fu 0.4s ease both" }}>
+            {/* Fit score hero */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+              <div style={{ background:"#f9fafb", borderRadius:8, padding:"12px", textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Fit Score</div>
+                <div style={{ fontSize:28, fontWeight:800, color:fitColor, fontFamily:M }}>{result.intel.fit_score}</div>
+                <div style={{ fontSize:9, color:"#9ca3af" }}>/100</div>
+              </div>
+              <div style={{ background:"#f9fafb", borderRadius:8, padding:"12px", textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Rec. Tier</div>
+                <div style={{ fontSize:28, fontWeight:800, color:"#374151", fontFamily:M }}>{result.intel.recommended_tier}</div>
+              </div>
+              <div style={{ background:"#f9fafb", borderRadius:8, padding:"12px", textAlign:"center" }}>
+                <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Est. Value</div>
+                <div style={{ fontSize:18, fontWeight:800, color:"#4ade80", fontFamily:M }}>${(result.intel.estimated_monthly_value||0).toLocaleString()}</div>
+                <div style={{ fontSize:9, color:"#9ca3af" }}>/mo</div>
+              </div>
+            </div>
+            {/* Intel tiles */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              {[
+                ["EHR", result.intel.likely_ehr + " (" + result.intel.ehr_confidence + ")"],
+                ["Providers", result.intel.estimated_providers],
+                ["No-Show Est.", Math.round((result.intel.estimated_no_show_rate||0)*100)+"%"],
+                ["Medicaid", result.intel.medicaid_exposure + " exposure"],
+              ].map(([l,v])=>(
+                <div key={l} style={{ background:"#f9fafb", borderRadius:7, padding:"8px 10px" }}>
+                  <div style={{ fontSize:9, color:"#9ca3af", fontFamily:M, textTransform:"uppercase", marginBottom:2 }}>{l}</div>
+                  <div style={{ fontSize:12, fontWeight:600, color:"#111827" }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:"8px 10px", background:"#f9fafb", borderRadius:7 }}>
+              <div style={{ fontSize:9, color:"#6b7280", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Fit Summary</div>
+              <div style={{ fontSize:11, color:"#374151", lineHeight:1.5 }}>{result.intel.fit_summary}</div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <div style={{ padding:"8px 10px", background:"#f9fafb", borderRadius:7 }}>
+                <div style={{ fontSize:9, color:"#f87171", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Pain Points</div>
+                {result.intel.pain_points?.map((p,i)=><div key={i} style={{ fontSize:10, color:"#374151", marginBottom:2 }}>• {p}</div>)}
+              </div>
+              <div style={{ padding:"8px 10px", background:"#f9fafb", borderRadius:7 }}>
+                <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>Talking Points</div>
+                {result.intel.talking_points?.map((t,i)=><div key={i} style={{ fontSize:10, color:"#374151", marginBottom:2 }}>• {t}</div>)}
+              </div>
+            </div>
+            <div style={{ padding:"8px 10px", background:"rgba(74,222,128,0.06)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:7 }}>
+              <div style={{ fontSize:9, color:"#4ade80", fontFamily:M, textTransform:"uppercase", fontWeight:600, marginBottom:3 }}>Next Action</div>
+              <div style={{ fontSize:11, color:"#374151" }}>{result.intel.recommended_next_action}</div>
+            </div>
+            <div style={{ padding:"10px 12px", background:"#f0fdf4", border:"1px solid rgba(74,222,128,0.2)", borderRadius:7, display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:12 }}>✓</span>
+              <div>
+                <div style={{ fontSize:11, fontWeight:600, color:"#15803d" }}>Deal added to pipeline</div>
+                <div style={{ fontSize:10, color:"#4ade80" }}>{f.practice_name} — Cold stage · Outreach task created</div>
+              </div>
+            </div>
+            {result.errors?.length > 0 && (
+              <div style={{ fontSize:10, color:"#f87171" }}>{result.errors.join(" · ")}</div>
+            )}
+            <div style={{ display:"flex", gap:8 }}>
+              <button onClick={()=>{ setState(null); setResult(null); setF({ practice_name:"", specialty:"", location:"North Carolina", contact_name:"", contact_email:"", contact_phone:"", notes:"" }); }}
+                style={{ flex:1, padding:"9px 0", borderRadius:6, border:"1px solid #d1d5db", background:"#f9fafb", color:"#6b7280", cursor:"pointer", fontSize:12 }}>Research Another</button>
+              <button onClick={()=>{ onCreated(); onClose(); }}
+                style={{ flex:1, padding:"9px 0", borderRadius:6, border:"none", background:"#374151", color:"#ffffff", cursor:"pointer", fontSize:12, fontWeight:700 }}>View Pipeline</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 export default function ICBOS() {
   const [tab, setTab] = useState("overview");
 
@@ -4436,7 +4592,7 @@ export default function ICBOS() {
           )
         )}
        {tab==="agents"&&<AgentsTab onTabNav={(tabId)=>setTab(tabId)}/>}
-       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2>{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})} onViewDeal={(deal)=>setShowForm({type:"deal-detail",deal})}/></>}
+       {tab==="pipeline"&&<><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}><h2 style={{fontSize:17,fontWeight:700,color:"#111827"}}>Sales Pipeline</h2><div style={{display:"flex",gap:8}}>{canEdit&&<button onClick={()=>setShowForm("prospect-intel")} style={{fontSize:11,fontWeight:600,color:"#15803d",background:"#f0fdf4",border:"1px solid rgba(74,222,128,0.3)",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>⚡ Research Prospect</button>}{canEdit&&<button onClick={()=>setShowForm("deal")} style={{fontSize:11,fontWeight:600,color:"#374151",background:"#f9fafb",border:"1px solid #d1d5db",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>+ Add Deal</button>}</div></div><p style={{fontSize:11,color:"#6b7280",marginBottom:14}}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</p><PipelineBoard canEdit={canEdit} onRefresh={()=>icbos.pipeline.refetch()} onConvert={(deal)=>setShowForm({type:"client",prefill:deal})} onViewDeal={(deal)=>setShowForm({type:"deal-detail",deal})}/></>}
       {tab==="clients"&&<ClientsTab onShowForm={canEdit?()=>setShowForm("client"):null} onEditClient={canEdit?(c)=>setShowForm({type:"edit-client",client:c}):null} onViewClient={(c)=>setShowForm({type:"client-detail",client:c})} canEdit={canEdit} onDeleted={()=>icbos.clients.refetch()}/>}
         {tab==="roi"&&<ROITab/>}
         {tab==="financials"&&<FinancialsTab FINANCIALS={FINANCIALS}/>}
@@ -4454,6 +4610,12 @@ export default function ICBOS() {
         {tab==="report"&&<WeeklyReportTab/>}
       </main>
 {(showForm==="client"||showForm?.type==="client")&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} initialData={showForm?.prefill||null} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
+{showForm==="prospect-intel" && (
+  <ProspectIntelPanel
+    onClose={()=>setShowForm(null)}
+    onCreated={()=>{ icbos.pipeline.refetch(); setTab("pipeline"); }}
+  />
+)}
 {showForm?.type==="deal-detail" && (
   <DealDetailPanel
     deal={showForm.deal}
