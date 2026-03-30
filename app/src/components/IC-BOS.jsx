@@ -4703,8 +4703,68 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
                 </div>
               </div>
             ))}
+
+            {/* All Invoices */}
+            {INVOICES.length > 0 && (
+              <div>
+                <div style={{ fontSize:12, fontWeight:700, color:"#111827", marginTop:6, marginBottom:8 }}>All Invoices</div>
+                {INVOICES.sort((a,b) => {
+                  const o = {overdue:0, pending:1, paid:2};
+                  return (o[a.status]??1) - (o[b.status]??1);
+                }).map((inv,i) => {
+                  const key = inv.id||i;
+                  const stc = { paid:"#4ade80", pending:"#fbbf24", overdue:"#f87171" };
+                  const isOverdue = inv.status === "overdue";
+                  return (
+                    <div key={i} style={{ background:"#ffffff", border:`1px solid ${isOverdue?"rgba(248,113,113,0.2)":"#e5e7eb"}`, borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+                        <div>
+                          <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{inv.client}</div>
+                          <div style={{ fontSize:10, color:"#6b7280", marginTop:1 }}>{inv.type} · Due {inv.due}</div>
+                        </div>
+                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
+                          <span style={{ fontSize:13, fontWeight:700, color:"#111827", fontFamily:M }}>${inv.total.toLocaleString()}</span>
+                          <span style={{ fontSize:9, fontWeight:700, color:stc[inv.status], background:`rgba(0,0,0,0.04)`, padding:"2px 7px", borderRadius:4, fontFamily:M, textTransform:"uppercase" }}>{inv.status}</span>
+                        </div>
+                      </div>
+                      {isOverdue && (
+                        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                          <button
+                            onClick={async () => {
+                              setCollectionsStates(p=>({...p,[key]:"loading"}));
+                              try {
+                                const daysOverdue = Math.round((Date.now()-new Date(inv.due))/864e5);
+                                const res = await fetch("https://api.immaculate-consulting.org/api/chains/collections-escalation", {
+                                  method:"POST", headers:{"Content-Type":"application/json","x-vapi-secret":import.meta.env.VITE_VAPI_WEBHOOK_SECRET},
+                                  body: JSON.stringify({ client_name: inv.client, amount: inv.total, days_overdue: daysOverdue, invoice_type: inv.type, due_date: inv.due })
+                                });
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(data.error);
+                                setCollectionsResults(p=>({...p,[key]:data}));
+                                setCollectionsStates(p=>({...p,[key]:"done"}));
+                              } catch { setCollectionsStates(p=>({...p,[key]:"error"})); }
+                            }}
+                            disabled={collectionsStates[key]==="loading"||collectionsStates[key]==="done"}
+                            style={{ flex:1, padding:"8px 0", borderRadius:6, border:"none", background:collectionsStates[key]==="done"?"rgba(74,222,128,0.1)":collectionsStates[key]==="loading"?"#e5e7eb":"rgba(248,113,113,0.08)", color:collectionsStates[key]==="done"?"#15803d":collectionsStates[key]==="loading"?"#9ca3af":"#f87171", fontSize:12, fontWeight:700, cursor:"pointer", minHeight:40 }}
+                          >
+                            {collectionsStates[key]==="loading"?"Running...":collectionsStates[key]==="done"?"✓ Escalated":"⚡ Escalate"}
+                          </button>
+                        </div>
+                      )}
+                      {collectionsResults[key] && (
+                        <div style={{ marginTop:8, padding:"8px 10px", background:"rgba(248,113,113,0.04)", borderRadius:7, fontSize:10, color:"#374151" }}>
+                          <div style={{ fontWeight:600, color:"#f87171", marginBottom:2 }}>{collectionsResults[key].sequence?.severity} severity · {collectionsResults[key].completed_steps}/{collectionsResults[key].total_steps} steps</div>
+                          <div>{collectionsResults[key].sequence?.recommended_action}</div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-      )}
+        )}
+
 
         {/* ── AGENTS ── */}
         {mobileTab === "agents" && (
@@ -4783,10 +4843,11 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
                 placeholder="Practice name *"
                 style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none", boxSizing:"border-box", marginBottom:6, fontFamily:"inherit" }}
               />
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, marginBottom:8 }}>
-                <input value={prospectForm.specialty} onChange={e=>setProspectForm(p=>({...p,specialty:e.target.value}))} placeholder="Specialty" style={{ padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none", fontFamily:"inherit" }}/>
-                <input value={prospectForm.location} onChange={e=>setProspectForm(p=>({...p,location:e.target.value}))} placeholder="Location" style={{ padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none", fontFamily:"inherit" }}/>
+ <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:8 }}>
+                <input value={prospectForm.specialty} onChange={e=>setProspectForm(p=>({...p,specialty:e.target.value}))} placeholder="Specialty (e.g. Family Medicine)" style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none", fontFamily:"inherit", boxSizing:"border-box" }}/>
+                <input value={prospectForm.location} onChange={e=>setProspectForm(p=>({...p,location:e.target.value}))} placeholder="Location (e.g. Durham, NC)" style={{ width:"100%", padding:"8px 10px", borderRadius:6, border:"1px solid #d1d5db", fontSize:12, background:"#f9fafb", color:"#111827", outline:"none", fontFamily:"inherit", boxSizing:"border-box" }}/>
               </div>
+
               {prospectState==="error" && <div style={{ fontSize:11, color:"#f87171", marginBottom:8 }}>Chain failed — try again</div>}
               <button
                 onClick={async () => {
