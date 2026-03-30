@@ -4503,9 +4503,7 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
                 );
               })}
             </div>
-                );
-              })}
-            </div>
+      
 
            {/* Client health scores */}
             {CLIENTS.filter(c=>c.status==="active").length > 0 && (
