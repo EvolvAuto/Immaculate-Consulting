@@ -4308,8 +4308,221 @@ function ProspectIntelPanel({ onClose, onCreated }) {
     </div>
   );
 }
+// ─── useIsMobile ──────────────────────────────────────────────────────────────
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return isMobile;
+}
+
+// ─── MobileView ───────────────────────────────────────────────────────────────
+function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIALS, icbos, canEdit, setShowForm }) {
+  const M = "ui-monospace,SFMono-Regular,Menlo,monospace";
+  const [mobileTab, setMobileTab] = useState("overview");
+
+  const critCount = AUTOMATIONS.filter(a => a.status === "critical").length;
+  const overdueInvs = INVOICES.filter(i => i.status === "overdue");
+  const highTasks = TASKS.filter(t => t.priority === "high" && !t.completed);
+  const totalROI = CLIENTS.reduce((s,c) => s + calcClientROI(c).totalToDate, 0);
+  const pipeVal = PIPELINE.reduce((s,d) => s + d.value, 0);
+  const atRiskClients = CLIENTS.filter(c => c.healthScore < 70);
+
+  const mobileTabs = [
+    { id:"overview", label:"Overview", icon:"◉" },
+    { id:"tasks",    label:"Tasks",    icon:"✓", badge: highTasks.length },
+    { id:"notifs",   label:"Alerts",   icon:"⚠", badge: critCount + overdueInvs.length },
+  ];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", minHeight:"100vh", background:"#f3f4f6", fontFamily:"'Inter',system-ui,sans-serif" }}>
+
+      {/* Mobile header */}
+      <div style={{ background:"#111827", padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:50 }}>
+        <div>
+          <div style={{ fontSize:14, fontWeight:700, color:"#f9fafb" }}>Immaculate Consulting</div>
+          <div style={{ fontSize:9, color:"#6b7280", letterSpacing:"0.5px" }}>IC-BOS</div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:9, color:"#4ade80", display:"flex", alignItems:"center", gap:4 }}>
+            <span style={{ width:5, height:5, borderRadius:"50%", background:"#4ade80" }}/>LIVE
+          </span>
+          <span style={{ fontSize:9, fontWeight:700, color:"#111827", background:"#f9fafb", borderRadius:4, padding:"2px 7px" }}>PRINCIPAL</span>
+        </div>
+      </div>
+
+      {/* Mobile content */}
+      <div style={{ flex:1, overflowY:"auto", padding:"14px 14px 100px" }}>
+
+        {/* ── OVERVIEW ── */}
+        {mobileTab === "overview" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+
+            {/* ROI banner */}
+            <div style={{ background:"#f0fdf4", border:"1px solid rgba(74,222,128,0.15)", borderRadius:12, padding:"14px 16px" }}>
+              <div style={{ fontSize:9, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:M, marginBottom:4 }}>Total Client Value Recovered</div>
+              <div style={{ fontSize:28, fontWeight:800, color:"#4ade80", fontFamily:M }}>${Math.round(totalROI).toLocaleString()}</div>
+            </div>
+
+            {/* KPI grid */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              {[
+                { l:"MRR",         v:"$"+FINANCIALS.mrr.toLocaleString(),                             c:"#374151" },
+                { l:"Pipeline",    v:"$"+pipeVal.toLocaleString()+"/mo",                               c:"#fbbf24" },
+                { l:"Active Clients", v:CLIENTS.filter(c=>c.status==="active").length,                 c:"#4ade80" },
+                { l:"Automations", v:AUTOMATIONS.length+(critCount>0?" ("+critCount+" critical)":""),   c:critCount?"#f87171":"#4ade80" },
+              ].map(({l,v,c})=>(
+                <div key={l} style={{ background:"#ffffff", borderRadius:10, padding:"12px 14px", border:"1px solid #e5e7eb" }}>
+                  <div style={{ fontSize:9, color:"#9ca3af", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>{l}</div>
+                  <div style={{ fontSize:16, fontWeight:700, color:c, fontFamily:M }}>{v}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* At-risk clients */}
+            {atRiskClients.length > 0 && (
+              <div style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.15)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#f87171", marginBottom:6 }}>⚠ {atRiskClients.length} At-Risk Client{atRiskClients.length>1?"s":""}</div>
+                {atRiskClients.map(c=>(
+                  <div key={c.id} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:"1px solid rgba(248,113,113,0.1)", fontSize:12 }}>
+                    <span style={{ color:"#111827", fontWeight:500 }}>{c.name}</span>
+                    <span style={{ color:"#f87171", fontFamily:M, fontWeight:600 }}>{c.healthScore}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pipeline summary */}
+            <div style={{ background:"#ffffff", borderRadius:10, border:"1px solid #e5e7eb", padding:"12px 14px" }}>
+              <div style={{ fontSize:11, fontWeight:700, color:"#111827", marginBottom:8 }}>Pipeline</div>
+              {["cold","discovery","proposal","negotiation","closed-won"].map(stg => {
+                const deals = PIPELINE.filter(d => d.stage === stg);
+                if (deals.length === 0) return null;
+                const c = STAGE_COLORS[stg];
+                return (
+                  <div key={stg} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom:"1px solid #f0f0f0", fontSize:12 }}>
+                    <span style={{ color:c.text, fontWeight:600, textTransform:"capitalize" }}>{STAGE_LABELS[stg]}</span>
+                    <span style={{ fontFamily:M, color:"#374151" }}>{deals.length} deal{deals.length>1?"s":""} · ${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}/mo</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Quick actions */}
+            {canEdit && (
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                {[
+                  { l:"+ Add Deal",    action:()=>setShowForm("deal") },
+                  { l:"+ Add Client",  action:()=>setShowForm("client") },
+                  { l:"+ Add Task",    action:()=>setShowForm("task") },
+                  { l:"+ Log Comm",    action:()=>setShowForm("comm") },
+                ].map(({l,action})=>(
+                  <button key={l} onClick={action}
+                    style={{ padding:"12px 0", borderRadius:8, border:"1px solid #d1d5db", background:"#ffffff", color:"#374151", fontSize:12, fontWeight:600, cursor:"pointer", minHeight:44 }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TASKS ── */}
+        {mobileTab === "tasks" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+              <h2 style={{ fontSize:16, fontWeight:700, color:"#111827" }}>Tasks</h2>
+              {canEdit && <button onClick={()=>setShowForm("task")} style={{ fontSize:12, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"6px 14px", cursor:"pointer", minHeight:44 }}>+ Add</button>}
+            </div>
+            {TASKS.filter(t=>!t.completed).sort((a,b)=>{
+              const po = {critical:0,high:1,medium:2,low:3};
+              return (po[a.priority]??2)-(po[b.priority]??2);
+            }).map((t,i)=>{
+              const pc = { critical:"#f87171", high:"#fb923c", medium:"#fbbf24", low:"#94a3b8" };
+              return (
+                <div key={t.id||i} style={{ background:"#ffffff", borderRadius:10, border:"1px solid #e5e7eb", padding:"12px 14px", display:"flex", gap:10, alignItems:"flex-start" }}>
+                  <div style={{ width:8, height:8, borderRadius:"50%", background:pc[t.priority]||"#94a3b8", flexShrink:0, marginTop:4 }}/>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, color:"#111827", lineHeight:1.4 }}>{t.text}</div>
+                    <div style={{ display:"flex", gap:8, marginTop:4 }}>
+                      {t.due && <span style={{ fontSize:10, color:"#9ca3af", fontFamily:M }}>{t.due}</span>}
+                      <span style={{ fontSize:10, color:pc[t.priority]||"#9ca3af", fontWeight:600, textTransform:"uppercase", fontFamily:M }}>{t.priority}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {TASKS.filter(t=>!t.completed).length === 0 && (
+              <div style={{ textAlign:"center", padding:"40px 0", fontSize:12, color:"#9ca3af" }}>No open tasks</div>
+            )}
+          </div>
+        )}
+
+        {/* ── ALERTS / NOTIFICATIONS ── */}
+        {mobileTab === "notifs" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <h2 style={{ fontSize:16, fontWeight:700, color:"#111827", marginBottom:4 }}>Alerts</h2>
+
+            {overdueInvs.length === 0 && critCount === 0 && atRiskClients.length === 0 && (
+              <div style={{ textAlign:"center", padding:"40px 0", fontSize:12, color:"#4ade80" }}>✓ No active alerts</div>
+            )}
+
+            {overdueInvs.map((inv,i)=>(
+              <div key={i} style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.15)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#f87171", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Overdue Invoice</div>
+                <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{inv.client}</div>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+                  <span style={{ fontSize:12, color:"#374151" }}>Due {inv.due}</span>
+                  <span style={{ fontSize:13, fontWeight:700, color:"#f87171", fontFamily:M }}>${inv.total.toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+
+            {AUTOMATIONS.filter(a=>a.status==="critical").map((auto,i)=>(
+              <div key={i} style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.15)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#f87171", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>Critical Automation</div>
+                <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{auto.client}</div>
+                <div style={{ fontSize:12, color:"#374151", marginTop:2 }}>{auto.name}</div>
+              </div>
+            ))}
+
+            {atRiskClients.map((c,i)=>(
+              <div key={i} style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.15)", borderRadius:10, padding:"12px 14px" }}>
+                <div style={{ fontSize:10, fontWeight:700, color:"#fbbf24", fontFamily:M, textTransform:"uppercase", marginBottom:4 }}>At-Risk Client</div>
+                <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{c.name}</div>
+                <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
+                  <span style={{ fontSize:12, color:"#374151" }}>Health Score</span>
+                  <span style={{ fontSize:13, fontWeight:700, color:"#f87171", fontFamily:M }}>{c.healthScore}/100</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Bottom tab bar */}
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"#ffffff", borderTop:"1px solid #e5e7eb", display:"flex", zIndex:50, paddingBottom:"env(safe-area-inset-bottom)" }}>
+        {mobileTabs.map(t=>(
+          <button key={t.id} onClick={()=>setMobileTab(t.id)}
+            style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"8px 0", minHeight:56, border:"none", background:"transparent", cursor:"pointer", position:"relative", color:mobileTab===t.id?"#111827":"#9ca3af" }}>
+            <span style={{ fontSize:18, lineHeight:1 }}>{t.icon}</span>
+            <span style={{ fontSize:10, fontWeight:mobileTab===t.id?700:400, marginTop:3 }}>{t.label}</span>
+            {t.badge > 0 && (
+              <span style={{ position:"absolute", top:6, right:"25%", minWidth:16, height:16, borderRadius:8, background:"#f87171", fontSize:8, fontWeight:800, color:"#ffffff", display:"flex", alignItems:"center", justifyContent:"center", padding:"0 3px" }}>{t.badge}</span>
+            )}
+            {mobileTab===t.id && <span style={{ position:"absolute", top:0, left:"20%", right:"20%", height:2, background:"#111827", borderRadius:1 }}/>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 export default function ICBOS() {
   const [tab, setTab] = useState("overview");
+  const isMobile = useIsMobile();
 
   const [showForm, setShowForm] = useState(null);
   const [showPulsePopover, setShowPulsePopover] = useState(false);
@@ -4514,6 +4727,22 @@ export default function ICBOS() {
   
   return (
    <ICBOSCtx.Provider value={{ PIPELINE, CLIENTS, FINANCIALS, INVOICES, AUTOMATIONS, TASKS, ONBOARDING, CAPACITY, COMMS }}>
+      {isMobile && (
+        <MobileView
+          CLIENTS={CLIENTS} TASKS={TASKS} PIPELINE={PIPELINE}
+          AUTOMATIONS={AUTOMATIONS} INVOICES={INVOICES} FINANCIALS={FINANCIALS}
+          icbos={icbos} canEdit={canEdit} setShowForm={setShowForm}
+        />
+      )}
+      {isMobile && showForm && (
+        <>
+          {(showForm==="client"||showForm?.type==="client")&&<AddClientPanel onClose={()=>setShowForm(null)} supabase={supabase} initialData={showForm?.prefill||null} onSaved={()=>{ setShowForm(null); icbos.clients.refetch(); }}/>}
+          {showForm==="deal"&&<AddDealPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.pipeline.refetch(); }}/>}
+          {showForm==="task"&&<AddTaskPanel onClose={()=>setShowForm(null)} supabase={supabase} onSaved={()=>{ setShowForm(null); icbos.tasks.refetch(); }}/>}
+          {showForm==="comm"&&<AddCommPanel onClose={()=>setShowForm(null)} supabase={supabase} clients={CLIENTS} onSaved={()=>setShowForm(null)}/>}
+        </>
+      )}
+      {!isMobile && (
    <div style={{ minHeight:"100vh", background:"#f3f4f6", color:"#111827", fontFamily:"'Inter',-apple-system,sans-serif",  }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
@@ -4740,6 +4969,7 @@ export default function ICBOS() {
     {/* Voice Layer — Vapi SDK */}
       <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
   </div>
+      )}
   </ICBOSCtx.Provider>
   );
 }
