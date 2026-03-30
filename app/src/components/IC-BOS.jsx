@@ -864,6 +864,9 @@ function ClientsTab({ onShowForm, onEditClient, onViewClient, canEdit = true, on
 // INVOICING (Feature 8) — with Agent 8 collections inline UI
 function InvoicingTab({ canInvoice = true, canEdit = true }) {
   const { INVOICES } = useData();
+  const [chainStates, setChainStates] = useState({});
+  const [chainResults, setChainResults] = useState({});
+  const [expandedChain, setExpandedChain] = useState({});
   const [followUpStates, setFollowUpStates] = useState({});
   const [followUpResults, setFollowUpResults] = useState({});
   const [expandedEmail, setExpandedEmail] = useState({});
@@ -943,6 +946,33 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
       else { av = a[sortCol]; bv = b[sortCol]; }
       return sortDir === "asc" ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
     });
+
+ const handleCollectionsChain = async (inv) => {
+    setChainStates(prev => ({ ...prev, [inv.id]: "loading" }));
+    try {
+      const daysOverdue = Math.round((Date.now() - new Date(inv.due)) / 864e5);
+      const res = await fetch("https://api.immaculate-consulting.org/api/chains/collections-escalation", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({
+          invoice_id: inv.supabase_id || null,
+          client_id: inv.client_id || null,
+          client_name: inv.client,
+          amount: inv.total,
+          days_overdue: daysOverdue,
+          invoice_type: inv.type,
+          due_date: inv.due,
+          tier: null,
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Chain failed");
+      setChainResults(prev => ({ ...prev, [inv.id]: data }));
+      setChainStates(prev => ({ ...prev, [inv.id]: "done" }));
+    } catch (err) {
+      setChainStates(prev => ({ ...prev, [inv.id]: "error" }));
+    }
+  };
 
   const handleDraftFollowUp = async (inv) => {
     setFollowUpStates(prev=>({...prev,[inv.id]:"loading"}));
@@ -1068,7 +1098,19 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
                       style={{ fontSize:9, fontWeight:700, color:"#15803d", background:"#f0fdf4", border:"1px solid #16a34a", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap", opacity:markingPaid===inv.id?0.6:1 }}
                     >{markingPaid===inv.id?"Saving...":"✓ Mark Paid"}</button>
                   )}
-                  {isOverdue&&(!fs||fs===null)&&<button onClick={()=>handleDraftFollowUp(inv)} style={{ fontSize:9, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Draft Follow-up</button>}
+                 {isOverdue&&(!fs||fs===null)&&<button onClick={()=>handleDraftFollowUp(inv)} style={{ fontSize:9, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap" }}>🤖 Draft Follow-up</button>}
+                  {isOverdue && (
+                    <button
+                      onClick={() => chainStates[inv.id]==="done"
+                        ? setExpandedChain(prev=>({...prev,[inv.id]:!prev[inv.id]}))
+                        : handleCollectionsChain(inv)
+                      }
+                      disabled={chainStates[inv.id]==="loading"}
+                      style={{ fontSize:9, fontWeight:600, color:"#f87171", background:"rgba(248,113,113,0.08)", border:"1px solid rgba(248,113,113,0.2)", borderRadius:5, padding:"3px 8px", cursor:"pointer", whiteSpace:"nowrap", opacity:chainStates[inv.id]==="loading"?0.6:1 }}
+                    >
+                      {chainStates[inv.id]==="loading"?"Running...":chainStates[inv.id]==="done"?"⚡ View Chain":"⚡ Escalate"}
+                    </button>
+                  )}
                   {fs==="loading"&&<span style={{ fontSize:9, color:"#38bdf8", fontFamily:M, display:"flex", alignItems:"center", gap:3 }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#38bdf8", animation:"pr 1.2s ease-out infinite" }}/>Drafting...</span>}
                   {fs==="done"&&<button onClick={()=>setExpandedEmail(prev=>({...prev,[inv.id]:!prev[inv.id]}))} style={{ fontSize:9, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.15)", borderRadius:5, padding:"3px 8px", cursor:"pointer" }}>{expandedEmail[inv.id]?"✕ Collapse":"View Email"}</button>}
                   {fs==="error"&&<span style={{ fontSize:9, color:"#f87171", fontFamily:M }}>✗ Error</span>}
@@ -1097,6 +1139,41 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
     )}
   </div>
 )}
+            {/* Chain 3 result panel */}
+              {chainStates[inv.id]==="done" && chainResults[inv.id] && expandedChain[inv.id] && (
+                <div style={{ padding:"12px 16px", background:"rgba(248,113,113,0.03)", borderBottom:"1px solid #f0f0f0", animation:"fu 0.3s ease both" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+                    <span style={{ fontSize:10, fontWeight:700, color:"#111827" }}>⚡ Collections Chain — {chainResults[inv.id].completed_steps}/{chainResults[inv.id].total_steps} steps</span>
+                    <span style={{ fontSize:9, fontWeight:600, color:chainResults[inv.id].sequence?.severity==="critical"?"#f87171":chainResults[inv.id].sequence?.severity==="high"?"#fb923c":"#fbbf24", fontFamily:M, textTransform:"uppercase", background:"rgba(248,113,113,0.08)", padding:"2px 7px", borderRadius:4 }}>{chainResults[inv.id].sequence?.severity}</span>
+                  </div>
+                  {chainResults[inv.id].sequence?.recommended_action && (
+                    <div style={{ fontSize:11, color:"#374151", marginBottom:10, padding:"6px 10px", background:"#ffffff", borderRadius:6, border:"1px solid #e5e7eb" }}>
+                      <span style={{ fontWeight:600, color:"#111827" }}>Recommended: </span>{chainResults[inv.id].sequence.recommended_action}
+                    </div>
+                  )}
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {(chainResults[inv.id].sequence?.emails||[]).map((email,ei) => (
+                      <div key={ei} style={{ background:"#ffffff", borderRadius:7, border:`1px solid ${email.tone==="final"?"rgba(248,113,113,0.3)":email.tone==="firm"?"rgba(251,191,36,0.3)":"#e5e7eb"}`, overflow:"hidden" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 10px", background:email.tone==="final"?"rgba(248,113,113,0.06)":email.tone==="firm"?"rgba(251,191,36,0.06)":"#f9fafb" }}>
+                          <span style={{ fontSize:10, fontWeight:700, color:"#111827" }}>Email {ei+1} — Day {email.send_day}</span>
+                          <span style={{ fontSize:9, fontWeight:600, color:email.tone==="final"?"#f87171":email.tone==="firm"?"#fbbf24":"#4ade80", textTransform:"uppercase", fontFamily:M }}>{email.tone}</span>
+                        </div>
+                        <div style={{ padding:"8px 10px" }}>
+                          <div style={{ fontSize:10, fontWeight:600, color:"#374151", marginBottom:4 }}>Subj: {email.subject}</div>
+                          <div style={{ fontSize:10, color:"#374151", lineHeight:1.5, marginBottom:6 }}>{email.body}</div>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                            <span style={{ fontSize:9, color:"#6b7280" }}>CTA: {email.call_to_action}</span>
+                            <button onClick={()=>navigator.clipboard?.writeText("Subject: "+email.subject+"\n\n"+email.body)} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 6px", cursor:"pointer" }}>Copy</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {chainResults[inv.id].errors?.length > 0 && (
+                    <div style={{ marginTop:6, fontSize:10, color:"#f87171" }}>{chainResults[inv.id].errors.join(" · ")}</div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
@@ -1104,7 +1181,7 @@ function InvoicingTab({ canInvoice = true, canEdit = true }) {
     </div>
   );
 }
-// ONBOARDING TRACKER (Feature 9) — with Agent 3 inline UI
+// ONBOARDING TRACKER
 function OnboardingTab({ onRefresh, canEdit = true }) {
   const { ONBOARDING } = useData();
   const [planStates, setPlanStates] = useState({});
