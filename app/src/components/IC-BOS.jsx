@@ -4498,7 +4498,7 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
                 <span style={{ fontSize:10, color:"#6b7280", fontFamily:M }}>{PIPELINE.length} deals · ${pipeVal.toLocaleString()}/mo</span>
               </div>
               {PIPELINE.length === 0 && <div style={{ fontSize:11, color:"#9ca3af" }}>No deals in pipeline</div>}
-              {["discovery","proposal","negotiation","cold","closed-won"].map(stg => {
+              {["cold","discovery","proposal","negotiation","closed-won"].map(stg => {
                 const deals = PIPELINE.filter(d => d.stage === stg);
                 if (deals.length === 0) return null;
                 const c = STAGE_COLORS[stg];
@@ -4727,9 +4727,19 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
                           <span style={{ fontSize:9, fontWeight:700, color:stc[inv.status], background:`rgba(0,0,0,0.04)`, padding:"2px 7px", borderRadius:4, fontFamily:M, textTransform:"uppercase" }}>{inv.status}</span>
                         </div>
                       </div>
-                      {isOverdue && (
+                      {(inv.status === "pending" || isOverdue) && (
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                           <button
+                            onClick={async () => {
+                              const today = new Date().toISOString().split("T")[0];
+                              const { error } = await supabase.from("invoices").update({ status:"Paid", paid_date: today }).eq("id", inv.supabase_id || inv.id);
+                              if (!error) icbos.invoices.refetch();
+                            }}
+                            style={{ padding:"8px 14px", borderRadius:6, border:"1px solid #16a34a", background:"#f0fdf4", color:"#15803d", fontSize:12, fontWeight:700, cursor:"pointer", minHeight:40, whiteSpace:"nowrap" }}
+                          >
+                            ✓ Paid
+                          </button>
+                          {isOverdue && <button
                             onClick={async () => {
                               setCollectionsStates(p=>({...p,[key]:"loading"}));
                               try {
@@ -4743,12 +4753,12 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
                                 setCollectionsResults(p=>({...p,[key]:data}));
                                 setCollectionsStates(p=>({...p,[key]:"done"}));
                               } catch { setCollectionsStates(p=>({...p,[key]:"error"})); }
-                            }}
+                           }}
                             disabled={collectionsStates[key]==="loading"||collectionsStates[key]==="done"}
                             style={{ flex:1, padding:"8px 0", borderRadius:6, border:"none", background:collectionsStates[key]==="done"?"rgba(74,222,128,0.1)":collectionsStates[key]==="loading"?"#e5e7eb":"rgba(248,113,113,0.08)", color:collectionsStates[key]==="done"?"#15803d":collectionsStates[key]==="loading"?"#9ca3af":"#f87171", fontSize:12, fontWeight:700, cursor:"pointer", minHeight:40 }}
                           >
                             {collectionsStates[key]==="loading"?"Running...":collectionsStates[key]==="done"?"✓ Escalated":"⚡ Escalate"}
-                          </button>
+                          </button>}
                         </div>
                       )}
                       {collectionsResults[key] && (
@@ -5357,6 +5367,8 @@ export default function ICBOS() {
       <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
   </div>
       )}
+      {/* Voice Layer — always available including mobile */}
+      {isMobile && <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />}
   </ICBOSCtx.Provider>
   );
 }
