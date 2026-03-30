@@ -4323,6 +4323,44 @@ function useIsMobile() {
 function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIALS, icbos, canEdit, setShowForm }) {
   const M = "ui-monospace,SFMono-Regular,Menlo,monospace";
   const [mobileTab, setMobileTab] = useState("overview");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+  const TABS_ORDER = ["overview", "tasks", "notifs"];
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        icbos.clients.refetch(),
+        icbos.tasks.refetch(),
+        icbos.pipeline.refetch(),
+        icbos.invoices.refetch(),
+        icbos.automations.refetch(),
+      ]);
+    } catch(e) {}
+    setIsRefreshing(false);
+  };
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+    if (Math.abs(dx) > 60 && dy < 80) {
+      const cur = TABS_ORDER.indexOf(mobileTab);
+      if (dx < 0 && cur < TABS_ORDER.length - 1) setMobileTab(TABS_ORDER[cur + 1]);
+      if (dx > 0 && cur > 0) setMobileTab(TABS_ORDER[cur - 1]);
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
 
   const critCount = AUTOMATIONS.filter(a => a.status === "critical").length;
   const overdueInvs = INVOICES.filter(i => i.status === "overdue");
@@ -4355,7 +4393,25 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
       </div>
 
       {/* Mobile content */}
-      <div style={{ flex:1, overflowY:"auto", padding:"14px 14px 100px" }}>
+      <div
+        style={{ flex:1, overflowY:"auto", padding:"14px 14px 100px" }}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Pull-to-refresh indicator */}
+        {isRefreshing && (
+          <div style={{ display:"flex", justifyContent:"center", alignItems:"center", gap:8, padding:"8px 0 4px", fontSize:11, color:"#6b7280" }}>
+            <span style={{ width:7, height:7, borderRadius:"50%", background:"#374151", animation:"pr 1.2s ease-out infinite" }}/>
+            Refreshing...
+          </div>
+        )}
+        {/* Refresh button */}
+        <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:8 }}>
+          <button onClick={handleRefresh} disabled={isRefreshing}
+            style={{ fontSize:10, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:6, padding:"4px 10px", cursor:"pointer", opacity:isRefreshing?0.5:1 }}>
+            {isRefreshing ? "Refreshing..." : "↻ Refresh"}
+          </button>
+        </div>
 
         {/* ── OVERVIEW ── */}
         {mobileTab === "overview" && (
@@ -4402,14 +4458,55 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
                 const deals = PIPELINE.filter(d => d.stage === stg);
                 if (deals.length === 0) return null;
                 const c = STAGE_COLORS[stg];
-                return (
-                  <div key={stg} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom:"1px solid #f0f0f0", fontSize:12 }}>
-                    <span style={{ color:c.text, fontWeight:600, textTransform:"capitalize" }}>{STAGE_LABELS[stg]}</span>
-                    <span style={{ fontFamily:M, color:"#374151" }}>{deals.length} deal{deals.length>1?"s":""} · ${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}/mo</span>
+               return (
+                  <div key={stg}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom:"1px solid #f0f0f0", fontSize:12 }}>
+                      <span style={{ color:c.text, fontWeight:600, textTransform:"capitalize" }}>{STAGE_LABELS[stg]}</span>
+                      <span style={{ fontFamily:M, color:"#374151" }}>{deals.length} deal{deals.length>1?"s":""} · ${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}/mo</span>
+                    </div>
+                    {deals.filter(d=>d.contact||d.contactPhone).map((d,di)=>(
+                      <div key={di} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 8px", background:"#f9fafb", borderRadius:6, marginTop:3, marginBottom:2 }}>
+                        <span style={{ fontSize:11, color:"#374151" }}>{d.practice}</span>
+                        <div style={{ display:"flex", gap:6 }}>
+                          {d.contactPhone && (
+                            <a href={"tel:"+d.contactPhone} style={{ fontSize:10, fontWeight:600, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:5, padding:"3px 8px", textDecoration:"none", minHeight:28, display:"flex", alignItems:"center" }}>
+                              Call
+                            </a>
+                          )}
+                          {d.contactEmail && (
+                            <a href={"mailto:"+d.contactEmail} style={{ fontSize:10, fontWeight:600, color:"#38bdf8", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:5, padding:"3px 8px", textDecoration:"none", minHeight:28, display:"flex", alignItems:"center" }}>
+                              Email
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 );
               })}
             </div>
+
+           {/* Client health scores */}
+            {CLIENTS.filter(c=>c.status==="active").length > 0 && (
+              <div style={{ background:"#ffffff", borderRadius:10, border:"1px solid #e5e7eb", padding:"12px 14px" }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"#111827", marginBottom:8 }}>Client Health</div>
+                {CLIENTS.filter(c=>c.status==="active").map((c,i)=>{
+                  const sc = c.healthScore>=90?"#4ade80":c.healthScore>=70?"#fbbf24":"#f87171";
+                  const barW = Math.round(c.healthScore);
+                  return (
+                    <div key={c.id||i} style={{ marginBottom:i<CLIENTS.filter(x=>x.status==="active").length-1?10:0 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+                        <span style={{ fontSize:12, color:"#111827", fontWeight:500 }}>{c.name}</span>
+                        <span style={{ fontSize:11, fontWeight:700, color:sc, fontFamily:M }}>{c.healthScore}</span>
+                      </div>
+                      <div style={{ height:5, background:"#f3f4f6", borderRadius:3, overflow:"hidden" }}>
+                        <div style={{ height:"100%", width:barW+"%", background:sc, borderRadius:3, transition:"width 0.6s ease" }}/>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Quick actions */}
             {canEdit && (
@@ -4435,9 +4532,17 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
           <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
               <h2 style={{ fontSize:16, fontWeight:700, color:"#111827" }}>Tasks</h2>
-              {canEdit && <button onClick={()=>setShowForm("task")} style={{ fontSize:12, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"6px 14px", cursor:"pointer", minHeight:44 }}>+ Add</button>}
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={()=>setShowCompleted(p=>!p)}
+                  style={{ fontSize:11, color:showCompleted?"#374151":"#9ca3af", background:showCompleted?"#f3f4f6":"transparent", border:"1px solid #e5e7eb", borderRadius:6, padding:"6px 10px", cursor:"pointer", minHeight:44 }}>
+                  {showCompleted?"Hide Done":"Show Done"}
+                </button>
+                {canEdit && <button onClick={()=>setShowForm("task")} style={{ fontSize:12, fontWeight:600, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"6px 14px", cursor:"pointer", minHeight:44 }}>+ Add</button>}
+              </div>
             </div>
-            {TASKS.filter(t=>!t.completed).sort((a,b)=>{
+            {TASKS.filter(t=> showCompleted ? true : !t.completed).sort((a,b)=>{
+              if (a.completed && !b.completed) return 1;
+              if (!a.completed && b.completed) return -1;
               const po = {critical:0,high:1,medium:2,low:3};
               return (po[a.priority]??2)-(po[b.priority]??2);
             }).map((t,i)=>{
@@ -4465,8 +4570,8 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
                 </div>
               );
             })}
-            {TASKS.filter(t=>!t.completed).length === 0 && (
-              <div style={{ textAlign:"center", padding:"40px 0", fontSize:12, color:"#9ca3af" }}>No open tasks</div>
+          {TASKS.filter(t=>showCompleted?true:!t.completed).length === 0 && (
+              <div style={{ textAlign:"center", padding:"40px 0", fontSize:12, color:"#9ca3af" }}>{showCompleted?"No tasks":"No open tasks"}</div>
             )}
           </div>
         )}
