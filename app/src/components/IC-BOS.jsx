@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, createContext, useContext } from "react";
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, useDroppable } from "@dnd-kit/core";
 import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import VapiAssistant from "./VapiAssistant";
@@ -160,6 +160,23 @@ function SortableDealCard({ id, children }) {
     </div>
   );
 }
+// ─── DroppableColumn ─────────────────────────────────────────────────────────
+// Makes each stage column a valid drop target so cards can be dragged
+// from one stage to another, not just reordered within the same column.
+function DroppableColumn({ id, children, style }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} id={id} style={{
+      ...style,
+      outline: isOver ? "2px dashed #374151" : "2px dashed transparent",
+      borderRadius: 10,
+      transition: "outline 0.1s ease",
+      minHeight: 80,
+    }}>
+      {children}
+    </div>
+  );
+}
 function PipelineBoard({ canEdit = true, onRefresh, onConvert, onViewDeal }) {
   const { PIPELINE } = useData();
   const [proposalStates, setProposalStates] = useState({});
@@ -290,7 +307,7 @@ const handleGenerateOutreach = async (deal) => {
     <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:8 }}>
       {STAGES.map(stg=>{
         const deals=PIPELINE.filter(d=>d.stage===stg); const c=STAGE_COLORS[stg];
-        return (<div key={stg} id={stg} style={{ minWidth:185, flex:"1 0 185px" }}>
+       return (<DroppableColumn key={stg} id={stg} style={{ minWidth:185, flex:"1 0 185px" }}>
           <div style={{ display:"flex", alignItems:"center", gap:5, marginBottom:6, padding:"0 2px" }}>
             <span style={{ width:6, height:6, borderRadius:"50%", background:c.dot }}/><span style={{ fontSize:10, fontWeight:600, color:c.text, textTransform:"uppercase", letterSpacing:"0.05em", fontFamily:M }}>{STAGE_LABELS[stg]}</span>
             <span style={{ fontSize:9, color:"#6b7280", marginLeft:"auto", fontFamily:M }}>${deals.reduce((s,d)=>s+d.value,0).toLocaleString()}</span>
@@ -410,7 +427,7 @@ const handleGenerateOutreach = async (deal) => {
               </div>
            </div></SortableDealCard>);
           })}
-        </div>);
+       </DroppableColumn>);
       })}
     </div>
     </DndContext>
@@ -1623,6 +1640,7 @@ function WeeklyReportTab() {
   const { CLIENTS, PIPELINE, AUTOMATIONS, INVOICES, TASKS, FINANCIALS, ONBOARDING, CAPACITY } = useData();
   const [digestState, setDigestState] = useState(null); // null | loading | done | error
   const [digestResult, setDigestResult] = useState(null);
+  const [sendState, setSendState] = useState(null); // null | sending | sent | error
 
   const totalROI = CLIENTS.reduce((s,c)=>s+calcClientROI(c).totalToDate,0);
   const pipeVal = PIPELINE.reduce((s,d)=>s+d.value,0);
@@ -1655,6 +1673,7 @@ function WeeklyReportTab() {
       if (!res.ok) throw new Error(data.error || "Digest failed");
       setDigestResult(data);
       setDigestState("done");
+      setSendState("ready");
     } catch (err) {
       setDigestState("error");
     }
@@ -1764,6 +1783,33 @@ function WeeklyReportTab() {
               ))}
             </div>
           )}
+       {digestState==="done" && digestResult && (
+          <div style={{display:"flex",alignItems:"center",gap:10,paddingTop:10,borderTop:"1px solid #e5e7eb",marginTop:4}}>
+            <button
+              onClick={async () => {
+                setSendState("sending");
+                try {
+                  const res = await fetch("https://api.immaculate-consulting.org/api/agents/send-weekly-digest", {
+                    method: "POST",
+                    headers: { "Content-Type":"application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+                    body: JSON.stringify({
+                      narrative: digestResult.narrative || digestResult.qualification_summary,
+                      top_priorities: digestResult.top_priorities || digestResult.next_steps || [],
+                      metrics: { mrr: FINANCIALS.mrr, pipeline_value: pipeVal, avg_health: avgHealth },
+                    })
+                  });
+                  if (!res.ok) throw new Error("Send failed");
+                  setSendState("sent");
+                } catch { setSendState("error"); }
+              }}
+              disabled={sendState==="sending"||sendState==="sent"}
+              style={{fontSize:11,fontWeight:600,padding:"6px 16px",borderRadius:6,border:"1px solid #d1d5db",background:sendState==="sent"?"#f0fdf4":sendState==="error"?"rgba(248,113,113,0.08)":"#f9fafb",color:sendState==="sent"?"#15803d":sendState==="error"?"#f87171":"#374151",cursor:sendState==="sending"||sendState==="sent"?"default":"pointer",transition:"all 0.15s"}}
+            >
+              {sendState==="sending"?"Sending...":sendState==="sent"?"Sent to leonard@immaculate-consulting.org":sendState==="error"?"Send failed — retry":"Send Digest Email"}
+            </button>
+            {sendState==="sent"&&<span style={{fontSize:10,color:"#4ade80",fontFamily:M}}>Delivered</span>}
+          </div>
+        )}
         </div>
       )}
 
