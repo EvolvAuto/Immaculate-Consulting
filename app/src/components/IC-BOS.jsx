@@ -4336,6 +4336,7 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
   const [healthChainResults, setHealthChainResults] = useState({});
   const [collectionsStates, setCollectionsStates] = useState({});
   const [collectionsResults, setCollectionsResults] = useState({});
+  const [orbOpen, setOrbOpen] = useState(false);
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
   const TABS_ORDER = ["overview", "tasks", "notifs", "agents"];
@@ -4898,6 +4899,38 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
         )}
       </div>
 
+      {/* Vapi Slide-out Drawer */}
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:60, pointerEvents:"none" }}>
+        {/* Slide-up panel */}
+        <div style={{
+          position:"absolute", bottom:57, right:16,
+          transform: orbOpen ? "translateY(0)" : "translateY(calc(100% + 57px))",
+          transition:"transform 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+          pointerEvents:"all",
+          background:"#ffffff", borderRadius:16, boxShadow:"0 -4px 24px rgba(0,0,0,0.12)",
+          padding:16, width:220,
+        }}>
+          <div style={{ fontSize:12, fontWeight:700, color:"#111827", marginBottom:8 }}>Voice Assistant</div>
+          <div style={{ fontSize:11, color:"#6b7280", marginBottom:12 }}>Tap the orb to speak. Ask about tasks, clients, pipeline, or alerts.</div>
+          <VapiAssistant onTabChange={(tabId) => setMobileTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
+        </div>
+        {/* Pull tab — always visible */}
+        <div onClick={()=>setOrbOpen(o=>!o)} style={{
+          position:"absolute", bottom:57, right:16,
+          pointerEvents:"all", cursor:"pointer",
+          background:"#111827", color:"#ffffff",
+          borderRadius:"20px 20px 0 0",
+          padding:"6px 14px", fontSize:11, fontWeight:700,
+          display:"flex", alignItems:"center", gap:6,
+          boxShadow:"0 -2px 8px rgba(0,0,0,0.15)",
+          transform: orbOpen ? "translateY(0)" : "translateY(0)",
+          zIndex:2,
+        }}>
+          <span style={{ fontSize:14 }}>⚡</span>
+          <span>{orbOpen ? "Close" : "Voice"}</span>
+        </div>
+      </div>
+
       {/* Bottom tab bar */}
       <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"#ffffff", borderTop:"1px solid #e5e7eb", display:"flex", zIndex:50, paddingBottom:"env(safe-area-inset-bottom)" }}>
         {mobileTabs.map(t=>(
@@ -5363,8 +5396,8 @@ export default function ICBOS() {
     onSaved={()=>icbos.clients.refetch()}
   />
 )}
-    {/* Voice Layer — Vapi SDK */}
-     <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} bottomOffset={isMobile ? 56 : 0} />
+    {/* Voice Layer — handled inside MobileView on mobile */}
+      {!isMobile && <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />}
   </div>
       )}
       {/* Voice Layer — always available including mobile */}
