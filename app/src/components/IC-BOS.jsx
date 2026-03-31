@@ -5364,7 +5364,7 @@ export default function ICBOS() {
   />
 )}
     {/* Voice Layer — Vapi SDK */}
-      <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
+     <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} bottomOffset={isMobile ? 56 : 0} />
   </div>
       )}
       {/* Voice Layer — always available including mobile */}
