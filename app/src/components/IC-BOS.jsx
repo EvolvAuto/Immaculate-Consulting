@@ -4912,7 +4912,7 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
         }}>
           <div style={{ fontSize:12, fontWeight:700, color:"#111827", marginBottom:8 }}>Voice Assistant</div>
           <div style={{ fontSize:11, color:"#6b7280", marginBottom:12 }}>Tap the orb to speak. Ask about tasks, clients, pipeline, or alerts.</div>
-          <VapiAssistant onTabChange={(tabId) => setMobileTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />
+          {orbOpen && <VapiAssistant onTabChange={(tabId) => setMobileTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />}
         </div>
         {/* Pull tab — always visible */}
         <div onClick={()=>setOrbOpen(o=>!o)} style={{
