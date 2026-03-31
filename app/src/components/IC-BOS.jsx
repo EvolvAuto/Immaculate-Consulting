@@ -5400,8 +5400,7 @@ export default function ICBOS() {
       {!isMobile && <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />}
   </div>
       )}
-      {/* Voice Layer — always available including mobile */}
-      {isMobile && <VapiAssistant onTabChange={(tabId) => setTab(tabId)} onOpenForm={(formId) => setShowForm(formId)} />}
+
   </ICBOSCtx.Provider>
   );
 }
