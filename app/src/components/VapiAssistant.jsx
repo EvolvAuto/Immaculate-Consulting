@@ -256,7 +256,7 @@ function Waveform({ side = "left" }) {
 }
 
 // ── Main Component ────────────────────────────────────────────────────
-export default function VapiAssistant({ onTabChange, onOpenForm }) {
+export default function VapiAssistant({ onTabChange, onOpenForm, bottomOffset = 0 }) {
   const vapiRef = useRef(null);
   const inRef   = useRef(null);
 
@@ -358,7 +358,7 @@ export default function VapiAssistant({ onTabChange, onOpenForm }) {
   // ── Render ───────────────────────────────────────────────────────
   return (
     <div style={{
-      position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
+      position: "fixed", bottom: bottomOffset || 0, left: 0, right: 0, zIndex: 100,
       padding: "10px 24px 14px",
       /* 2C-III: charcoal bar matching the tab row */
       background: "#1f2937",
