@@ -2067,7 +2067,7 @@ function WeeklyReportTab() {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
         <div>
           <h2 style={{ fontSize:17, fontWeight:700, color:"#111827" }}>Weekly Business Report</h2>
-          <p style={{ fontSize:11, color:"#6b7280", marginTop:2, fontFamily:M }}>Week of March 17–21, 2026 · IC-BOS Weekly Digest</p>
+          <p style={{ fontSize:11, color:"#6b7280", marginTop:2, fontFamily:M }}>{(()=>{ const n=new Date(); const day=n.getDay(); const mon=new Date(n); mon.setDate(n.getDate()-(day===0?6:day-1)); const fri=new Date(mon); fri.setDate(mon.getDate()+4); const fmt=(d)=>d.toLocaleDateString("en-US",{month:"long",day:"numeric"}); return `Week of ${fmt(mon)}–${fri.getDate()}, ${fri.getFullYear()}`; })()} · IC-BOS Weekly Digest</p>
         </div>
         <button
           onClick={handleGenerateDigest}
@@ -4124,11 +4124,12 @@ function FinancialsTab({ FINANCIALS }) {
           Projection assumes 8% MoM revenue growth · 3% expense growth from current actuals
         </div>
       )}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+     <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
         <KPI label="MRR" value={displayMRR} prefix="$" change={finView==="projected"?8:12.2} spark={displayHistory.map(r=>r.revenue)} sparkColor="#94a3b8"/>
         <KPI label="ARR" value={displayMRR*12} prefix="$" spark={displayHistory.map(r=>r.revenue*12)} sparkColor="#4ade80" delay={60}/>
         <KPI label={finView==="projected"?"Proj. Net":"Net / Mo"} value={displayNet} prefix="$" spark={displayHistory.map(r=>r.revenue-r.expenses)} sparkColor={displayNet>=0?"#4ade80":"#f87171"} delay={120}/>
         <KPI label="Net Margin" value={displayMargin} suffix="%" spark={[58,60,63,65,67,69]} sparkColor="#4ade80" delay={180}/>
+        <KPI label="Cash on Hand" value={FINANCIALS.cashOnHand} prefix="$" spark={[45000,48000,51000,53000,55000,FINANCIALS.cashOnHand||0]} sparkColor="#38bdf8" delay={240}/>
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
         <Panel title={finView==="projected"?"Revenue Projection":"Revenue Trend"}>
@@ -5203,9 +5204,10 @@ export default function ICBOS() {
          {/* Theme toggle */}
           
 
-          {/* LIVE badge */}
-          <span style={{ fontSize:9, color:"#4ade80", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}>
-            <span style={{ width:4, height:4, borderRadius:"50%", background:"#4ade80" }}/>LIVE
+         {/* LIVE badge */}
+          <span style={{ fontSize:9, color:icbos.isBootstrapping?"#fbbf24":"#4ade80", fontFamily:M, display:"flex", alignItems:"center", gap:4 }}>
+            <span style={{ width:4, height:4, borderRadius:"50%", background:icbos.isBootstrapping?"#fbbf24":"#4ade80" }}/>
+            {icbos.isBootstrapping?"LOADING":"LIVE"}
           </span>
 
           {/* Agent Activity Pulse */}
