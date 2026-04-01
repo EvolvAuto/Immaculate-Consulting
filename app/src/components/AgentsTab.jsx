@@ -4,7 +4,8 @@
 // 2C-III Light Theme: #f3f4f6 page / #ffffff cards / #111827 text
 // ═══════════════════════════════════════════════════════════════════════
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 const M = "var(--mono)";
 
@@ -459,10 +460,20 @@ function RecordingUploadPanel() {
   const [clientName, setClientName] = useState("");
   const [uploadState, setUploadState] = useState("idle");
   const [costEstimate, setCostEstimate] = useState(null);
-  const [recentUploads] = useState([
-    { name: "chapel-hill-checkin-mar10.mp3", type: "Client Check-in", client: "Chapel Hill Family Med", duration: "28 min", status: "done", transcript: true, analysis: true, date: "Mar 10" },
-    { name: "sunrise-discovery-mar05.m4a",   type: "Discovery Call",  client: "Sunrise Family Medicine", duration: "42 min", status: "done", transcript: true, analysis: true, date: "Mar 05" },
-  ]);
+  const [recentUploads, setRecentUploads] = useState([]);
+
+  const fetchRecentUploads = useCallback(async () => {
+    const { data } = await supabase
+      .from("communications")
+      .select("id, comm_date, subject, type, audio_duration_mins, transcription_source, agent_analysis, clients(name)")
+      .eq("type", "call")
+      .not("transcript", "is", null)
+      .order("comm_date", { ascending: false })
+      .limit(10);
+    if (data) setRecentUploads(data);
+  }, []);
+
+  useEffect(() => { fetchRecentUploads(); }, [fetchRecentUploads]);
   const fileInputRef = useRef();
 
   const isAudio = file && (AUDIO_TYPES.includes(file.type) || file.name.match(/\.(mp3|m4a|wav)$/i));
@@ -487,20 +498,69 @@ function RecordingUploadPanel() {
     if (f) handleFile(f);
   }, [handleFile]);
 
-  const handleUpload = useCallback(() => {
+  const handleUpload = useCallback(async () => {
     if (!file || !clientName.trim()) return;
-    const states = ["uploading", "transcribing", "analyzing", "done"];
-    let idx = 0;
-    setUploadState(states[idx]);
-    const advance = () => {
-      idx++;
-      if (idx < states.length) {
-        setUploadState(states[idx]);
-        setTimeout(advance, idx === 1 ? 2200 : 1400);
+    setUploadState("uploading");
+    try {
+      const isAudioFile = file.name.match(/\.(mp3|m4a|wav)$/i);
+      let transcript = "";
+      let durationMins = null;
+
+      if (isAudioFile) {
+        setUploadState("transcribing");
+        const formData = new FormData();
+        formData.append("audio", file);
+        formData.append("client_name", clientName);
+        formData.append("meeting_type", meetingType);
+        const tRes = await fetch("https://api.immaculate-consulting.org/api/recordings/transcribe", {
+          method: "POST",
+          headers: { "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+          body: formData,
+        });
+        const tData = await tRes.json();
+        if (!tRes.ok) throw new Error(tData.error || "Transcription failed");
+        transcript = tData.transcript;
+        durationMins = tData.duration_mins;
+      } else {
+        setUploadState("transcribing");
+        transcript = await file.text();
+        await new Promise(r => setTimeout(r, 600));
       }
-    };
-    setTimeout(advance, 1200);
-  }, [file, clientName]);
+
+      setUploadState("analyzing");
+      const aRes = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+        body: JSON.stringify({ transcript, meeting_type: meetingType, client_name: clientName }),
+      });
+      const analysis = await aRes.json();
+      if (!aRes.ok) throw new Error(analysis.error || "Analysis failed");
+
+      const { data: clientRow } = await supabase
+        .from("clients")
+        .select("id")
+        .ilike("name", "%" + clientName.trim() + "%")
+        .maybeSingle();
+
+      await supabase.from("communications").insert({
+        client_id: clientRow ? clientRow.id : null,
+        comm_date: new Date().toISOString().split("T")[0],
+        type: "call",
+        subject: meetingType.charAt(0).toUpperCase() + meetingType.slice(1) + " call — " + clientName,
+        note: "Uploaded via IC-BOS recording panel",
+        transcript: transcript,
+        audio_duration_mins: durationMins,
+        transcription_source: isAudioFile ? "whisper" : "uploaded",
+        agent_analysis: analysis,
+      });
+
+      setUploadState("done");
+      fetchRecentUploads();
+    } catch (err) {
+      console.error("Upload error:", err);
+      setUploadState("error");
+    }
+  }, [file, clientName, meetingType]);
 
   const handleReset = () => {
     setFile(null); setClientName(""); setUploadState("idle"); setCostEstimate(null);
@@ -670,6 +730,12 @@ function RecordingUploadPanel() {
                 Upload Another
               </button>
             </div>
+          ) : uploadState === "error" ? (
+            <div style={{ background:"rgba(248,113,113,0.05)", border:"1px solid rgba(248,113,113,0.15)", borderRadius:10, padding:"12px 16px" }}>
+              <div style={{ fontSize:12, fontWeight:700, color:"#f87171" }}>Upload failed — check your connection and try again</div>
+              <button onClick={handleReset} style={{ marginTop:8, fontSize:11, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:5, padding:"4px 10px", cursor:"pointer" }}>Try Again</button>
+            </div>
+          ) : (
           ) : (
             <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "12px 16px" }}>
               <div style={{ fontSize: 11, color: "#6b7280" }}>
@@ -687,27 +753,30 @@ function RecordingUploadPanel() {
         <div>
           <div style={{ fontSize: 10, fontWeight: 600, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.08em", fontFamily: M, marginBottom: 8 }}>Recent Uploads</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {recentUploads.map((u, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: 8 }}>
-                <span style={{ fontSize: 16 }}>🎵</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11.5, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.client}</div>
-                  <div style={{ fontSize: 10, color: "#6b7280" }}>{u.type} · {u.duration} · {u.date}</div>
-                </div>
-                <div style={{ display: "flex", gap: 5 }}>
-                  {u.transcript && (
-                    <button style={{ fontSize: 9, color: "#1e40af", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 4, padding: "2px 7px", cursor: "pointer" }}>
-                      Transcript
-                    </button>
-                  )}
-                  {u.analysis && (
-                    <button style={{ fontSize: 9, color: "#374151", background: "#f9fafb", border: "1px solid #d1d5db", borderRadius: 4, padding: "2px 7px", cursor: "pointer" }}>
-                      Analysis
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
+            {recentUploads.length === 0 && (
+        <div style={{ fontSize:11, color:"#9ca3af", padding:"12px 0" }}>No uploads yet</div>
+      )}
+      {recentUploads.map((u, i) => (
+        <div key={i} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:8 }}>
+          <span style={{ fontSize:18 }}>🎙</span>
+          <div style={{ flex:1 }}>
+            <div style={{ fontSize:12, fontWeight:600, color:"#111827" }}>{u.clients ? u.clients.name : u.subject}</div>
+            <div style={{ fontSize:10, color:"#6b7280", marginTop:1 }}>
+              {u.subject}
+              {u.audio_duration_mins ? " · " + Math.round(u.audio_duration_mins) + " min" : ""}
+              {" · " + new Date(u.comm_date).toLocaleDateString("en-US", { month:"short", day:"numeric" })}
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:5 }}>
+            {u.transcript !== null && (
+              <span style={{ fontSize:10, color:"#38bdf8", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.2)", borderRadius:4, padding:"2px 7px" }}>Transcript</span>
+            )}
+            {u.agent_analysis && (
+              <span style={{ fontSize:10, color:"#374151", background:"#f3f4f6", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 7px" }}>Analysis</span>
+            )}
+          </div>
+        </div>
+      ))}
           </div>
         </div>
       )}
