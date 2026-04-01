@@ -736,7 +736,7 @@ function RecordingUploadPanel() {
               <button onClick={handleReset} style={{ marginTop:8, fontSize:11, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:5, padding:"4px 10px", cursor:"pointer" }}>Try Again</button>
             </div>
           ) : (
-          ) : (
+        
             <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 10, padding: "12px 16px" }}>
               <div style={{ fontSize: 11, color: "#6b7280" }}>
                 {uploadState === "uploading"    && "Uploading to DigitalOcean server..."}
