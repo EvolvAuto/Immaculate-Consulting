@@ -4444,7 +4444,6 @@ const mobileTabs = [
     { id:"renewals", label:"Renewals", icon:"🔄" },
     { id:"roi",      label:"ROI",      icon:"📈" },
   ];
-  ];
 
   return (
     <div style={{ display:"flex", flexDirection:"column", minHeight:"100vh", background:"#f3f4f6", fontFamily:"'Inter',system-ui,sans-serif" }}>
