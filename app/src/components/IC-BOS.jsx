@@ -1508,7 +1508,23 @@ function OnboardingTab({ onRefresh, canEdit = true }) {
                       <div style={{ padding:"12px 14px", background:"#f9fafb", borderRadius:8, animation:"fu 0.2s ease both" }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
                           <span style={{ fontSize:10, color:"#6b7280", fontFamily:M, textTransform:"uppercase" }}>Kickoff Email Draft</span>
-                          <button onClick={()=>navigator.clipboard?.writeText(pr.pain_points.join("\n"))} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={()=>navigator.clipboard?.writeText(pr.kickoff_email?.body || pr.pain_points?.join("\n") || "")} style={{ fontSize:9, color:"#6b7280", background:"transparent", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>Copy</button>
+                            <button
+                              onClick={async () => {
+                                const body = pr.kickoff_email?.body || pr.pain_points?.join("\n") || "";
+                                const subject = pr.kickoff_email?.subject || `Kickoff — ${proj.client}`;
+                                const res = await fetch("https://api.immaculate-consulting.org/api/agents/send-weekly-digest", {
+                                  method:"POST",
+                                  headers:{"Content-Type":"application/json","x-vapi-secret":import.meta.env.VITE_VAPI_WEBHOOK_SECRET},
+                                  body: JSON.stringify({ narrative: body, top_priorities: [], metrics: {}, subject, to: "leonard.croom@immaculate-consulting.org" })
+                                });
+                                alert(res.ok ? "Kickoff email sent!" : "Send failed — check logs");
+                              }}
+                              style={{ fontSize:9, fontWeight:600, color:"#15803d", background:"#f0fdf4", border:"1px solid #16a34a", borderRadius:4, padding:"2px 8px", cursor:"pointer" }}>
+                              Send
+                            </button>
+                          </div>
                         </div>
                      <div style={{ fontSize:11, color:"#111827", lineHeight:1.6 }}>{pr.kickoff_email?.body || (Array.isArray(pr.pain_points) ? pr.pain_points.join("\n") : pr.pain_points)}</div>
                       </div>
@@ -3420,13 +3436,23 @@ function CapTab() {
                 <div style={{ height: 8, borderRadius: 4, background: "rgba(255,255,255,0.04)", marginBottom: 6 }}>
                   <div style={{ height: "100%", borderRadius: 4, background: color, width: `${Math.min(pct, 100)}%`, transition: "width 0.5s" }} />
                 </div>
-                <div style={{ display: "flex", gap: 12, fontSize: 10, color: "#6b7280" }}>
-                  {[{ l: "Delivery", h: t.delivery, c: "#374151" }, { l: "Sales", h: t.sales, c: "#fbbf24" }, { l: "Admin", h: t.admin, c: "#6b7280" }, { l: "Free", h: free, c: "#4ade80" }].map(b => (
-                    <span key={b.l} style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                      <span style={{ width: 5, height: 5, borderRadius: 2, background: b.c }} />
-                      {b.l}: <span style={{ fontWeight: 600, color: b.c, fontFamily: M }}>{b.h}h</span>
-                    </span>
+               <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:4 }}>
+                  {[{l:"Delivery",k:"delivery",c:"#374151"},{l:"Sales",k:"sales",c:"#fbbf24"},{l:"Admin",k:"admin",c:"#6b7280"}].map(b=>(
+                    <div key={b.k} style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ width:5, height:5, borderRadius:2, background:b.c, flexShrink:0 }}/>
+                      <span style={{ fontSize:10, color:"#6b7280", width:48 }}>{b.l}</span>
+                      <input
+                        type="range" min={0} max={t.hoursAvail} value={t[b.k]}
+                        onChange={e=>setTeam(prev=>prev.map(x=>x.id===t.id?{...x,[b.k]:Number(e.target.value)}:x))}
+                        style={{ flex:1, accentColor:b.c, cursor:"pointer" }}
+                      />
+                      <span style={{ fontSize:10, fontWeight:600, color:b.c, fontFamily:M, width:24, textAlign:"right" }}>{t[b.k]}h</span>
+                    </div>
                   ))}
+                  <div style={{ fontSize:10, color:"#4ade80", marginTop:2 }}>
+                    Free: <span style={{ fontWeight:600, fontFamily:M }}>{free}h</span>
+                    {free < 0 && <span style={{ color:"#f87171", marginLeft:6 }}>⚠ Over by {Math.abs(free)}h</span>}
+                  </div>
                 </div>
                 {t.clients.length > 0 && (
                   <div style={{ marginTop: 6, fontSize: 10, color: "#6b7280" }}>
@@ -3510,9 +3536,10 @@ function CapTab() {
 }
 
 // Comms Tab (Feature 7) — with agent visual tokens + recording upload shortcut
-function CommsTab({ onTabNav, canEdit = true }) {
+function CommsTab({ onTabNav, canEdit }) {
   const { COMMS, CLIENTS } = useData();
   const [clientFilter, setClientFilter] = useState("all");
+  const [expandedComm, setExpandedComm] = useState({});
   const tc = { email:"#38bdf8", call:"#4ade80", meeting:"#c084fc", sms:"#fbbf24", note:"#94a3b8" };
   const agentEntries = new Set(["Mar 01", "Feb 28"]);
 
@@ -3606,14 +3633,36 @@ function CommsTab({ onTabNav, canEdit = true }) {
                   <span style={{ fontSize:11, color:"#374151" }}>{c.note}</span>
                 </div>
                 {/* View Transcript / View Analysis buttons for call entries */}
-                {c.type === "call" && (
-                  <div style={{ display:"flex", gap:5, marginTop:6 }}>
-                    <button style={{ fontSize:9, color:"#38bdf8", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.12)", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
-                      View Transcript
-                    </button>
-                    <button style={{ fontSize:9, color:"#374151", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
-                      View Analysis
-                    </button>
+                {c.type === "call" && (c.transcript || c.agent_analysis) && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:6, marginTop:8 }}>
+                    <div style={{ display:"flex", gap:5 }}>
+                      {c.transcript && (
+                        <button onClick={()=>setExpandedComm(prev=>({...prev,[c.id+"_t"]:!prev[c.id+"_t"]}))}
+                          style={{ fontSize:9, color:"#38bdf8", background:"rgba(56,189,248,0.08)", border:"1px solid rgba(56,189,248,0.12)", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
+                          {expandedComm[c.id+"_t"] ? "Hide Transcript" : "View Transcript"}
+                        </button>
+                      )}
+                      {c.agent_analysis && (
+                        <button onClick={()=>setExpandedComm(prev=>({...prev,[c.id+"_a"]:!prev[c.id+"_a"]}))}
+                          style={{ fontSize:9, color:"#374151", background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:4, padding:"2px 7px", cursor:"pointer" }}>
+                          {expandedComm[c.id+"_a"] ? "Hide Analysis" : "View Analysis"}
+                        </button>
+                      )}
+                      {c.audio_duration_mins && (
+                        <span style={{ fontSize:9, color:"#9ca3af", alignSelf:"center" }}>🎙 {c.audio_duration_mins}min</span>
+                      )}
+                    </div>
+                    {expandedComm[c.id+"_t"] && c.transcript && (
+                      <div style={{ padding:"10px 12px", background:"#f9fafb", borderRadius:7, fontSize:11, color:"#374151", lineHeight:1.6, maxHeight:200, overflowY:"auto", whiteSpace:"pre-wrap", animation:"fu 0.2s ease both" }}>
+                        {c.transcript}
+                      </div>
+                    )}
+                    {expandedComm[c.id+"_a"] && c.agent_analysis && (
+                      <div style={{ padding:"10px 12px", background:"#eff6ff", border:"1px solid #bfdbfe", borderRadius:7, fontSize:11, color:"#374151", lineHeight:1.6, animation:"fu 0.2s ease both" }}>
+                        <div style={{ fontSize:9, color:"#374151", fontFamily:M, fontWeight:600, textTransform:"uppercase", marginBottom:5 }}>🤖 Agent Analysis</div>
+                        {typeof c.agent_analysis === "string" ? c.agent_analysis : JSON.stringify(c.agent_analysis, null, 2)}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -4340,7 +4389,8 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
   const [orbOpen, setOrbOpen] = useState(false);
   const touchStartX = useRef(null);
   const touchStartY = useRef(null);
-  const TABS_ORDER = ["overview", "tasks", "notifs", "agents"];
+  const TABS_ORDER = ["overview", "tasks", "notifs", "agents", "proposals", "renewals", "roi"];
+  const [showMoreTray, setShowMoreTray] = useState(false);
 
   const handleRefresh = async () => {
     if (isRefreshing) return;
@@ -4382,11 +4432,18 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
   const pipeVal = PIPELINE.reduce((s,d) => s + d.value, 0);
   const atRiskClients = CLIENTS.filter(c => c.healthScore < 70);
 
- const mobileTabs = [
+const mobileTabs = [
     { id:"overview", label:"Overview", icon:"◉" },
     { id:"tasks",    label:"Tasks",    icon:"✓", badge: highTasks.length },
     { id:"notifs",   label:"Alerts",   icon:"⚠", badge: critCount + overdueInvs.length },
+    { id:"more",     label:"More",     icon:"⋯" },
+  ];
+  const moreTrayTabs = [
     { id:"agents",   label:"Agents",   icon:"⚡" },
+    { id:"proposals",label:"Proposals",icon:"📄" },
+    { id:"renewals", label:"Renewals", icon:"🔄" },
+    { id:"roi",      label:"ROI",      icon:"📈" },
+  ];
   ];
 
   return (
@@ -4898,6 +4955,95 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
             </div>
           </div>
         )}
+        {/* ── PROPOSALS (mobile read-only) ── */}
+        {mobileTab === "proposals" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <h2 style={{ fontSize:16, fontWeight:700, color:"#111827" }}>Proposals</h2>
+            {PIPELINE.filter(d=>d.stage==="proposal"||d.stage==="negotiation").length===0 && (
+              <div style={{ textAlign:"center", padding:"40px 0", fontSize:12, color:"#9ca3af" }}>No active proposals</div>
+            )}
+            {PIPELINE.filter(d=>d.stage==="proposal"||d.stage==="negotiation").map((d,i)=>{
+              const c = STAGE_COLORS[d.stage];
+              return (
+                <div key={i} style={{ background:"#ffffff", borderRadius:10, border:`1px solid ${c.border}40`, padding:"14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{d.practice}</div>
+                      <div style={{ fontSize:10, color:"#6b7280", marginTop:1 }}>{d.specialty} · {d.ehr}</div>
+                    </div>
+                    <span style={{ fontSize:8, fontWeight:700, color:"#ffffff", background:c.dot, borderRadius:4, padding:"2px 6px" }}>T{d.tier}</span>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginTop:8 }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:c.text, fontFamily:"ui-monospace,monospace" }}>${d.value.toLocaleString()}/mo</span>
+                    <span style={{ fontSize:10, fontWeight:600, color:c.text, textTransform:"uppercase" }}>{d.stage}</span>
+                  </div>
+                  {d.nextAction && <div style={{ fontSize:10, color:"#6b7280", marginTop:6 }}>→ {d.nextAction}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── RENEWALS (mobile read-only) ── */}
+        {mobileTab === "renewals" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <h2 style={{ fontSize:16, fontWeight:700, color:"#111827" }}>Renewals</h2>
+            {[...CLIENTS].sort((a,b)=>new Date(a.renewalDate)-new Date(b.renewalDate)).map((c,i)=>{
+              const d = Math.round((new Date(c.renewalDate)-Date.now())/864e5);
+              const bc = c.healthScore<70&&d<60?"#f87171":d<=90?"#fbbf24":"#4ade80";
+              return (
+                <div key={i} style={{ background:"#ffffff", borderRadius:10, border:`1px solid ${c.healthScore<70?"rgba(248,113,113,0.2)":"#e5e7eb"}`, padding:"14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600, color:"#111827" }}>{c.name}</div>
+                      <div style={{ fontSize:10, color:"#6b7280", marginTop:1 }}>T{c.tier} · ${c.monthlyFee.toLocaleString()}/mo</div>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:16, fontWeight:800, color:bc, fontFamily:"ui-monospace,monospace" }}>{d}d</div>
+                      <div style={{ fontSize:9, color:"#9ca3af" }}>{c.renewalDate}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:14, marginTop:8, fontSize:11, color:"#374151" }}>
+                    <span>Health: <span style={{ fontWeight:600, color:c.healthScore>=80?"#4ade80":c.healthScore>=70?"#fbbf24":"#f87171" }}>{c.healthScore}</span></span>
+                    <span>No-Show: <span style={{ fontWeight:600 }}>{c.noShowCurrent}%</span></span>
+                    <span>ARR: <span style={{ fontWeight:600 }}>${(c.monthlyFee*12).toLocaleString()}</span></span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── ROI (mobile read-only) ── */}
+        {mobileTab === "roi" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+            <div style={{ background:"#f0fdf4", border:"1px solid rgba(74,222,128,0.15)", borderRadius:12, padding:"14px 16px" }}>
+              <div style={{ fontSize:9, fontWeight:600, color:"#6b7280", textTransform:"uppercase", letterSpacing:"0.1em", fontFamily:"ui-monospace,monospace", marginBottom:4 }}>Total Client Value Recovered</div>
+              <div style={{ fontSize:28, fontWeight:800, color:"#4ade80", fontFamily:"ui-monospace,monospace" }}>${Math.round(totalROI).toLocaleString()}</div>
+            </div>
+            {CLIENTS.filter(c=>c.status==="active").map((c,i)=>{
+              const r = calcClientROI(c);
+              return (
+                <div key={i} style={{ background:"#ffffff", borderRadius:10, border:"1px solid #e5e7eb", padding:"14px" }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:"#111827", marginBottom:8 }}>{c.name}</div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                    {[
+                      { l:"No-Show", v:`${c.noShowBefore}%→${c.noShowCurrent}%`, cl:"#4ade80" },
+                      { l:"ROI to Date", v:`$${Math.round(r.totalToDate).toLocaleString()}`, cl:"#fbbf24" },
+                      { l:"Hours/wk Saved", v:`${c.weeklyHoursSaved}h`, cl:"#38bdf8" },
+                      { l:"Year 1 ROI", v:`${Math.round(r.roiPct)}%`, cl:r.roiPct>0?"#4ade80":"#f87171" },
+                    ].map((m,j)=>(
+                      <div key={j} style={{ background:"#f9fafb", borderRadius:7, padding:"8px 10px" }}>
+                        <div style={{ fontSize:9, color:"#9ca3af", fontFamily:"ui-monospace,monospace", textTransform:"uppercase" }}>{m.l}</div>
+                        <div style={{ fontSize:14, fontWeight:700, color:m.cl, fontFamily:"ui-monospace,monospace", marginTop:2 }}>{m.v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Vapi Slide-out Drawer */}
@@ -4932,10 +5078,22 @@ function MobileView({ CLIENTS, TASKS, PIPELINE, AUTOMATIONS, INVOICES, FINANCIAL
         </div>
       </div>
 
+      {/* More tray */}
+      {showMoreTray && (
+        <div style={{ position:"fixed", bottom:56, right:0, zIndex:55, background:"#ffffff", border:"1px solid #e5e7eb", borderRadius:"12px 0 0 0", boxShadow:"0 -4px 16px rgba(0,0,0,0.1)", padding:"8px 0", minWidth:140 }}>
+          {moreTrayTabs.map(t=>(
+            <button key={t.id} onClick={()=>{ setMobileTab(t.id); setShowMoreTray(false); }}
+              style={{ width:"100%", display:"flex", alignItems:"center", gap:10, padding:"10px 16px", border:"none", background:mobileTab===t.id?"#f3f4f6":"transparent", cursor:"pointer", fontSize:12, fontWeight:mobileTab===t.id?700:400, color:mobileTab===t.id?"#111827":"#374151" }}>
+              <span>{t.icon}</span><span>{t.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Bottom tab bar */}
       <div style={{ position:"fixed", bottom:0, left:0, right:0, background:"#ffffff", borderTop:"1px solid #e5e7eb", display:"flex", zIndex:50, paddingBottom:"env(safe-area-inset-bottom)" }}>
         {mobileTabs.map(t=>(
-          <button key={t.id} onClick={()=>setMobileTab(t.id)}
+          <button key={t.id} onClick={()=>{ if(t.id==="more"){ setShowMoreTray(p=>!p); } else { setMobileTab(t.id); setShowMoreTray(false); } }}
             style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"8px 0", minHeight:56, border:"none", background:"transparent", cursor:"pointer", position:"relative", color:mobileTab===t.id?"#111827":"#9ca3af" }}>
             <span style={{ fontSize:18, lineHeight:1 }}>{t.icon}</span>
             <span style={{ fontSize:10, fontWeight:mobileTab===t.id?700:400, marginTop:3 }}>{t.label}</span>
