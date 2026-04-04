@@ -237,8 +237,8 @@ const MEETING_TYPES = [
 ];
 
 const AUDIO_TYPES = ["audio/mpeg","audio/mp4","audio/wav","audio/x-wav","audio/m4a","audio/x-m4a"];
-const TEXT_TYPES  = ["text/plain","application/pdf"];
-const ACCEPT_EXTS = ".mp3,.m4a,.wav,.txt,.pdf";
+const TEXT_TYPES  = ["text/plain","application/pdf","application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+const ACCEPT_EXTS = ".mp3,.m4a,.wav,.txt,.pdf,.docx";
 
 // ─── Status helpers ──────────────────────────────────────────────────
 function statusDot(status) {
@@ -454,13 +454,16 @@ function ActivityFeed({ activities, onTabNav, filterAgent, setFilterAgent }) {
 
 // ─── Recording Upload Panel ──────────────────────────────────────────
 function RecordingUploadPanel() {
-  const [dragOver, setDragOver]     = useState(false);
-  const [file, setFile]             = useState(null);
+  const [dragOver, setDragOver]       = useState(false);
+  const [file, setFile]               = useState(null);
   const [meetingType, setMeetingType] = useState("discovery");
-  const [clientName, setClientName] = useState("");
+  const [clientName, setClientName]   = useState("");
   const [uploadState, setUploadState] = useState("idle");
   const [costEstimate, setCostEstimate] = useState(null);
+  const [inputMode, setInputMode]     = useState("file"); // "file" | "paste"
+  const [pasteText, setPasteText]     = useState("");
   const [recentUploads, setRecentUploads] = useState([]);
+  const fileInputRef = useRef();
 
   const fetchRecentUploads = useCallback(async () => {
     const { data } = await supabase
@@ -474,7 +477,6 @@ function RecordingUploadPanel() {
   }, []);
 
   useEffect(() => { fetchRecentUploads(); }, [fetchRecentUploads]);
-  const fileInputRef = useRef();
 
   const isAudio = file && (AUDIO_TYPES.includes(file.type) || file.name.match(/\.(mp3|m4a|wav)$/i));
   const isText  = file && (TEXT_TYPES.includes(file.type)  || file.name.match(/\.(txt|pdf)$/i));
@@ -498,11 +500,40 @@ function RecordingUploadPanel() {
     if (f) handleFile(f);
   }, [handleFile]);
 
-  const handleUpload = useCallback(async () => {
+const handleUpload = useCallback(async () => {
+    if (inputMode === "paste") {
+      if (!pasteText.trim() || !clientName.trim()) return;
+      setUploadState("uploading");
+      try {
+        setUploadState("transcribing");
+        await new Promise(r => setTimeout(r, 400));
+        setUploadState("analyzing");
+        const { data: clientRow } = await supabase.from("clients").select("id").ilike("name", "%" + clientName.trim() + "%").maybeSingle();
+        const { error: insErr } = await supabase.from("communications").insert({
+          client_id: clientRow ? clientRow.id : null,
+          comm_date: new Date().toISOString().split("T")[0],
+          type: "call",
+          subject: meetingType.charAt(0).toUpperCase() + meetingType.slice(1) + " transcript — " + clientName,
+          note: "Pasted via IC-BOS recording panel",
+          transcript: pasteText.trim(),
+          transcription_source: "manual",
+          agent_analysis: null
+        });
+        if (insErr) throw new Error(insErr.message);
+        setUploadState("done");
+        fetchRecentUploads();
+      } catch (err) {
+        console.error("Paste error:", err);
+        setUploadState("error");
+      }
+      return;
+    }
+
     if (!file || !clientName.trim()) return;
     setUploadState("uploading");
     try {
       const isAudioFile = file.name.match(/\.(mp3|m4a|wav)$/i);
+      const isDocFile = file.name.match(/\.(pdf|docx|txt)$/i);
       let transcript = "";
       let durationMins = null;
 
@@ -510,8 +541,8 @@ function RecordingUploadPanel() {
         setUploadState("transcribing");
         const formData = new FormData();
         formData.append("audio", file);
-        formData.append("client_name", clientName);
         formData.append("meeting_type", meetingType);
+        formData.append("client_name", clientName);
         const tRes = await fetch("https://api.immaculate-consulting.org/api/recordings/transcribe", {
           method: "POST",
           headers: { "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
@@ -521,46 +552,52 @@ function RecordingUploadPanel() {
         if (!tRes.ok) throw new Error(tData.error || "Transcription failed");
         transcript = tData.transcript;
         durationMins = tData.duration_mins;
-      } else {
+        setUploadState("done");
+        fetchRecentUploads();
+        return;
+      }
+
+      if (isDocFile) {
         setUploadState("transcribing");
-        transcript = await file.text();
-        await new Promise(r => setTimeout(r, 600));
+        const formData = new FormData();
+        formData.append("document", file);
+        formData.append("meeting_type", meetingType);
+        formData.append("client_name", clientName);
+        const dRes = await fetch("https://api.immaculate-consulting.org/api/recordings/extract-text", {
+          method: "POST",
+          headers: { "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+          body: formData,
+        });
+        const dData = await dRes.json();
+        if (!dRes.ok) throw new Error(dData.error || "Extraction failed");
+        transcript = dData.transcript;
       }
 
       setUploadState("analyzing");
-      const aRes = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
-        body: JSON.stringify({ transcript, meeting_type: meetingType, client_name: clientName }),
-      });
-      const analysis = await aRes.json();
-      if (!aRes.ok) throw new Error(analysis.error || "Analysis failed");
-
-      const { data: clientRow } = await supabase
-        .from("clients")
-        .select("id")
-        .ilike("name", "%" + clientName.trim() + "%")
-        .maybeSingle();
-
-      await supabase.from("communications").insert({
-        client_id: clientRow ? clientRow.id : null,
-        comm_date: new Date().toISOString().split("T")[0],
-        type: "call",
-        subject: meetingType.charAt(0).toUpperCase() + meetingType.slice(1) + " call — " + clientName,
-        note: "Uploaded via IC-BOS recording panel",
-        transcript: transcript,
-        audio_duration_mins: durationMins,
-        transcription_source: isAudioFile ? "whisper" : "uploaded",
-        agent_analysis: analysis,
-      });
-
+      if (transcript) {
+        const aRes = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+          body: JSON.stringify({ transcript, meeting_type: meetingType, client_name: clientName }),
+        });
+        const analysis = await aRes.json();
+        if (aRes.ok) {
+          await supabase.from("communications")
+            .update({ agent_analysis: analysis })
+            .eq("type", "call")
+            .ilike("subject", "%" + clientName + "%")
+            .order("created_at", { ascending: false })
+            .limit(1);
+        }
+      }
       setUploadState("done");
       fetchRecentUploads();
     } catch (err) {
       console.error("Upload error:", err);
       setUploadState("error");
     }
-  }, [file, clientName, meetingType]);
+  }, [file, clientName, meetingType, inputMode, pasteText, fetchRecentUploads]);
+
 
   const handleReset = () => {
     setFile(null); setClientName(""); setUploadState("idle"); setCostEstimate(null);
@@ -578,9 +615,41 @@ function RecordingUploadPanel() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+{/* Mode toggle */}
+      <div style={{ display:"flex", gap:2, background:"#f3f4f6", borderRadius:7, padding:2, alignSelf:"flex-start" }}>
+        {[{id:"file",l:"Upload File"},{id:"paste",l:"Paste Transcript"}].map(m=>(
+          <button key={m.id} onClick={()=>{ setInputMode(m.id); setUploadState("idle"); }}
+            style={{ fontSize:11, fontWeight:600, padding:"5px 14px", borderRadius:5, border:"none", cursor:"pointer", background:inputMode===m.id?"#ffffff":"transparent", color:inputMode===m.id?"#111827":"#6b7280", boxShadow:inputMode===m.id?"0 1px 3px rgba(0,0,0,0.08)":"none", transition:"all 0.15s" }}>
+            {m.l}
+          </button>
+        ))}
+      </div>
 
-      {/* Drop zone */}
-      <div
+      {inputMode === "paste" && uploadState === "idle" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          <textarea
+            value={pasteText}
+            onChange={e=>setPasteText(e.target.value)}
+            placeholder="Paste call transcript or meeting notes here..."
+            rows={8}
+            style={{ width:"100%", padding:"10px 12px", borderRadius:8, border:"1px solid #e5e7eb", background:"#f9fafb", color:"#111827", fontSize:12, fontFamily:"inherit", outline:"none", resize:"vertical", boxSizing:"border-box" }}
+          />
+          <input value={clientName} onChange={e=>setClientName(e.target.value)} placeholder="Client or prospect name *"
+            style={{ width:"100%", padding:"8px 12px", borderRadius:7, border:"1px solid #e5e7eb", background:"#f9fafb", color:"#111827", fontSize:12, fontFamily:"inherit", outline:"none", boxSizing:"border-box" }}/>
+          <select value={meetingType} onChange={e=>setMeetingType(e.target.value)}
+            style={{ padding:"8px 12px", borderRadius:7, border:"1px solid #e5e7eb", background:"#f9fafb", color:"#111827", fontSize:12, fontFamily:"inherit", cursor:"pointer" }}>
+            {[{v:"discovery",l:"Discovery Call"},{v:"checkin",l:"Client Check-in"},{v:"renewal",l:"Renewal Conversation"},{v:"followup",l:"Follow-up Call"}].map(o=>(
+              <option key={o.v} value={o.v}>{o.l}</option>
+            ))}
+          </select>
+          <button onClick={handleUpload} disabled={!pasteText.trim()||!clientName.trim()||uploadState!=="idle"}
+            style={{ padding:"10px 0", borderRadius:8, border:"none", background:pasteText.trim()&&clientName.trim()?"#374151":"#e5e7eb", color:pasteText.trim()&&clientName.trim()?"#ffffff":"#9ca3af", fontSize:13, fontWeight:700, cursor:pasteText.trim()&&clientName.trim()?"pointer":"not-allowed" }}>
+            Save Transcript
+          </button>
+        </div>
+      )}
+      {/* Drop zone — file mode only */}
+      {inputMode === "file" && <div
         onDragOver={e => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
@@ -633,7 +702,7 @@ function RecordingUploadPanel() {
             )}
           </div>
         )}
-      </div>
+     </div>}
 
       {/* Config: meeting type + client */}
       {file && uploadState === "idle" && (
