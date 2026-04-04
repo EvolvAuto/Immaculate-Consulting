@@ -512,7 +512,7 @@ const handleUpload = useCallback(async () => {
         const { error: insErr } = await supabase.from("communications").insert({
           client_id: clientRow ? clientRow.id : null,
           comm_date: new Date().toISOString().split("T")[0],
-          type: "call",
+          type: "Call",
           subject: meetingType.charAt(0).toUpperCase() + meetingType.slice(1) + " transcript — " + clientName,
           note: "Pasted via IC-BOS recording panel",
           transcript: pasteText.trim(),
