@@ -937,7 +937,7 @@ export const useCommunications = (clientId = null) => {
       let query = supabase
         .from('communications')
         .select(`
-          id, comm_date, type, subject, note, created_at,
+          id, comm_date, type, subject, note, transcript, agent_analysis, audio_duration_mins, transcription_source, created_at,
           clients ( id, name ),
           users   ( id, full_name )
         `)
