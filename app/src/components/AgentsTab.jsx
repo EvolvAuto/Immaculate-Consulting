@@ -550,8 +550,23 @@ const handleUpload = useCallback(async () => {
         });
         const tData = await tRes.json();
         if (!tRes.ok) throw new Error(tData.error || "Transcription failed");
-        transcript = tData.transcript;
+       transcript = tData.transcript;
         durationMins = tData.duration_mins;
+        setUploadState("analyzing");
+        const aRes = await fetch("https://api.immaculate-consulting.org/api/agents/analyze-call", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET },
+          body: JSON.stringify({ transcript, meeting_type: meetingType, client_name: clientName }),
+        });
+        if (aRes.ok) {
+          const analysis = await aRes.json();
+          await supabase.from("communications")
+            .update({ agent_analysis: analysis })
+            .eq("transcription_source", "whisper")
+            .ilike("subject", "%" + clientName + "%")
+            .order("created_at", { ascending: false })
+            .limit(1);
+        }
         setUploadState("done");
         fetchRecentUploads();
         return;
