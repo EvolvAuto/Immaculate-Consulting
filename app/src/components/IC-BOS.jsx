@@ -2811,11 +2811,24 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
                 >
                   {expandedProposal === p.id ? "Hide" : "View"}
                 </button>
-                <button
-                  onClick={() => printAgentProposal(p)}
+               <button
+                  onClick={async () => {
+                    const res = await fetch(
+                      "https://api.immaculate-consulting.org/api/proposals/generate-docx?proposal_id=" + p.id,
+                      { headers: { "x-vapi-secret": import.meta.env.VITE_VAPI_WEBHOOK_SECRET } }
+                    );
+                    if (!res.ok) { alert("DOCX generation failed"); return; }
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = "IC_Proposal_" + (p.practice_name || "Practice") + ".docx";
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
                   style={{ fontSize:11, color:"#374151", background:"#f9fafb", border:"1px solid #d1d5db", borderRadius:6, padding:"4px 10px", cursor:"pointer" }}
                 >
-                  📄 PDF
+                  📄 DOCX
                 </button>
               </div>
             </div>
