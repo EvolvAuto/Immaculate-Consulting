@@ -1655,7 +1655,7 @@ function SalesPrepTab({ canEdit = true }) {
   const recovered = ((selected.noShowBaseline - 8) / 100) * weeklyAppts;
   const annualRev = recovered * 65 * 52;
   const annualStaff = 10 * 18 * 52 * 0.8;
-  const tierPrice = { 1:3500, 2:6500, 3:10000 }[selected.tier];
+  const tierPrice = { 1:2500, 2:5000, 3:10000 }[selected.tier];
   const roi = ((annualRev + annualStaff - tierPrice*12) / (tierPrice*12)) * 100;
 
   const handleAnalyzeCall = async () => {
@@ -2482,28 +2482,31 @@ function ProposalTab() {
   if (!prospect) return <div style={{padding:40,textAlign:"center",fontSize:12,color:"#9ca3af"}}>Loading proposals...</div>;
 
   // ── Service catalogs ──
-  const managedTiers = {
-    1: { n:"AI Starter", p:3500, desc:"1–3 providers", includes:"Appointment reminders (SMS+email), basic AI chat, insurance verification (100/mo), dashboard, 2 training sessions, unlimited support" },
-    2: { n:"Productivity Suite", p:6500, desc:"4–10 providers", includes:"Everything in Tier 1 + AI Knowledge Hub, lab results routing, claims denial monitoring + appeal letters, unlimited verification, patient portal, advanced analytics, quarterly reviews" },
-    3: { n:"Practice Transformation", p:10000, desc:"10+ providers", includes:"Everything in Tier 2 + custom AI agents, predictive analytics, capacity planning, multi-location automation, custom integrations, enterprise web apps included, dedicated team" },
+ const managedTiers = {
+    1: { n:"AI Foundations", p:2500, setup:1500, desc:"1–3 providers", includes:"AI Receptionist (voice + chat), appointment reminder automation (SMS + email, 72/24/2-hr), 1 custom workflow build, AI staff training (half-day), automation performance dashboard, custom forms & templates (up to 3), monthly performance report, unlimited support" },
+    2: { n:"AI Operations Suite", p:5000, setup:3000, desc:"4–10 providers", includes:"Everything in Tier 1 + enhanced AI receptionist (multi-provider routing), 3–5 custom workflow builds, AI Knowledge Hub (NotebookLM-powered), 1 custom web application INCLUDED, custom forms/workbooks/SOPs (up to 8), advanced analytics dashboard, full-day staff training (up to 15 staff), quarterly business reviews, 2-hr priority support" },
+    3: { n:"AI Transformation", p:10000, setup:7500, desc:"10+ providers / multi-location", includes:"Everything in Tiers 1 & 2 + custom AI agents, multiple custom web apps included, unlimited forms/workbooks/SOPs, predictive analytics & capacity planning, multi-location support, dedicated implementation support, monthly strategic advisory session" },
   };
 
   const individualServices = [
-    { id:"prompt", name:"Prompt Engineering", options:[{n:"Starter Pack (5 prompts)",p:750},{n:"Growth Pack (15 prompts)",p:1800}], type:"one-time" },
-    { id:"training", name:"AI Staff Training", options:[{n:"Half-Day Workshop (3hr, 10 staff)",p:1200},{n:"Full-Day Workshop (6hr, 15 staff)",p:2200},{n:"Follow-Up Q&A (1hr)",p:200}], type:"one-time" },
-    { id:"webapp", name:"Web App Development", options:[{n:"Simple (1-2 features, 2-3wk)",p:4500},{n:"Medium (3-5 features, 4-6wk)",p:9000},{n:"Complex (full system, 8-12wk)",p:18000}], type:"project", monthly:[250,400,750] },
-    { id:"strategy", name:"AI Strategy Consultation", options:[{n:"Strategy Session (2hr + summary)",p:600},{n:"Full Assessment + Roadmap (half-day)",p:1500}], type:"one-time" },
-    { id:"docs", name:"Document & SOP Creation", options:[{n:"Single SOP (1 workflow, 5pg)",p:250},{n:"SOP Bundle (5 SOPs)",p:1000},{n:"Full SOP Library (10-15 SOPs)",p:1800},{n:"Policy Manual (20-30pg)",p:2500},{n:"Staff Training Guide",p:750}], type:"one-time" },
-    { id:"forms", name:"Forms, Workbooks & Templates", options:[{n:"Single form/template",p:150},{n:"Form Bundle (5 forms)",p:600},{n:"Simple workbook (3 sheets)",p:350},{n:"Advanced workbook (4+ sheets)",p:750},{n:"Ops Reporting Dashboard (Excel)",p:900}], type:"one-time" },
+    { id:"receptionist", name:"AI Receptionist Setup", options:[{n:"Voice + Chat (full setup)",p:1500},{n:"Voice AI only",p:1000},{n:"Chat AI only (web + SMS)",p:800}], type:"one-time", monthly:[350,300,250] },
+    { id:"workflow", name:"Workflow Automation Build", options:[{n:"Simple workflow (1-step trigger + action)",p:1200},{n:"Standard workflow (multi-step, EHR integration)",p:2500},{n:"Complex workflow (multi-system, conditional logic)",p:0}], type:"one-time" },
+    { id:"webapp", name:"Web App Development", options:[{n:"Simple (1-2 features, 2-3wk)",p:4500},{n:"Medium (3-5 features, 4-6wk)",p:9000},{n:"Complex (multi-module, 8-12wk)",p:18500}], type:"project", monthly:[350,400,500] },
+    { id:"chw", name:"CHW Network + Integration", options:[{n:"Network intro + onboarding + advisory",p:850},{n:"Full integration (tracker + automation + report)",p:1750}], type:"one-time", monthly:[150,300] },
+    { id:"prompt", name:"Prompt Engineering", options:[{n:"Starter Pack (5 prompts + usage guide)",p:750},{n:"Growth Pack (15 prompts + full playbook)",p:1800}], type:"one-time" },
+    { id:"strategy", name:"AI Strategy Consultation", options:[{n:"Strategy Session (2hr + written summary)",p:600},{n:"Full Practice Assessment + Roadmap",p:1500}], type:"one-time" },
+    { id:"training", name:"AI Staff Training", options:[{n:"Half-Day Workshop (3hr, up to 10 staff)",p:1200},{n:"Full-Day Workshop (6hr, up to 15 staff)",p:2200},{n:"Follow-Up Q&A (1hr, within 30 days)",p:200}], type:"one-time" },
+    { id:"forms", name:"Forms, Workbooks & Templates", options:[{n:"Single form/template (up to 2 pages)",p:150},{n:"Form Bundle (5 forms)",p:600},{n:"Full Form Set (10+ forms)",p:1100},{n:"Simple workbook (up to 3 sheets)",p:350},{n:"Advanced workbook (formulas, charts)",p:750},{n:"Ops Reporting Dashboard (Excel)",p:900}], type:"one-time" },
+    { id:"docs", name:"SOPs & Policy Documents", options:[{n:"Single SOP (up to 5 pages)",p:250},{n:"SOP Bundle (5 SOPs)",p:1000},{n:"Full SOP Library (10-15 SOPs)",p:1800},{n:"Policy & Procedure Manual",p:2500},{n:"Staff Training Guide (up to 15 pages)",p:750}], type:"one-time" },
   ];
 
-  const webAppAddOns = [
-    { id:"ao-dash", name:"Operations Dashboard", priceRange:"$2,000–$5,000", price:3500, monthly:300 },
-    { id:"ao-checkin", name:"Patient Check-In Kiosk", priceRange:"$1,500–$3,000", price:2250, monthly:200 },
-    { id:"ao-workflow", name:"Staff Workflow Tool", priceRange:"$3,000–$6,000", price:4500, monthly:400 },
-    { id:"ao-referral", name:"Referral Portal", priceRange:"$2,500–$5,000", price:3750, monthly:350 },
-    { id:"ao-insver", name:"Insurance Verification Hub", priceRange:"$5,000–$7,000", price:6000, monthly:400 },
-    { id:"ao-sched", name:"Staff Scheduling System", priceRange:"$8,000–$10,000", price:9000, monthly:500 },
+ const webAppAddOns = [
+    { id:"ao-dash", name:"Operations Dashboard", priceRange:"$3,000–$6,000", price:4500, monthly:300 },
+    { id:"ao-checkin", name:"Patient Check-In Kiosk", priceRange:"$3,000–$6,000", price:4500, monthly:200 },
+    { id:"ao-workflow", name:"Staff Workflow Tool", priceRange:"$6,000–$12,000", price:9000, monthly:400 },
+    { id:"ao-referral", name:"Referral Portal", priceRange:"$6,000–$12,000", price:9000, monthly:350 },
+    { id:"ao-insver", name:"Insurance Verification Hub", priceRange:"$12,000–$25,000", price:18500, monthly:500 },
+    { id:"ao-sched", name:"CHW Activity Tracker", priceRange:"$3,000–$6,000", price:4500, monthly:300 },
   ];
 
   const toggleService = (svcId, optIdx) => {
@@ -2561,7 +2564,7 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
   const paybackMonths = aBen > 0 ? Math.round((totalYear1 / aBen) * 12) : 0;
   const netYear1 = Math.round(aBen - totalYear1);
   const roiRatio = totalYear1 > 0 ? (aBen / totalYear1).toFixed(2) : 0;
-  const tierName = totalMonthly >= 8000 ? 'Tier 3 — Enterprise' : totalMonthly >= 5000 ? 'Tier 2 — Professional' : 'Tier 1 — Essential';
+  const tierName = totalMonthly >= 8000 ? 'Tier 3 — AI Transformation' : totalMonthly >= 5000 ? 'Tier 2 — AI Operations Suite' : 'Tier 1 — AI Foundations';
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head><title>Proposal - ${prospect.practice}</title>
   <style>
@@ -2871,7 +2874,8 @@ const printProposal = (prospect, totalOneTime, totalMonthly, totalYear1, roi, aR
             {[1,2,3].map(n=>(
               <button key={n} onClick={()=>setTier(n)} style={{ flex:1, padding:"10px 12px", borderRadius:8, border:`1px solid ${tier===n?"#374151":"#e5e7eb"}`, background:tier===n?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left" }}>
                 <div style={{ fontSize:11, fontWeight:600, color:tier===n?"#111827":"#6b7280" }}>Tier {n}: {managedTiers[n].n}</div>
-                <div style={{ fontSize:16, fontWeight:700, color:tier===n?"#111827":"#6b7280", fontFamily:M, marginTop:2 }}>${managedTiers[n].p.toLocaleString()}<span style={{ fontSize:10, fontWeight:400 }}>/mo</span></div>
+               <div style={{ fontSize:16, fontWeight:700, color:tier===n?"#111827":"#6b7280", fontFamily:M, marginTop:2 }}>${managedTiers[n].p.toLocaleString()}<span style={{ fontSize:10, fontWeight:400 }}>/mo</span></div>
+                <div style={{ fontSize:10, color:"#9ca3af", marginTop:1 }}>+ ${managedTiers[n].setup?.toLocaleString()} setup</div>
                 <div style={{ fontSize:9.5, color:"#6b7280", marginTop:2 }}>{managedTiers[n].desc}</div>
               </button>
             ))}
