@@ -165,8 +165,8 @@ The user will speak field values in natural language.
 Extract ALL field values mentioned and return ONLY a valid JSON object with the field names as keys.
 Do not add any explanation — respond with ONLY the JSON object.
 Field names to extract: ${getFieldNames(formName)}.
-Example: if user says "New client Sunrise Pediatrics, Tier 2, athenahealth, Dr. Webb, 6 providers, $6500 a month"
-Return: {"name":"Sunrise Pediatrics","tier":"2","ehr":"athenahealth","primary_contact":"Dr. Webb","providers":6,"monthly_fee":6500}`,
+Example: if user says "New client Sunrise Pediatrics, Tier 2, athenahealth, Dr. Webb, 6 providers, $5000 a month"
+Return: {"name":"Sunrise Pediatrics","tier":"2","ehr":"athenahealth","primary_contact":"Dr. Webb","providers":6,"monthly_fee":5000}`,
         messages: [],
       },
       voice: { provider: "11labs", voiceId: "adam" },
@@ -456,7 +456,7 @@ export function AddClientPanel({ onClose, onSaved, supabase, initialData = null 
 
       <div style={S.row}>
         <Field label="Monthly Fee ($)">
-          <Input value={fields.monthly_fee} onChange={set("monthly_fee")} placeholder="6500" type="number" />
+          <Input value={fields.monthly_fee} onChange={set("monthly_fee")} placeholder="5000" type="number" />
         </Field>
         <Field label="Platform Cost ($)">
           <Input value={fields.platform_cost} onChange={set("platform_cost")} placeholder="48" type="number" />
@@ -621,7 +621,7 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
 
       <div style={S.row}>
         <Field label="Est. Monthly Value ($)">
-          <Input value={fields.estimated_value} onChange={set("estimated_value")} placeholder="6500" type="number" />
+          <Input value={fields.estimated_value} onChange={set("estimated_value")} placeholder="5000" type="number" />
         </Field>
         <Field label="Close Probability (%)">
           <Input value={fields.close_probability} onChange={set("close_probability")} placeholder="60" type="number" />
@@ -856,7 +856,7 @@ export function AddInvoicePanel({ onClose, onSaved, supabase, clients = [] }) {
 
       <div style={S.row}>
         <Field label="Amount ($) *">
-          <Input value={fields.amount} onChange={set("amount")} placeholder="6500" type="number" />
+          <Input value={fields.amount} onChange={set("amount")} placeholder="5000" type="number" />
         </Field>
         <Field label="Due Date">
           <Input value={fields.due_date} onChange={set("due_date")} type="date" />
