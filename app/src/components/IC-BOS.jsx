@@ -3343,8 +3343,8 @@ function CapTab() {
 
   // What-if scenarios adjusted for team capacity
   const scenarios = [
-    { l: "+ Tier 1 Client", h: 6, r: 3500 },
-    { l: "+ Tier 2 Client", h: 9, r: 6500 },
+    { l: "+ Tier 1 Client", h: 6, r: 2500 },
+    { l: "+ Tier 2 Client", h: 9, r: 5000 },
     { l: "+ Tier 3 Client", h: 15, r: 10000 },
     { l: "Close Raleigh (T3)", h: 15, r: 12000 },
   ];
@@ -3530,7 +3530,7 @@ function CapTab() {
                     { l: "Free Hours", v: `${newFree}h/wk`, c: "#4ade80" },
                     { l: "New T2 Clients Possible", v: `${maxNewTier2}`, c: "#374151" },
                     { l: "Monthly Cost", v: `$${hs.cost.toLocaleString()}`, c: "#f87171" },
-                    { l: "Breakeven", v: `${Math.ceil(hs.cost / 6500 * 10) / 10} T2 clients`, c: "#fbbf24" },
+                   { l: "Breakeven", v: `${Math.ceil(hs.cost / 5000 * 10) / 10} T2 clients`, c: "#fbbf24" },
                     { l: "Net MRR After Hire", v: `$${newNetMRR.toLocaleString()}`, c: newNetMRR > 0 ? "#4ade80" : "#f87171" },
                   ].map((row, j) => (
                     <div key={j} style={{ display: "flex", justifyContent: "space-between" }}>
@@ -3545,7 +3545,7 @@ function CapTab() {
         </div>
         <div style={{ marginTop: 12, fontSize: 10.5, color: "#6b7280", lineHeight: 1.5, padding: "10px 12px", background: "rgba(255,255,255,0.015)", borderRadius: 7 }}>
           <span style={{ fontWeight: 600, color: "#9ca3af" }}>Hiring Rule of Thumb: </span>
-          When team utilization stays above 80% for 2+ consecutive weeks, it's time to hire. A full-time consultant at $5K/mo pays for themselves with 1 new Tier 2 client ($6,500/mo) — and frees you to focus on sales and strategy.
+         When team utilization stays above 80% for 2+ consecutive weeks, it's time to hire. A full-time consultant at $5K/mo pays for themselves with 1 new Tier 2 client ($5,000/mo) — and frees you to focus on sales and strategy.
         </div>
       </Panel>
     </div>
