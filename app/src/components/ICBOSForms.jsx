@@ -419,7 +419,7 @@ export function AddClientPanel({ onClose, onSaved, supabase, initialData = null 
         {fields.engagement_type !== "individual" && (
           <Field label="Managed Tier">
             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              [{t:"1",n:"AI Foundations",p:"$2,500/mo",d:"1-3 providers"},{t:"2",n:"AI Operations Suite",p:"$5,000/mo",d:"4-10 providers"},{t:"3",n:"AI Transformation",p:"$10,000–$18,000/mo",d:"10+ providers"}].map(opt => (
+              {[{t:"1",n:"AI Foundations",p:"$2,500/mo",d:"1-3 providers"},{t:"2",n:"AI Operations Suite",p:"$5,000/mo",d:"4-10 providers"},{t:"3",n:"AI Transformation",p:"$10,000+/mo",d:"10+ providers"}].map(opt => (
                 <button key={opt.t} onClick={() => set("tier")(opt.t)} style={{ padding:"8px 12px", borderRadius:7, border:`1px solid ${fields.tier===opt.t?"#374151":"#e5e7eb"}`, background:fields.tier===opt.t?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <div><span style={{ fontSize:12, fontWeight:600, color:fields.tier===opt.t?"#111827":"#6b7280" }}>Tier {opt.t}: {opt.n}</span><span style={{ fontSize:10, color:"#9ca3af", marginLeft:8 }}>{opt.d}</span></div>
                   <span style={{ fontSize:12, fontWeight:700, color:fields.tier===opt.t?"#111827":"#9ca3af", fontFamily:"monospace" }}>{opt.p}</span>
@@ -621,7 +621,7 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
 
       <div style={S.row}>
         <Field label="Est. Monthly Value ($)">
-          <Input value={fields.estimated_value} onChange={set("estimated_value")} placeholder="5000" type="number" />
+         <Input value={fields.estimated_value} onChange={set("estimated_value")} placeholder="5000" type="number" />
         </Field>
         <Field label="Close Probability (%)">
           <Input value={fields.close_probability} onChange={set("close_probability")} placeholder="60" type="number" />
@@ -678,7 +678,7 @@ export function AddDealPanel({ onClose, onSaved, supabase }) {
       {fields.engagement_type !== "individual" && (
         <Field label="Managed Tier">
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {[{t:"1",n:"AI Starter",p:"$3,500/mo",d:"1-3 providers"},{t:"2",n:"Productivity Suite",p:"$6,500/mo",d:"4-10 providers"},{t:"3",n:"Practice Transformation",p:"$10,000/mo",d:"10+ providers"}].map(opt => (
+           {[{t:"1",n:"AI Foundations",p:"$2,500/mo",d:"1-3 providers"},{t:"2",n:"AI Operations Suite",p:"$5,000/mo",d:"4-10 providers"},{t:"3",n:"AI Transformation",p:"$10,000+/mo",d:"10+ providers"}].map(opt => (
               <button key={opt.t} onClick={() => set("tier")(opt.t)} style={{ padding:"8px 12px", borderRadius:7, border:`1px solid ${fields.tier===opt.t?"#374151":"#e5e7eb"}`, background:fields.tier===opt.t?"#f3f4f6":"#ffffff", cursor:"pointer", textAlign:"left", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <div><span style={{ fontSize:12, fontWeight:600, color:fields.tier===opt.t?"#111827":"#6b7280" }}>Tier {opt.t}: {opt.n}</span><span style={{ fontSize:10, color:"#9ca3af", marginLeft:8 }}>{opt.d}</span></div>
                 <span style={{ fontSize:12, fontWeight:700, color:fields.tier===opt.t?"#111827":"#9ca3af", fontFamily:"monospace" }}>{opt.p}</span>
