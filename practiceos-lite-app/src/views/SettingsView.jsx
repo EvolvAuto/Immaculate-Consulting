@@ -22,15 +22,15 @@ export default function SettingsView() {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <TopBar title="Settings" sub="Practice configuration"
+     <TopBar title="Settings" sub="Practice configuration"
         actions={<TabBar tabs={[
-  ["practice", "Practice Info"],
-  ["appt_types", "Appointment Types"],
-  ["panels", "Clinical Panels"],
-  ["rooms", "Rooms"],
-  ["hours", "Hours"],
-  ["holidays", "Holidays"],
-]} active={tab} onChange={setTab} />
+          ["practice", "Practice Info"],
+          ["appt_types", "Appointment Types"],
+          ["panels", "Clinical Panels"],
+          ["rooms", "Rooms"],
+          ["hours", "Hours"],
+          ["holidays", "Holidays"],
+        ]} active={tab} onChange={setTab} />} />
 
       <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
         {!canEdit && (
