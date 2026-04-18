@@ -3,7 +3,6 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import PanelQuickEntryStrip, { savePanelValues } from "./patient/PanelQuickEntryStrip";
-import { supabase } from "../lib/supabaseClient";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
