@@ -86,27 +86,27 @@ export function AuthProvider({ children }) {
       }
     })();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+   const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!active) return;
-      try {
-        setSession(newSession);
-        if (newSession?.user) {
-          await loadProfile(newSession.user.id);
-          if (event === "SIGNED_IN") {
-            // Fire-and-forget: do not block UI on audit logging
-            logAudit({
-              action: "Login",
-              entityType: "session",
-              entityId: newSession.user.id,
-            }).catch((err) => console.warn("[PracticeOS] audit Login failed:", err?.message));
-          }
-        } else {
-          setProfile(null);
+      // Only react to meaningful auth transitions. Ignore TOKEN_REFRESHED and
+      // USER_UPDATED which fire every ~50 min and don't require a profile reload.
+      setSession(newSession);
+      if (event === "SIGNED_OUT" || !newSession?.user) {
+        setProfile(null);
+        return;
+      }
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+        // Background: don't block UI
+        loadProfile(newSession.user.id).catch((e) =>
+          console.warn("[PracticeOS] profile load failed:", e?.message)
+        );
+        if (event === "SIGNED_IN") {
+          logAudit({
+            action: "Login",
+            entityType: "session",
+            entityId: newSession.user.id,
+          }).catch(() => {});
         }
-      } catch (e) {
-        console.warn("[PracticeOS] auth state handler error:", e?.message || e);
-      } finally {
-        if (active) setLoading(false);
       }
     });
 
