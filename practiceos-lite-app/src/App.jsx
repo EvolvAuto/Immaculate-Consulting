@@ -183,8 +183,8 @@ function Shell() {
       </nav>
 
       {/* ── Main Content ──────────────────────────────────────────────── */}
-      <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-        <ActiveView />
+     <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <ActiveView onNav={setActiveNav} />
       </main>
     </div>
   );
