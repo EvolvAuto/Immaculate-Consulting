@@ -1,171 +1,288 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// PracticeOS Lite — Shared Constants
-// Enums mirror live Supabase schema exactly (Title Case matters)
+// src/components/constants.js — shared enums, helpers, and config
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ─── Appointment Types (align with DB enum appt_type) ─────────────────────────
+// ─── Appointment type fallback (if DB table is empty, use these) ─────────────
 export const DEFAULT_APPT_TYPES = [
-  { name: "New Patient",  dot: "#3B82F6", bg: "#EFF6FF", border: "#BFDBFE", color: "#1D4ED8", defaultDuration: 60 },
-  { name: "Follow-up",    dot: "#1D9E75", bg: "#E1F5EE", border: "#9FE1CB", color: "#0F6E56", defaultDuration: 30 },
-  { name: "Annual Exam",  dot: "#10B981", bg: "#D1FAE5", border: "#6EE7B7", color: "#065F46", defaultDuration: 45 },
-  { name: "Procedure",    dot: "#8B5CF6", bg: "#EDE9FE", border: "#C4B5FD", color: "#6D28D9", defaultDuration: 90 },
-  { name: "Telehealth",   dot: "#D08A2E", bg: "#FAEEDA", border: "#FAC775", color: "#854F0B", defaultDuration: 30 },
-  { name: "Walk-in",      dot: "#F59E0B", bg: "#FEF3C7", border: "#FCD34D", color: "#92400E", defaultDuration: 20 },
-  { name: "Admin / Block", dot: "#9c9b94", bg: "#f7f7f5", border: "rgba(0,0,0,0.18)", color: "#6b6a63", defaultDuration: 60 },
+  { name: "New Patient",   dot: "#3B82F6", bg: "#EFF6FF", border: "#BFDBFE", color: "#1D4ED8", defaultDuration: 60 },
+  { name: "Follow-up",     dot: "#1D9E75", bg: "#E1F5EE", border: "#9FE1CB", color: "#0F6E56", defaultDuration: 30 },
+  { name: "Annual Exam",   dot: "#8B5CF6", bg: "#EDE9FE", border: "#C4B5FD", color: "#6D28D9", defaultDuration: 45 },
+  { name: "Procedure",     dot: "#D08A2E", bg: "#FAEEDA", border: "#FAC775", color: "#854F0B", defaultDuration: 60 },
+  { name: "Telehealth",    dot: "#06B6D4", bg: "#ECFEFF", border: "#67E8F9", color: "#0E7490", defaultDuration: 20 },
+  { name: "Walk-in",       dot: "#EF4444", bg: "#FEE2E2", border: "#FCA5A5", color: "#991B1B", defaultDuration: 20 },
+  { name: "Physical Exam", dot: "#10B981", bg: "#D1FAE5", border: "#6EE7B7", color: "#065F46", defaultDuration: 45 },
 ];
 
-// ─── NC Payers (mirrors DB enum payer_category) ───────────────────────────────
+// Lighten a hex color to derive a badge background if one isn't provided
+export const hexToBg = (hex, alpha = 0.12) => {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+
+// ─── NC Insurance Payers (official as of April 2026) ─────────────────────────
+export const NC_PAYERS = [
+  { group: "NC Medicaid — Standard Plans", category: "NC Medicaid - Standard", options: [
+    "AmeriHealth Caritas North Carolina (Medicaid)",
+    "Carolina Complete Health (Medicaid)",
+    "Healthy Blue (Medicaid)",
+    "UnitedHealthcare Community Plan (Medicaid)",
+    "WellCare of North Carolina (Medicaid)",
+  ]},
+  { group: "NC Medicaid — Tailored Plans", category: "NC Medicaid - Tailored", options: [
+    "Alliance Health (Medicaid Tailored Plan)",
+    "Partners Health Management (Medicaid Tailored Plan)",
+    "Trillium Health Resources (Medicaid Tailored Plan)",
+    "Vaya Health (Medicaid Tailored Plan)",
+  ]},
+  { group: "NC Medicaid — Other", category: "NC Medicaid - Other", options: [
+    "NC Medicaid Direct",
+    "EBCI Tribal Option (Medicaid)",
+    "Healthy Blue Care Together (Medicaid)",
+  ]},
+  { group: "Medicare", category: "Medicare", options: [
+    "Medicare (Traditional / Original)",
+    "Medicare Advantage — Blue Cross NC",
+    "Medicare Advantage — Aetna",
+    "Medicare Advantage — Humana",
+    "Medicare Advantage — UnitedHealthcare",
+    "Medicare Advantage — WellCare",
+    "Medicare Advantage — Other",
+  ]},
+  { group: "NC State Health Plan", category: "Commercial", options: [
+    "NC State Health Plan (Aetna)",
+  ]},
+  { group: "Commercial Insurance", category: "Commercial", options: [
+    "Blue Cross Blue Shield NC (Commercial)",
+    "Aetna",
+    "Cigna",
+    "UnitedHealthcare",
+    "Humana",
+    "Ambetter (NC)",
+    "Molina Healthcare",
+  ]},
+  { group: "Other Coverage", category: "Other", options: [
+    "Tricare / Military",
+    "Veterans Affairs (VA)",
+    "Workers' Compensation",
+    "Self-Pay / No Insurance",
+    "Other — not listed",
+  ]},
+];
+
+// Given a payer NAME string, return the payer_category enum value
+export const lookupPayerCategory = (payerName) => {
+  for (const grp of NC_PAYERS) {
+    if (grp.options.includes(payerName)) return grp.category;
+  }
+  return "Other";
+};
+
+// Flat list for search / filter dropdowns
+export const ALL_PAYER_OPTIONS = NC_PAYERS.flatMap((g) => g.options);
+
 export const NC_PAYER_GROUPS = [
-  { group: "NC Medicaid - Standard", options: ["AmeriHealth Caritas NC", "Carolina Complete Health", "Healthy Blue", "UnitedHealthcare Community Plan", "WellCare of NC"] },
-  { group: "NC Medicaid - Tailored", options: ["Alliance Health", "Partners Health Management", "Trillium Health Resources", "Vaya Health"] },
-  { group: "NC Medicaid - Other", options: ["NC Medicaid Direct", "EBCI Tribal Option", "Healthy Blue Care Together"] },
-  { group: "Medicare", options: ["Medicare (Traditional)", "Medicare Advantage - BCBS NC", "Medicare Advantage - Aetna", "Medicare Advantage - Humana", "Medicare Advantage - UnitedHealthcare", "Medicare Advantage - WellCare"] },
-  { group: "Commercial", options: ["BCBS NC", "Aetna", "Cigna", "UnitedHealthcare", "Humana", "Ambetter NC", "Molina Healthcare", "NC State Health Plan"] },
-  { group: "Other", options: ["Tricare / Military", "Veterans Affairs (VA)", "Workers Compensation", "Self-Pay", "Other"] },
+  "NC Medicaid - Standard",
+  "NC Medicaid - Tailored",
+  "NC Medicaid - Other",
+  "Medicare",
+  "Commercial",
+  "Other",
 ];
 
-export const PAYER_CATEGORY_MAP = {
-  "NC Medicaid - Standard": "NC Medicaid - Standard",
-  "NC Medicaid - Tailored": "NC Medicaid - Tailored",
-  "NC Medicaid - Other": "NC Medicaid - Other",
-  "Medicare": "Medicare",
-  "Commercial": "Commercial",
-  "Other": "Other",
-};
+// ─── Timezones (common US + key international for NC practices) ──────────────
+export const TIMEZONES = [
+  { value: "America/New_York",    label: "Eastern (New York)" },
+  { value: "America/Chicago",     label: "Central (Chicago)" },
+  { value: "America/Denver",      label: "Mountain (Denver)" },
+  { value: "America/Phoenix",     label: "Mountain - no DST (Phoenix)" },
+  { value: "America/Los_Angeles", label: "Pacific (Los Angeles)" },
+  { value: "America/Anchorage",   label: "Alaska (Anchorage)" },
+  { value: "Pacific/Honolulu",    label: "Hawaii (Honolulu)" },
+  { value: "America/Puerto_Rico", label: "Atlantic (Puerto Rico)" },
+];
 
-// ─── ICD-10 Common Codes ──────────────────────────────────────────────────────
+// ─── ICD-10 common codes for family medicine / pediatrics / NC Medicaid ─────
 export const ICD10_COMMON = [
-  { code: "Z00.00", description: "General adult medical exam, no abnormal findings" },
-  { code: "I10",    description: "Essential (primary) hypertension" },
-  { code: "E11.9",  description: "Type 2 diabetes mellitus without complications" },
-  { code: "J06.9",  description: "Acute upper respiratory infection, unspecified" },
-  { code: "M54.5",  description: "Low back pain" },
-  { code: "F41.1",  description: "Generalized anxiety disorder" },
-  { code: "F32.9",  description: "Major depressive disorder, single episode, unspecified" },
-  { code: "Z23",    description: "Immunization encounter" },
-  { code: "Z71.3",  description: "Dietary counseling and surveillance" },
-  { code: "E78.5",  description: "Hyperlipidemia, unspecified" },
-  { code: "N39.0",  description: "Urinary tract infection, unspecified" },
-  { code: "J45.20", description: "Mild intermittent asthma, uncomplicated" },
-  { code: "K21.0",  description: "Gastro-esophageal reflux disease with esophagitis" },
-  { code: "R05.9",  description: "Cough, unspecified" },
-  { code: "Z13.88", description: "Encounter for screening for disorder" },
+  { code: "Z00.00",   description: "Encounter for general adult medical exam without abnormal findings" },
+  { code: "Z00.129",  description: "Encounter for routine child health exam without abnormal findings" },
+  { code: "Z23",      description: "Encounter for immunization" },
+  { code: "E11.9",    description: "Type 2 diabetes mellitus without complications" },
+  { code: "E78.5",    description: "Hyperlipidemia, unspecified" },
+  { code: "I10",      description: "Essential (primary) hypertension" },
+  { code: "J06.9",    description: "Acute upper respiratory infection, unspecified" },
+  { code: "J45.909",  description: "Unspecified asthma, uncomplicated" },
+  { code: "K21.9",    description: "Gastro-esophageal reflux disease without esophagitis" },
+  { code: "M25.511",  description: "Pain in right shoulder" },
+  { code: "N39.0",    description: "Urinary tract infection, site not specified" },
+  { code: "F32.9",    description: "Major depressive disorder, single episode, unspecified" },
+  { code: "F41.1",    description: "Generalized anxiety disorder" },
+  { code: "R51.9",    description: "Headache, unspecified" },
+  { code: "Z79.4",    description: "Long term (current) use of insulin" },
 ];
 
-// ─── CPT Common Codes ─────────────────────────────────────────────────────────
+// ─── CPT codes common ────────────────────────────────────────────────────────
 export const CPT_COMMON = [
-  { code: "99202", description: "New patient, straightforward MDM, 15-29 min" },
-  { code: "99203", description: "New patient, low MDM, 30-44 min" },
-  { code: "99204", description: "New patient, moderate MDM, 45-59 min" },
-  { code: "99205", description: "New patient, high MDM, 60-74 min" },
-  { code: "99212", description: "Established patient, straightforward, 10-19 min" },
-  { code: "99213", description: "Established patient, low, 20-29 min" },
-  { code: "99214", description: "Established patient, moderate, 30-39 min" },
-  { code: "99215", description: "Established patient, high, 40-54 min" },
-  { code: "99395", description: "Annual preventive visit, 18-39 years" },
-  { code: "99396", description: "Annual preventive visit, 40-64 years" },
-  { code: "99397", description: "Annual preventive visit, 65+ years" },
-  { code: "G0444", description: "Annual depression screening, 15 min" },
-  { code: "G0442", description: "Annual alcohol misuse screening, 15 min" },
-  { code: "99406", description: "Smoking cessation counseling, 3-10 min" },
-  { code: "96160", description: "Patient-focused health risk assessment" },
+  { code: "99202", description: "Office visit, new, straightforward (15-29 min)" },
+  { code: "99203", description: "Office visit, new, low complexity (30-44 min)" },
+  { code: "99204", description: "Office visit, new, moderate complexity (45-59 min)" },
+  { code: "99205", description: "Office visit, new, high complexity (60-74 min)" },
+  { code: "99212", description: "Office visit, established, straightforward (10-19 min)" },
+  { code: "99213", description: "Office visit, established, low-to-moderate (20-29 min)" },
+  { code: "99214", description: "Office visit, established, moderate (30-39 min)" },
+  { code: "99215", description: "Office visit, established, high (40-54 min)" },
+  { code: "99385", description: "Periodic preventive exam, ages 18-39" },
+  { code: "99386", description: "Periodic preventive exam, ages 40-64" },
+  { code: "99395", description: "Periodic preventive exam, established, 40-64" },
+  { code: "99406", description: "Smoking cessation counseling 3-10 min" },
+  { code: "96127", description: "Brief emotional/behavioral assessment with scoring" },
+  { code: "90471", description: "Immunization administration, first" },
+  { code: "90472", description: "Immunization administration, each additional" },
 ];
 
-// ─── Role Metadata ────────────────────────────────────────────────────────────
-export const ROLE_META = {
-  "Owner":              { color: "#6D28D9", bg: "#EDE9FE", border: "#C4B5FD" },
-  "Manager":            { color: "#6D28D9", bg: "#EDE9FE", border: "#C4B5FD" },
-  "Provider":           { color: "#065F46", bg: "#D1FAE5", border: "#6EE7B7" },
-  "Medical Assistant":  { color: "#0F6E56", bg: "#E1F5EE", border: "#9FE1CB" },
-  "Front Desk":         { color: "#1D4ED8", bg: "#EFF6FF", border: "#BFDBFE" },
-  "Billing":            { color: "#854F0B", bg: "#FAEEDA", border: "#FAC775" },
-  "Patient":            { color: "#1a1a18", bg: "#f7f7f5", border: "rgba(0,0,0,0.08)" },
+// ─── Layout constants (schedule grid) ────────────────────────────────────────
+export const SLOT_MIN = 15;                        // minutes per slot
+export const SLOT_H = 22;                          // pixel height of one 15-min slot
+export const TIME_COL_W = 64;                      // pixel width of left time column
+export const DAY_START_SLOT = 28;                  // 7:00 AM
+export const DAY_END_SLOT = 76;                    // 7:00 PM
+export const DAYS_OF_WEEK = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+export const slotToTime = (slot) => {
+  const h24 = Math.floor(slot / 4);
+  const m   = (slot % 4) * 15;
+  const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+  const ampm = h24 < 12 ? "AM" : "PM";
+  return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
 };
 
-// ─── Time / Slot Helpers ──────────────────────────────────────────────────────
-// Slots are 15-min increments: 0 = 12:00 AM, 28 = 7:00 AM, 48 = 12:00 PM, 72 = 6:00 PM
-export const SLOT_H = 22;        // px per slot in Schedule grid
-export const TIME_COL_W = 64;
-export const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-export const DAY_KEY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export const timeToSlot = (time) => {
+  // accepts "HH:MM" 24-hour, "h:mm AM/PM", or "HH:MM AM/PM"
+  if (!time) return 0;
+  const am = /am/i.test(time);
+  const pm = /pm/i.test(time);
+  const [hStr, mStr] = time.replace(/\s?(am|pm)/i, "").split(":");
+  let h = parseInt(hStr, 10) || 0;
+  const m = parseInt(mStr, 10) || 0;
+  if (pm && h < 12) h += 12;
+  if (am && h === 12) h = 0;
+  return h * 4 + Math.floor(m / 15);
+};
 
-export const slotToTime = (slot) => {
+// "14:30" <-> slot (for <input type="time">)
+export const time24ToSlot = (time24) => {
+  if (!time24) return 0;
+  const [h, m] = time24.split(":").map((v) => parseInt(v, 10) || 0);
+  return h * 4 + Math.floor(m / 15);
+};
+export const slotToTime24 = (slot) => {
   const h = Math.floor(slot / 4);
   const m = (slot % 4) * 15;
-  const period = h >= 12 ? "PM" : "AM";
-  const hh = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${hh}:${String(m).padStart(2, "0")} ${period}`;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
 };
 
-export const timeToSlot = (h24, m = 0) => h24 * 4 + Math.floor(m / 15);
+// Minutes <-> slots (duration)
+export const minutesToSlots = (min) => Math.max(1, Math.round(min / 15));
+export const slotsToMinutes = (slots) => slots * 15;
 
-export const formatTime = (slot) => slotToTime(slot);
-
-// Phone format: (919) 555-0180
-export const formatPhone = (raw) => {
-  if (!raw) return "";
-  const d = String(raw).replace(/\D/g, "");
-  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
-  if (d.length === 11 && d[0] === "1") return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
-  return raw;
+// "14:30" -> "2:30 PM"
+export const time24To12 = (time24) => {
+  if (!time24) return "";
+  const [h, m] = time24.split(":").map((v) => parseInt(v, 10) || 0);
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  const ampm = h < 12 ? "AM" : "PM";
+  return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
 };
 
-// DOB → age
+export const formatPhone = (phone) => {
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  if (digits.length === 11 && digits[0] === "1") return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  return phone;
+};
+
 export const ageFromDOB = (dob) => {
-  if (!dob) return "—";
+  if (!dob) return "";
   const b = new Date(dob);
-  const n = new Date();
-  let a = n.getFullYear() - b.getFullYear();
-  if (n.getMonth() < b.getMonth() || (n.getMonth() === b.getMonth() && n.getDate() < b.getDate())) a--;
-  return a;
+  const d = new Date();
+  let age = d.getFullYear() - b.getFullYear();
+  const m = d.getMonth() - b.getMonth();
+  if (m < 0 || (m === 0 && d.getDate() < b.getDate())) age--;
+  return age;
 };
 
-// YYYY-MM-DD for DB date columns
-export const toISODate = (d = new Date()) => {
+export const toISODate = (date = new Date()) => {
+  const d = new Date(date);
   const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
+  const m = (d.getMonth() + 1).toString().padStart(2, "0");
+  const dd = d.getDate().toString().padStart(2, "0");
   return `${y}-${m}-${dd}`;
 };
 
-// Initials from name (safe on nulls)
-export const initialsOf = (first, last) => `${(first || "").charAt(0)}${(last || "").charAt(0)}`.toUpperCase() || "?";
-
-// Appt status → Badge variant
-export const APPT_STATUS_VARIANT = {
-  "Scheduled":   "neutral",
-  "Confirmed":   "teal",
-  "Checked In":  "amber",
-  "Roomed":      "blue",
-  "In Progress": "purple",
-  "Completed":   "green",
-  "No Show":     "red",
-  "Cancelled":   "neutral",
-  "Rescheduled": "neutral",
+export const initialsOf = (first, last) => {
+  const f = (first || "").trim()[0] || "";
+  const l = (last || "").trim()[0] || "";
+  return (f + l).toUpperCase() || "?";
 };
 
+// ─── Status variant lookup tables ────────────────────────────────────────────
+export const APPT_STATUS_VARIANT = {
+  "Scheduled": "neutral",
+  "Confirmed": "blue",
+  "Checked In": "teal",
+  "Roomed": "blue",
+  "In Progress": "purple",
+  "Completed": "green",
+  "No Show": "red",
+  "Cancelled": "neutral",
+  "Rescheduled": "amber",
+};
 export const QUEUE_STATUS_VARIANT = {
-  "Waiting":                "amber",
-  "Roomed":                 "blue",
-  "In Progress":            "purple",
-  "Ready":                  "teal",
-  "Checked Out":            "green",
+  "Waiting": "amber",
+  "Roomed": "blue",
+  "In Progress": "purple",
+  "Ready": "teal",
+  "Checked Out": "green",
   "Left Without Being Seen": "red",
 };
-
 export const TASK_PRIORITY_VARIANT = {
   "Urgent": "red",
-  "High":   "amber",
-  "Normal": "teal",
-  "Low":    "neutral",
+  "High": "amber",
+  "Normal": "blue",
+  "Low": "neutral",
 };
 
-export const NAV_BY_ROLE = {
-  "Owner":             ["dashboard","schedule","patients","queue","tasks","inbox","clinical","eligibility","waitlist","insights","compliance","staff","reports","settings"],
-  "Manager":           ["dashboard","schedule","patients","queue","tasks","inbox","eligibility","waitlist","insights","compliance","staff","reports","settings"],
-  "Provider":          ["dashboard","schedule","patients","clinical","inbox","tasks"],
-  "Medical Assistant": ["dashboard","schedule","patients","queue","tasks","eligibility"],
-  "Front Desk":        ["dashboard","schedule","patients","queue","tasks","eligibility","waitlist"],
-  "Billing":           ["dashboard","patients","eligibility","reports"],
-  "Patient":           ["portal"],
+// ─── Role metadata ───────────────────────────────────────────────────────────
+export const ROLE_META = {
+  Owner:              { color: "#6D28D9" },
+  Manager:            { color: "#1D4ED8" },
+  Provider:           { color: "#0F6E56" },
+  "Medical Assistant":{ color: "#D08A2E" },
+  "Front Desk":       { color: "#0E7490" },
+  Billing:            { color: "#991B1B" },
+  Patient:            { color: "#9c9b94" },
 };
+
+// ─── Navigation config per role (for sidebar rendering) ──────────────────────
+export const NAV_BY_ROLE = {
+  Owner: ["dashboard","schedule","patients","queue","clinical","inbox","tasks","staff","eligibility","waitlist","insights","compliance","reports","settings"],
+  Manager: ["dashboard","schedule","patients","queue","clinical","inbox","tasks","staff","eligibility","waitlist","insights","compliance","reports","settings"],
+  Provider: ["dashboard","schedule","patients","queue","clinical","inbox","tasks","eligibility"],
+  "Medical Assistant": ["dashboard","schedule","patients","queue","inbox","tasks"],
+  "Front Desk": ["dashboard","schedule","patients","queue","inbox","tasks","eligibility","waitlist"],
+  Billing: ["dashboard","patients","tasks","eligibility","reports"],
+  Patient: ["portal"],
+};
+
+// ─── HRSN / SDOH screening questions (NC Medicaid required) ──────────────────
+export const HRSN_QUESTIONS = [
+  { key: "food",      question: "Within the past 12 months, did you worry your food would run out before you got money to buy more?" },
+  { key: "housing",   question: "Are you worried about losing your housing, or do you currently lack stable housing?" },
+  { key: "utilities", question: "In the past 12 months, has the electric, gas, oil, or water company threatened to shut off services in your home?" },
+  { key: "transport", question: "In the past 12 months, has a lack of transportation kept you from medical appointments, meetings, work, or getting things needed for daily living?" },
+  { key: "safety",    question: "Do you ever feel unsafe in your current living situation or in a relationship?" },
+];
