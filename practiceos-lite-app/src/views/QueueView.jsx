@@ -183,11 +183,12 @@ function QueueCard({ entry, rooms, busyRoomIds, onAssignRoom, onAdvance, onRetre
   const canRetreat = !!PREV_STATUS[entry.queue_status];
 
   return (
-    <Card
+    <div
       draggable
       onDragStart={(e) => onDragStart(e, entry)}
-      style={{ padding: 10, cursor: "grab", userSelect: "none" }}
+      style={{ cursor: "grab", userSelect: "none" }}
     >
+    <Card style={{ padding: 10 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
         <Avatar initials={initialsOf(entry.patients?.first_name, entry.patients?.last_name)}
           size={28} color={entry.providers?.color || C.tealMid} />
@@ -233,13 +234,14 @@ function QueueCard({ entry, rooms, busyRoomIds, onAssignRoom, onAdvance, onRetre
         {entry.queue_status === "Ready" && <Btn size="sm" onClick={onCheckOut} style={{ flex: 1 }}>Check Out</Btn>}
       </div>
 
-      {entry.queue_status !== "Checked Out" && (
+    {entry.queue_status !== "Checked Out" && (
         <button onClick={onLWBS}
           style={{ width: "100%", marginTop: 4, background: "none", border: "none", fontSize: 10, color: C.textTertiary, cursor: "pointer" }}>
           Left without being seen
         </button>
       )}
     </Card>
+    </div>
   );
 }
 
