@@ -300,6 +300,14 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
         <Textarea label="Subjective" value={e.subjective} onChange={locked ? () => {} : set("subjective")} rows={3} />
         <Textarea label="Objective" value={e.objective} onChange={locked ? () => {} : set("objective")} rows={3} />
         <Textarea label="Assessment" value={e.assessment} onChange={locked ? () => {} : set("assessment")} rows={3} />
+        {patient && (
+  <PanelQuickEntryStrip
+    patient={patient}
+    encounter={e}
+    disabled={locked}
+    onValuesChange={setPanelValues}
+  />
+)}
         <Textarea label="Plan" value={e.plan} onChange={locked ? () => {} : set("plan")} rows={3} />
       </div>
 
