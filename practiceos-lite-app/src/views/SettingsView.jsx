@@ -2,6 +2,7 @@
 // SettingsView — Practice info, rooms, hours, holidays, appointment types
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import ClinicalPanelsTab from "./settings/ClinicalPanelsTab";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
@@ -23,12 +24,13 @@ export default function SettingsView() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <TopBar title="Settings" sub="Practice configuration"
         actions={<TabBar tabs={[
-          ["practice", "Practice Info"],
-          ["appt_types", "Appointment Types"],
-          ["rooms", "Rooms"],
-          ["hours", "Hours"],
-          ["holidays", "Holidays"],
-        ]} active={tab} onChange={setTab} />} />
+  ["practice", "Practice Info"],
+  ["appt_types", "Appointment Types"],
+  ["panels", "Clinical Panels"],
+  ["rooms", "Rooms"],
+  ["hours", "Hours"],
+  ["holidays", "Holidays"],
+]} active={tab} onChange={setTab} /> />
 
       <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
         {!canEdit && (
@@ -38,6 +40,7 @@ export default function SettingsView() {
         )}
         {tab === "practice"  && <PracticeInfoTab  practiceId={practiceId} canEdit={canEdit} />}
         {tab === "appt_types" && <ApptTypesTab    practiceId={practiceId} canEdit={canEdit} />}
+        {tab === "panels"     && <ClinicalPanelsTab canEdit={canEdit} />}
         {tab === "rooms"     && <RoomsTab         practiceId={practiceId} canEdit={canEdit} />}
         {tab === "hours"     && <HoursTab         practiceId={practiceId} canEdit={canEdit} />}
         {tab === "holidays"  && <HolidaysTab      practiceId={practiceId} canEdit={canEdit} />}
