@@ -4,6 +4,8 @@
 //          payer-category filter, PCP filter, sort controls
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import TrendsTab from "./patient/TrendsTab";
+import MedicationsTab from "./patient/MedicationsTab";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
@@ -214,16 +216,18 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
       </div>
 
       <div style={{ marginBottom: 16 }}>
-        <TabBar
-          tabs={[
-            ["info", "Info"],
-            ["appts", `Appts (${appts.length})`],
-            ["encounters", `Notes (${encounters.length})`],
-            ["clinical", "Clinical"],
-            ["insurance", `Insurance (${activeInsurance.length})`],
-            ["sdoh", `SDOH${screeners.length ? ` (${screeners.length})` : ""}`],
-          ]}
-          active={tab} onChange={setTab} />
+       <TabBar
+  tabs={[
+    ["info", "Info"],
+    ["appts", `Appts (${appts.length})`],
+    ["notes", `Notes (${encounters.length})`],
+    ["trends", "Trends"],
+    ["meds", "Medications"],
+    ["screening", "SDOH"],
+    ["clinical", "Clinical"],
+    ["insurance", `Insurance (${insurance.length})`],
+  ]}
+  active={tab} onChange={setTab} />
       </div>
 
       {tab === "info" && (
@@ -268,7 +272,7 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
         </div>
       )}
 
-      {tab === "encounters" && (
+      {tab === "notes" && (
         encounters.length === 0 ? <EmptyState icon="📝" title="No clinical notes" />
         : <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {encounters.map((e) => (
@@ -320,6 +324,9 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
       {tab === "sdoh" && (
         <SDOHTab hrsn={hrsnScreener} mental={mentalHealthScreeners} />
       )}
+      {tab === "trends" && <TrendsTab patient={patient} />}
+
+{tab === "meds" && <MedicationsTab patient={patient} />}
     </Modal>
   );
 }
