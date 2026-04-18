@@ -1,23 +1,33 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// ClinicalView — encounter list + editor with Draft → Signed → Amended workflow
+// ClinicalView — encounter list + editor with search and filters
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
-import { insertRow, updateRow, logAudit } from "../lib/db";
+import { insertRow, updateRow } from "../lib/db";
 import { ICD10_COMMON, CPT_COMMON, toISODate } from "../components/constants";
 import { Badge, Btn, Card, Modal, Input, Textarea, Select, TopBar, TabBar, FL, SectionHead, Loader, ErrorBanner, EmptyState, CodeSearchModal } from "../components/ui";
+
+const STATUSES = ["Draft", "In Progress", "Signed", "Amended"];
 
 export default function ClinicalView() {
   const { practiceId, profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [encounters, setEncounters] = useState([]);
+  const [providers, setProviders] = useState([]);
   const [editing, setEditing] = useState(null);
   const [creating, setCreating] = useState(false);
+
+  // Filters
   const [filter, setFilter] = useState("mine");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [providerFilter, setProviderFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const load = async () => {
     try {
@@ -27,30 +37,75 @@ export default function ClinicalView() {
         .order("encounter_date", { ascending: false }).order("created_at", { ascending: false });
       if (filter === "mine" && profile?.provider_id) q = q.eq("provider_id", profile.provider_id);
       if (filter === "drafts") q = q.in("status", ["Draft", "In Progress"]);
-      const { data, error } = await q.limit(100);
+      if (dateFrom) q = q.gte("encounter_date", dateFrom);
+      if (dateTo)   q = q.lte("encounter_date", dateTo);
+      const { data, error } = await q.limit(200);
       if (error) throw error;
       setEncounters(data || []);
+
+      if (providers.length === 0) {
+        const { data: p } = await supabase.from("providers").select("id, first_name, last_name").eq("is_active", true).order("last_name");
+        setProviders(p || []);
+      }
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
   };
+  useEffect(() => { if (practiceId) load(); }, [practiceId, filter, dateFrom, dateTo]);
 
-  useEffect(() => { if (practiceId) load(); }, [practiceId, filter]);
+  // Client-side filtering for quick text search + status + provider
+  const displayed = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return encounters.filter((e) => {
+      if (statusFilter && e.status !== statusFilter) return false;
+      if (providerFilter && e.provider_id !== providerFilter) return false;
+      if (!s) return true;
+      const haystack = [
+        e.patients?.first_name, e.patients?.last_name, e.chief_complaint,
+        e.assessment, e.plan, e.appt_type,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(s);
+    });
+  }, [encounters, search, statusFilter, providerFilter]);
 
   if (loading) return <div style={{ flex: 1 }}><TopBar title="Clinical" /><Loader /></div>;
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <TopBar title="Clinical Notes" sub={`${encounters.length} encounters`}
+      <TopBar title="Clinical Notes" sub={`${displayed.length} of ${encounters.length} encounters`}
         actions={<>
           <TabBar tabs={[["mine", "My Notes"], ["drafts", "Drafts"], ["all", "All"]]} active={filter} onChange={setFilter} />
           <Btn size="sm" onClick={() => setCreating(true)}>+ New Encounter</Btn>
         </>} />
 
+      <div style={{ padding: "12px 20px", background: C.bgSecondary, borderBottom: `0.5px solid ${C.borderLight}`, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <input value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search patient name, chief complaint, assessment..."
+          style={{ flex: "1 1 260px", padding: "6px 10px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", minWidth: 240 }} />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+          style={{ padding: "6px 10px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }}>
+          <option value="">All statuses</option>
+          {STATUSES.map((s) => <option key={s}>{s}</option>)}
+        </select>
+        <select value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)}
+          style={{ padding: "6px 10px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }}>
+          <option value="">All providers</option>
+          {providers.map((p) => <option key={p.id} value={p.id}>Dr. {p.last_name}</option>)}
+        </select>
+        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From"
+          style={{ padding: "5px 8px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }} />
+        <span style={{ fontSize: 11, color: C.textTertiary }}>→</span>
+        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To"
+          style={{ padding: "5px 8px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }} />
+        {(search || statusFilter || providerFilter || dateFrom || dateTo) && (
+          <Btn size="sm" variant="ghost" onClick={() => { setSearch(""); setStatusFilter(""); setProviderFilter(""); setDateFrom(""); setDateTo(""); }}>Clear</Btn>
+        )}
+      </div>
+
       <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
         {error && <ErrorBanner message={error} />}
-        {encounters.length === 0 ? <EmptyState icon="📝" title="No encounters" sub="Create a new encounter to document a visit." />
+        {displayed.length === 0 ? <EmptyState icon="📝" title="No encounters match" sub={search ? "Try a different search" : "Create a new encounter to document a visit."} />
           : <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 960, margin: "0 auto" }}>
-            {encounters.map((e) => (
+            {displayed.map((e) => (
               <Card key={e.id} onClick={() => setEditing(e)} style={{ cursor: "pointer" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ fontSize: 12, color: C.textSecondary, minWidth: 100 }}>{e.encounter_date}</div>
@@ -71,18 +126,25 @@ export default function ClinicalView() {
       </div>
 
       {creating && <NewEncounterModal practiceId={practiceId} profile={profile} onClose={() => setCreating(false)} onCreated={(e) => { setEncounters((prev) => [e, ...prev]); setCreating(false); setEditing(e); }} />}
-      {editing && <EncounterEditor encounter={editing} profile={profile} onClose={() => setEditing(null)} onSaved={(u) => { setEncounters((prev) => prev.map((x) => x.id === u.id ? { ...x, ...u } : x)); setEditing({ ...editing, ...u }); }} />}
+      {editing && <EncounterEditor encounter={editing} profile={profile} onClose={() => setEditing(null)}
+        onSaved={(u) => { setEncounters((prev) => prev.map((x) => x.id === u.id ? { ...x, ...u } : x)); setEditing({ ...editing, ...u }); }} />}
     </div>
   );
 }
 
-// ─── New Encounter ────────────────────────────────────────────────────────────
+// ─── New Encounter Modal ─────────────────────────────────────────────────────
 function NewEncounterModal({ onClose, onCreated, practiceId, profile }) {
   const [patientQ, setPatientQ] = useState("");
   const [results, setResults] = useState([]);
   const [patient, setPatient] = useState(null);
   const [apptType, setApptType] = useState("Follow-up");
   const [chief, setChief] = useState("");
+  const [apptTypes, setApptTypes] = useState([]);
+
+  useEffect(() => {
+    supabase.from("appointment_types").select("name").eq("is_active", true).order("sort_order")
+      .then(({ data }) => setApptTypes((data || []).map((r) => r.name)));
+  }, []);
 
   useEffect(() => {
     if (!patientQ || patientQ.length < 2) { setResults([]); return; }
@@ -123,7 +185,7 @@ function NewEncounterModal({ onClose, onCreated, practiceId, profile }) {
         </div>
       )}
       <Select label="Encounter Type" value={apptType} onChange={setApptType}
-        options={["New Patient", "Follow-up", "Annual Exam", "Procedure", "Telehealth", "Walk-in"]} />
+        options={apptTypes.length > 0 ? apptTypes : ["Follow-up", "New Patient", "Annual Exam", "Procedure", "Telehealth", "Walk-in"]} />
       <Input label="Chief Complaint" value={chief} onChange={setChief} />
       <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <Btn variant="outline" onClick={onClose}>Cancel</Btn>
@@ -133,7 +195,7 @@ function NewEncounterModal({ onClose, onCreated, practiceId, profile }) {
   );
 }
 
-// ─── Encounter Editor (SOAP + codes + sign workflow) ──────────────────────────
+// ─── Encounter Editor (unchanged from prior version, SOAP + sign/amend) ──────
 function EncounterEditor({ encounter, profile, onClose, onSaved }) {
   const [e, setE] = useState(encounter);
   const [codeModal, setCodeModal] = useState(null);
@@ -149,7 +211,6 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
     if (list.some((c) => c.code === code.code)) return;
     setE((p) => ({ ...p, [listKey]: [...list, code] }));
   };
-
   const removeCode = (listKey, codeStr) => {
     setE((p) => ({ ...p, [listKey]: (p[listKey] || []).filter((c) => c.code !== codeStr) }));
   };
@@ -163,8 +224,7 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
         em_level: e.em_level || null, vitals: e.vitals || {}, provider_notes: e.provider_notes || null,
       };
       const u = await updateRow("encounters", e.id, patch, { audit: { entityType: "encounters", patientId: e.patient_id } });
-      onSaved(u);
-      alert("Draft saved");
+      onSaved(u); alert("Draft saved");
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
@@ -179,8 +239,7 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
         em_level: e.em_level || null, vitals: e.vitals || {},
         status: "Signed", signed_at: new Date().toISOString(), signed_by: profile.id,
       }, { audit: { entityType: "encounters", patientId: e.patient_id, details: { action: "sign" } } });
-      onSaved(u);
-      onClose();
+      onSaved(u); onClose();
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
@@ -189,7 +248,6 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
     if (!amendReason.trim()) { alert("Amendment reason is required"); return; }
     try {
       setSaving(true);
-      // Write revision history BEFORE update so before_snapshot is accurate
       await supabase.from("revision_history").insert({
         practice_id: e.practice_id, entity_type: "encounters", entity_id: e.id,
         revision_number: 1, changed_by: profile.id, change_reason: amendReason,
@@ -200,9 +258,7 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
         assessment: e.assessment, plan: e.plan, diagnoses: e.diagnoses || [], cpt_codes: e.cpt_codes || [],
         status: "Amended", amended_at: new Date().toISOString(), amended_by: profile.id, amendment_reason: amendReason,
       }, { audit: { entityType: "encounters", patientId: e.patient_id, details: { action: "amend", reason: amendReason } } });
-      onSaved(u);
-      setAmending(false);
-      onClose();
+      onSaved(u); setAmending(false); onClose();
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
   };
@@ -211,10 +267,7 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
   const setVital = (k) => (v) => setE((p) => ({ ...p, vitals: { ...(p.vitals || {}), [k]: v } }));
 
   return (
-    <Modal
-      title={`${encounter.patients?.first_name} ${encounter.patients?.last_name} · ${e.encounter_date}`}
-      onClose={onClose} maxWidth={820}
-    >
+    <Modal title={`${encounter.patients?.first_name} ${encounter.patients?.last_name} · ${e.encounter_date}`} onClose={onClose} maxWidth={820}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <Badge label={e.status} variant={e.status === "Signed" ? "green" : e.status === "Amended" ? "amber" : "neutral"} />
         <Badge label={e.appt_type} variant="teal" size="xs" />
@@ -235,10 +288,10 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
       <SectionHead title="SOAP Note" />
       <div style={{ opacity: locked ? 0.7 : 1 }}>
         <Input label="Chief Complaint" value={e.chief_complaint} onChange={locked ? () => {} : set("chief_complaint")} />
-        <Textarea label="Subjective (patient history, symptoms, HPI)" value={e.subjective} onChange={locked ? () => {} : set("subjective")} rows={3} />
-        <Textarea label="Objective (exam findings, observations)" value={e.objective} onChange={locked ? () => {} : set("objective")} rows={3} />
-        <Textarea label="Assessment (diagnosis, clinical impression)" value={e.assessment} onChange={locked ? () => {} : set("assessment")} rows={3} />
-        <Textarea label="Plan (treatment, orders, follow-up)" value={e.plan} onChange={locked ? () => {} : set("plan")} rows={3} />
+        <Textarea label="Subjective" value={e.subjective} onChange={locked ? () => {} : set("subjective")} rows={3} />
+        <Textarea label="Objective" value={e.objective} onChange={locked ? () => {} : set("objective")} rows={3} />
+        <Textarea label="Assessment" value={e.assessment} onChange={locked ? () => {} : set("assessment")} rows={3} />
+        <Textarea label="Plan" value={e.plan} onChange={locked ? () => {} : set("plan")} rows={3} />
       </div>
 
       <SectionHead title="Diagnoses (ICD-10)" action={!locked && <Btn size="sm" variant="outline" onClick={() => setCodeModal("diagnoses")}>+ Add</Btn>} />
