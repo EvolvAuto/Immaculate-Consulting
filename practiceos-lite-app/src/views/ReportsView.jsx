@@ -68,7 +68,7 @@ export default function ReportsView() {
           supabase.from("panel_condition_codes").select("*"),
           supabase.from("clinical_metrics").select("*").eq("is_active", true).order("sort_order"),
           supabase.from("clinical_measurements").select("patient_id, metric_id, measured_at, value_numeric, value_text").gte("measured_at", from),
-          supabase.from("patients").select("id, first_name, last_name, date_of_birth, problem_list, mrn").eq("status", "Active"),
+         supabase.from("patients").select("id, first_name, last_name, date_of_birth, problem_list, mrn, created_at").eq("status", "Active"),
           supabase.from("appointments").select("id, provider_id, appt_date, status, copay_amount, copay_collected").gte("appt_date", from),
           supabase.from("providers").select("id, first_name, last_name").eq("is_active", true),
           supabase.from("screener_responses").select("id, screener_type, patient_id, total_score, severity, requires_followup, completed_at").gte("completed_at", from),
@@ -337,7 +337,16 @@ function GapsTab({ applicablePanels, panelPatientMap, metrics, patients, practic
             const latest = latestByPatient.get(pid);
             const lastAt = latest ? new Date(latest.measured_at) : null;
             if (!lastAt || lastAt < thresholdDate) {
-              const daysSince = lastAt ? Math.floor((Date.now() - lastAt.getTime()) / (1000 * 60 * 60 * 24)) : null;
+              let daysSince = null;
+              let neverMeasured = false;
+              if (lastAt) {
+                daysSince = Math.floor((Date.now() - lastAt.getTime()) / (1000 * 60 * 60 * 24));
+              } else if (pt.created_at) {
+                daysSince = Math.floor((Date.now() - new Date(pt.created_at).getTime()) / (1000 * 60 * 60 * 24));
+                neverMeasured = true;
+              } else {
+                neverMeasured = true;
+              }
               all.push({
                 panel: panel.name, panelColor: panel.color, measure: primary.name,
                 patient_id: pid, mrn: pt.mrn,
@@ -345,6 +354,7 @@ function GapsTab({ applicablePanels, panelPatientMap, metrics, patients, practic
                 last_value: latest?.value_numeric ?? null,
                 last_at: latest?.measured_at ?? null,
                 days_since: daysSince,
+                never_measured: neverMeasured,
                 window_days: windowDays,
               });
             }
@@ -358,7 +368,7 @@ function GapsTab({ applicablePanels, panelPatientMap, metrics, patients, practic
 
   const exportGaps = () => exportCSV(
     `followup_gaps_${new Date().toISOString().slice(0,10)}.csv`,
-    (gaps || []).map((g) => ({ panel: g.panel, measure: g.measure, mrn: g.mrn, patient: g.name, last_value: g.last_value ?? "", last_measured: g.last_at ? g.last_at.slice(0,10) : "Never", days_since: g.days_since ?? "Never", window_days: g.window_days }))
+    (gaps || []).map((g) => ({ panel: g.panel, measure: g.measure, mrn: g.mrn, patient: g.name, last_value: g.last_value ?? "", last_measured: g.last_at ? g.last_at.slice(0,10) : "Never measured", days_overdue: g.days_since ?? "", never_measured: g.never_measured ? "Yes" : "No", window_days: g.window_days }))
   );
 
   if (error) return <ErrorBanner message={error} />;
@@ -385,8 +395,8 @@ function GapsTab({ applicablePanels, panelPatientMap, metrics, patients, practic
               <div style={{ color: C.textSecondary }}>{g.measure}</div>
               <div><div style={{ fontWeight: 600, color: C.textPrimary }}>{g.name}</div><div style={{ fontSize: 10, color: C.textTertiary }}>{g.mrn || "-"}</div></div>
               <div style={{ color: C.textSecondary }}>{g.last_value ?? "-"}</div>
-              <div style={{ color: C.textSecondary }}>{fmtDate(g.last_at)}</div>
-              <div style={{ textAlign: "right" }}><Badge label={g.days_since == null ? "Never" : `${g.days_since}d`} variant={g.days_since == null || g.days_since > g.window_days * 2 ? "red" : "amber"} size="xs" /></div>
+              <div style={{ color: C.textSecondary }}>{g.never_measured ? <span style={{ color: C.textTertiary, fontStyle: "italic" }}>Never measured</span> : fmtDate(g.last_at)}</div>
+              <div style={{ textAlign: "right" }}><Badge label={g.days_since == null ? "Never" : `${g.days_since}d`} variant={g.never_measured || g.days_since == null || g.days_since > g.window_days * 2 ? "red" : "amber"} size="xs" /></div>
             </div>
           ))}
           {gaps.length > 100 && <div style={{ padding: 12, textAlign: "center", fontSize: 11, color: C.textTertiary }}>Showing top 100 of {gaps.length}. Export CSV for the full list.</div>}
