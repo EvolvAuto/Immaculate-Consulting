@@ -48,6 +48,7 @@ export default function ClinicalPanelsTab({ canEdit }) {
         amh_measure_ref: form.amh_measure_ref || null,
         sort_order: parseInt(form.sort_order) || 0,
         is_active: form.is_active !== false,
+        followup_window_days: form.followup_window_days ? parseInt(form.followup_window_days) : null,
       };
       if (form.id) await updateRow("clinical_panels", form.id, payload);
       else await insertRow("clinical_panels", payload, practiceId);
@@ -85,6 +86,7 @@ export default function ClinicalPanelsTab({ canEdit }) {
                       <Badge label={`${panelMetrics.length} metrics`} variant="neutral" size="xs" />
                       <Badge label={`${panelCodes.length} ICD codes`} variant="neutral" size="xs" />
                       {p.amh_measure_ref && <Badge label="AMH" variant="teal" size="xs" />}
+                      {p.followup_window_days && <Badge label={`${p.followup_window_days}d follow-up`} variant="neutral" size="xs" />}
                     </div>
                     {p.description && <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>{p.description}</div>}
                   </div>
@@ -221,6 +223,7 @@ function PanelForm({ initial, onClose, onSave }) {
       <Input label="Name *" value={f.name} onChange={set("name")} placeholder="e.g. Diabetes, Asthma, CKD" />
       <Textarea label="Description" value={f.description} onChange={set("description")} rows={2} placeholder="What this panel tracks and why" />
       <Input label="AMH measure ref (optional)" value={f.amh_measure_ref} onChange={set("amh_measure_ref")} placeholder="e.g. HBD: Glycemic Status Assessment" />
+      <Input label="Follow-up window (days)" type="number" value={f.followup_window_days ?? ""} onChange={set("followup_window_days")} placeholder="e.g. 30 for DSF-E, 180 for HbA1c" />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         <Input label="Sort order" type="number" value={f.sort_order} onChange={set("sort_order")} />
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18 }}>
