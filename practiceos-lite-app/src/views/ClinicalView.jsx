@@ -200,6 +200,12 @@ function NewEncounterModal({ onClose, onCreated, practiceId, profile }) {
 function EncounterEditor({ encounter, profile, onClose, onSaved }) {
   const [panelValues, setPanelValues] = useState({});
   const [patient, setPatient] = useState(null);
+
+  useEffect(() => {
+  if (!encounter?.patient_id) return;
+  supabase.from("patients").select("*").eq("id", encounter.patient_id).single()
+    .then(({ data }) => setPatient(data));
+}, [encounter?.patient_id]);
   const [e, setE] = useState(encounter);
   const [codeModal, setCodeModal] = useState(null);
   const [amending, setAmending] = useState(false);
