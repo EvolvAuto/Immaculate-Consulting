@@ -233,6 +233,23 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
         em_level: e.em_level || null, vitals: e.vitals || {}, provider_notes: e.provider_notes || null,
       };
       const u = await updateRow("encounters", e.id, patch, { audit: { entityType: "encounters", patientId: e.patient_id } });
+
+      if (Object.keys(panelValues).length > 0) {
+        try {
+          const [mRes, pRes] = await Promise.all([
+            supabase.from("clinical_metrics").select("*"),
+            supabase.from("clinical_panels").select("*"),
+          ]);
+          await savePanelValues({
+            patientId: e.patient_id, practiceId: e.practice_id,
+            encounterId: e.id, values: panelValues,
+            metrics: mRes.data || [], panels: pRes.data || [],
+            enteredBy: profile.id,
+          });
+          setPanelValues({});
+        } catch (err) { console.warn("panel values save failed:", err.message); }
+      }
+
       onSaved(u); alert("Draft saved");
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
@@ -248,6 +265,23 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
         em_level: e.em_level || null, vitals: e.vitals || {},
         status: "Signed", signed_at: new Date().toISOString(), signed_by: profile.id,
       }, { audit: { entityType: "encounters", patientId: e.patient_id, details: { action: "sign" } } });
+
+      if (Object.keys(panelValues).length > 0) {
+        try {
+          const [mRes, pRes] = await Promise.all([
+            supabase.from("clinical_metrics").select("*"),
+            supabase.from("clinical_panels").select("*"),
+          ]);
+          await savePanelValues({
+            patientId: e.patient_id, practiceId: e.practice_id,
+            encounterId: e.id, values: panelValues,
+            metrics: mRes.data || [], panels: pRes.data || [],
+            enteredBy: profile.id,
+          });
+          setPanelValues({});
+        } catch (err) { console.warn("panel values save failed:", err.message); }
+      }
+
       onSaved(u); onClose();
     } catch (err) { alert(err.message); }
     finally { setSaving(false); }
