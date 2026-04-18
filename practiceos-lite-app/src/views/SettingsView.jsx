@@ -1,279 +1,361 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// SettingsView — practice info, rooms CRUD, module toggles, practice hours
+// SettingsView — Practice info, rooms, hours, holidays, appointment types
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
-import { listRows, insertRow, updateRow, logAudit } from "../lib/db";
-import { DAYS_OF_WEEK, slotToTime } from "../components/constants";
-import { Badge, Btn, Card, FL, Input, Select, Toggle, SectionHead, TopBar, TabBar, Loader, ErrorBanner } from "../components/ui";
+import { listRows, insertRow, updateRow, deleteRow } from "../lib/db";
+import { DAYS_OF_WEEK, TIMEZONES, slotToTime24, time24ToSlot } from "../components/constants";
+import { Badge, Btn, Card, Modal, Input, Select, Toggle, TopBar, TabBar, FL, SectionHead, Loader, ErrorBanner, EmptyState } from "../components/ui";
 
 const ROOM_TYPES = ["Exam", "Procedure", "Telehealth", "Lab", "Admin"];
+const COLOR_PRESETS = ["#3B82F6", "#1D9E75", "#8B5CF6", "#D08A2E", "#06B6D4", "#EF4444", "#10B981", "#EC4899", "#F59E0B", "#6366F1"];
 
 export default function SettingsView() {
-  const { practiceId } = useAuth();
+  const { practiceId, role } = useAuth();
   const [tab, setTab] = useState("practice");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [saved, setSaved] = useState(false);
 
-  const [practice, setPractice] = useState(null);
-  const [rooms, setRooms] = useState([]);
-  const [hours, setHours] = useState([]);
-  const [holidays, setHolidays] = useState([]);
-  const [newRoom, setNewRoom] = useState({ name: "", room_type: "Exam" });
-  const [newHoliday, setNewHoliday] = useState({ name: "", holiday_date: "" });
-
-  useEffect(() => {
-    if (!practiceId) return;
-    (async () => {
-      try {
-        setLoading(true);
-        const [p, r, h, hol] = await Promise.all([
-          supabase.from("practices").select("*").eq("id", practiceId).single(),
-          listRows("rooms", { order: "name" }),
-          listRows("practice_hours", { order: "day_of_week" }),
-          listRows("holidays", { order: "holiday_date" }),
-        ]);
-        if (p.error) throw p.error;
-        setPractice(p.data);
-        setRooms(r);
-        setHours(h);
-        setHolidays(hol);
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [practiceId]);
-
-  const flashSaved = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
-
-  const savePractice = async () => {
-    try {
-      const patch = {
-        name: practice.name, legal_name: practice.legal_name, specialty: practice.specialty,
-        npi: practice.npi, tax_id: practice.tax_id, phone: practice.phone, email: practice.email,
-        address_line1: practice.address_line1, city: practice.city, state: practice.state, zip: practice.zip,
-      };
-      await updateRow("practices", practiceId, patch, {
-        audit: { entityType: "practices", details: { fields: Object.keys(patch) } },
-      });
-      flashSaved();
-    } catch (e) { setError(e.message); }
-  };
-
-  const addRoom = async () => {
-    if (!newRoom.name.trim()) return;
-    try {
-      const row = await insertRow("rooms", { ...newRoom, is_active: true }, practiceId, {
-        audit: { entityType: "rooms" },
-      });
-      setRooms((prev) => [...prev, row].sort((a, b) => a.name.localeCompare(b.name)));
-      setNewRoom({ name: "", room_type: "Exam" });
-    } catch (e) { setError(e.message); }
-  };
-
-  const toggleRoom = async (room) => {
-    try {
-      const updated = await updateRow("rooms", room.id, { is_active: !room.is_active }, {
-        audit: { entityType: "rooms", details: { is_active: !room.is_active } },
-      });
-      setRooms((prev) => prev.map((r) => (r.id === room.id ? updated : r)));
-    } catch (e) { setError(e.message); }
-  };
-
-  const updateRoomType = async (room, room_type) => {
-    try {
-      const updated = await updateRow("rooms", room.id, { room_type }, {
-        audit: { entityType: "rooms", details: { room_type } },
-      });
-      setRooms((prev) => prev.map((r) => (r.id === room.id ? updated : r)));
-    } catch (e) { setError(e.message); }
-  };
-
-  const updateHours = async (row, patch) => {
-    try {
-      const updated = await updateRow("practice_hours", row.id, patch);
-      setHours((prev) => prev.map((h) => (h.id === row.id ? updated : h)));
-    } catch (e) { setError(e.message); }
-  };
-
-  const addHoliday = async () => {
-    if (!newHoliday.name || !newHoliday.holiday_date) return;
-    try {
-      const row = await insertRow("holidays", newHoliday, practiceId, {
-        audit: { entityType: "holidays", details: newHoliday },
-      });
-      setHolidays((prev) => [...prev, row].sort((a, b) => a.holiday_date.localeCompare(b.holiday_date)));
-      setNewHoliday({ name: "", holiday_date: "" });
-    } catch (e) { setError(e.message); }
-  };
-
-  const removeHoliday = async (id) => {
-    try {
-      await supabase.from("holidays").delete().eq("id", id);
-      await logAudit({ action: "Delete", entityType: "holidays", entityId: id });
-      setHolidays((prev) => prev.filter((h) => h.id !== id));
-    } catch (e) { setError(e.message); }
-  };
-
-  if (loading) return <div style={{ flex: 1 }}><TopBar title="Settings" sub="Practice configuration" /><Loader /></div>;
-  if (!practice) return <div style={{ flex: 1 }}><TopBar title="Settings" /><ErrorBanner message="Practice not loaded" /></div>;
-
-  const set = (k) => (v) => setPractice((p) => ({ ...p, [k]: v }));
+  const canEdit = role === "Owner" || role === "Manager";
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <TopBar title="Settings" sub="Practice configuration"
-        actions={<>
-          {saved && <Badge label="Saved!" variant="green" />}
-          <TabBar
-            tabs={[["practice", "Practice"], ["rooms", "Rooms"], ["hours", "Hours"], ["holidays", "Holidays"]]}
-            active={tab}
-            onChange={setTab}
-          />
-        </>}
-      />
-      <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 16, maxWidth: 900, margin: "0 auto", width: "100%" }}>
-        {error && <ErrorBanner message={error} />}
+        actions={<TabBar tabs={[
+          ["practice", "Practice Info"],
+          ["appt_types", "Appointment Types"],
+          ["rooms", "Rooms"],
+          ["hours", "Hours"],
+          ["holidays", "Holidays"],
+        ]} active={tab} onChange={setTab} />} />
 
-        {tab === "practice" && (
-          <Card>
-            <SectionHead title="Practice Information" sub="Core details used across the app and proposals" action={<Btn onClick={savePractice}>Save Changes</Btn>} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <Input label="Practice Name" value={practice.name} onChange={set("name")} />
-              <Input label="Legal Name" value={practice.legal_name} onChange={set("legal_name")} />
-              <Input label="Specialty" value={practice.specialty} onChange={set("specialty")} />
-              <Input label="NPI" value={practice.npi} onChange={set("npi")} />
-              <Input label="Tax ID" value={practice.tax_id} onChange={set("tax_id")} />
-              <Input label="Phone" value={practice.phone} onChange={set("phone")} />
-              <Input label="Email" value={practice.email} onChange={set("email")} />
-              <Input label="Address" value={practice.address_line1} onChange={set("address_line1")} />
-              <Input label="City" value={practice.city} onChange={set("city")} />
-              <Input label="State" value={practice.state} onChange={set("state")} />
-              <Input label="ZIP" value={practice.zip} onChange={set("zip")} />
-              <Input label="Timezone" value={practice.timezone} onChange={set("timezone")} />
-            </div>
-          </Card>
+      <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
+        {!canEdit && (
+          <div style={{ padding: 10, background: C.amberBg, color: C.amber, borderRadius: 6, marginBottom: 14, fontSize: 12, maxWidth: 860, margin: "0 auto 14px" }}>
+            Read-only — only Owners and Managers can edit practice settings.
+          </div>
         )}
-
-        {tab === "rooms" && (
-          <Card>
-            <SectionHead title="Rooms" sub="Exam rooms, procedure rooms, and telehealth endpoints" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-              {rooms.map((r) => (
-                <div key={r.id} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px",
-                  border: `0.5px solid ${C.borderLight}`,
-                  borderRadius: 8, opacity: r.is_active ? 1 : 0.55,
-                }}>
-                  <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{r.name}</div>
-                  <select
-                    value={r.room_type}
-                    onChange={(e) => updateRoomType(r, e.target.value)}
-                    style={{ padding: "4px 8px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }}
-                  >
-                    {ROOM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <Toggle value={r.is_active} onChange={() => toggleRoom(r)} />
-                </div>
-              ))}
-              {rooms.length === 0 && <div style={{ padding: 16, fontSize: 12, color: C.textTertiary, textAlign: "center" }}>No rooms yet. Add one below.</div>}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={newRoom.name}
-                onChange={(e) => setNewRoom((p) => ({ ...p, name: e.target.value }))}
-                placeholder="New room name..."
-                style={{ flex: 1, padding: "9px 12px", border: `1px solid ${C.borderMid}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit", outline: "none" }}
-              />
-              <select
-                value={newRoom.room_type}
-                onChange={(e) => setNewRoom((p) => ({ ...p, room_type: e.target.value }))}
-                style={{ padding: "9px 12px", border: `0.5px solid ${C.borderMid}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit" }}
-              >
-                {ROOM_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <Btn onClick={addRoom}>+ Add Room</Btn>
-            </div>
-          </Card>
-        )}
-
-        {tab === "hours" && (
-          <Card>
-            <SectionHead title="Practice Hours" sub="Applies across schedule grid and patient-facing booking" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {hours.map((h) => (
-                <div key={h.id} style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "8px 12px", border: `0.5px solid ${C.borderLight}`, borderRadius: 8,
-                }}>
-                  <div style={{ width: 100, fontSize: 13, fontWeight: 600 }}>{DAYS_OF_WEEK[h.day_of_week]}</div>
-                  <Toggle value={h.is_open} onChange={(v) => updateHours(h, { is_open: v })} />
-                  {h.is_open && (
-                    <>
-                      <div style={{ fontSize: 11, color: C.textSecondary }}>Open</div>
-                      <input type="number" min={0} max={95} value={h.open_slot}
-                        onChange={(e) => updateHours(h, { open_slot: parseInt(e.target.value) || 0 })}
-                        style={{ width: 60, padding: "4px 8px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12 }}
-                      />
-                      <div style={{ fontSize: 11, color: C.textTertiary }}>({slotToTime(h.open_slot)})</div>
-                      <div style={{ fontSize: 11, color: C.textSecondary }}>Close</div>
-                      <input type="number" min={0} max={95} value={h.close_slot}
-                        onChange={(e) => updateHours(h, { close_slot: parseInt(e.target.value) || 0 })}
-                        style={{ width: 60, padding: "4px 8px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12 }}
-                      />
-                      <div style={{ fontSize: 11, color: C.textTertiary }}>({slotToTime(h.close_slot)})</div>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div style={{ marginTop: 10, fontSize: 11, color: C.textTertiary }}>
-              Slots are 15-min increments. 28 = 7:00 AM · 48 = 12:00 PM · 72 = 6:00 PM
-            </div>
-          </Card>
-        )}
-
-        {tab === "holidays" && (
-          <Card>
-            <SectionHead title="Holidays" sub="Schedule automatically closes on these dates" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
-              {holidays.map((h) => (
-                <div key={h.id} style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "8px 12px", border: `0.5px solid ${C.borderLight}`, borderRadius: 8,
-                }}>
-                  <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{h.name}</div>
-                  <div style={{ fontSize: 12, color: C.textSecondary }}>{h.holiday_date}</div>
-                  <button onClick={() => removeHoliday(h.id)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 16 }}>×</button>
-                </div>
-              ))}
-              {holidays.length === 0 && <div style={{ padding: 16, fontSize: 12, color: C.textTertiary, textAlign: "center" }}>No holidays on file.</div>}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={newHoliday.name}
-                onChange={(e) => setNewHoliday((p) => ({ ...p, name: e.target.value }))}
-                placeholder="Holiday name (e.g. Thanksgiving)"
-                style={{ flex: 1, padding: "9px 12px", border: `1px solid ${C.borderMid}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit" }}
-              />
-              <input
-                type="date"
-                value={newHoliday.holiday_date}
-                onChange={(e) => setNewHoliday((p) => ({ ...p, holiday_date: e.target.value }))}
-                style={{ padding: "9px 12px", border: `1px solid ${C.borderMid}`, borderRadius: 8, fontSize: 13, fontFamily: "inherit" }}
-              />
-              <Btn onClick={addHoliday}>+ Add Holiday</Btn>
-            </div>
-          </Card>
-        )}
+        {tab === "practice"  && <PracticeInfoTab  practiceId={practiceId} canEdit={canEdit} />}
+        {tab === "appt_types" && <ApptTypesTab    practiceId={practiceId} canEdit={canEdit} />}
+        {tab === "rooms"     && <RoomsTab         practiceId={practiceId} canEdit={canEdit} />}
+        {tab === "hours"     && <HoursTab         practiceId={practiceId} canEdit={canEdit} />}
+        {tab === "holidays"  && <HolidaysTab      practiceId={practiceId} canEdit={canEdit} />}
       </div>
     </div>
+  );
+}
+
+// ─── Practice info tab ────────────────────────────────────────────────────────
+function PracticeInfoTab({ practiceId, canEdit }) {
+  const [p, setP] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (!practiceId) return;
+    supabase.from("practices").select("*").eq("id", practiceId).single()
+      .then(({ data, error }) => { if (error) setError(error.message); else setP(data); });
+  }, [practiceId]);
+
+  if (error) return <ErrorBanner message={error} />;
+  if (!p) return <Loader />;
+
+  const set = (k) => (v) => { setP((prev) => ({ ...prev, [k]: v })); setDirty(true); };
+
+  const save = async () => {
+    try {
+      setSaving(true); setError(null);
+      await updateRow("practices", p.id, {
+        name: p.name, specialty: p.specialty, phone: p.phone, email: p.email,
+        address_line1: p.address_line1, address_line2: p.address_line2,
+        city: p.city, state: p.state, zip: p.zip, timezone: p.timezone,
+      });
+      setDirty(false);
+    } catch (e) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto" }}>
+      <SectionHead title="Practice Information" />
+      <Card>
+        <Input label="Practice Name" value={p.name} onChange={set("name")} disabled={!canEdit} />
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <Input label="Specialty" value={p.specialty} onChange={set("specialty")} disabled={!canEdit} />
+          <Select label="Timezone" value={p.timezone || "America/New_York"} onChange={set("timezone")} disabled={!canEdit}
+            options={TIMEZONES.map((tz) => ({ value: tz.value, label: tz.label }))} />
+          <Input label="Phone" value={p.phone} onChange={set("phone")} disabled={!canEdit} />
+          <Input label="Email" value={p.email} onChange={set("email")} disabled={!canEdit} />
+        </div>
+        <Input label="Address Line 1" value={p.address_line1} onChange={set("address_line1")} disabled={!canEdit} />
+        <Input label="Address Line 2" value={p.address_line2} onChange={set("address_line2")} disabled={!canEdit} />
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 12 }}>
+          <Input label="City" value={p.city} onChange={set("city")} disabled={!canEdit} />
+          <Input label="State" value={p.state} onChange={set("state")} disabled={!canEdit} />
+          <Input label="ZIP" value={p.zip} onChange={set("zip")} disabled={!canEdit} />
+        </div>
+        {canEdit && (
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+            <Btn onClick={save} disabled={!dirty || saving}>{saving ? "Saving..." : "Save Changes"}</Btn>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ─── Appointment types tab ────────────────────────────────────────────────────
+function ApptTypesTab({ practiceId, canEdit }) {
+  const [types, setTypes] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = async () => {
+    try {
+      const rows = await listRows("practice_appt_types", { order: "sort_order" });
+      setTypes(rows);
+    } catch (e) { setError(e.message); }
+  };
+  useEffect(() => { if (practiceId) load(); }, [practiceId]);
+
+  const save = async (t) => {
+    try {
+      const payload = { name: t.name, color: t.color, default_duration_minutes: parseInt(t.default_duration) || 30,
+        is_active: t.is_active !== false, sort_order: parseInt(t.sort_order) || 0 };
+      if (t.id) await updateRow("practice_appt_types", t.id, payload);
+      else await insertRow("practice_appt_types", payload, practiceId);
+      setEditing(null); setAdding(false);
+      load();
+    } catch (e) { setError(e.message); }
+  };
+
+  const remove = async (t) => {
+    if (!confirm(`Delete "${t.name}"? Existing appointments using this type will keep their label but it won't appear in new-appointment dropdowns.`)) return;
+    try { await deleteRow("practice_appt_types", t.id); load(); } catch (e) { setError(e.message); }
+  };
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto" }}>
+      {error && <ErrorBanner message={error} />}
+      <SectionHead title="Appointment Types" sub="Types show in the schedule with custom colors"
+        action={canEdit && <Btn size="sm" onClick={() => setAdding(true)}>+ Add Type</Btn>} />
+      {types.length === 0 ? <EmptyState icon="📅" title="No types configured" sub="Add types to let staff schedule appointments." />
+        : <Card style={{ padding: 0 }}>
+          {types.map((t, i) => (
+            <div key={t.id} style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+              borderBottom: i < types.length - 1 ? `0.5px solid ${C.borderLight}` : "none",
+              opacity: t.is_active ? 1 : 0.55,
+            }}>
+              <div style={{ width: 14, height: 14, borderRadius: "50%", background: t.color, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{t.name}</div>
+                <div style={{ fontSize: 11, color: C.textTertiary }}>
+                  {t.default_duration_minutes} min default · order {t.sort_order}
+                  {!t.is_active && " · Inactive"}
+                </div>
+              </div>
+              {canEdit && <>
+                <Btn size="sm" variant="outline" onClick={() => setEditing(t)}>Edit</Btn>
+                <Btn size="sm" variant="ghost" onClick={() => remove(t)}>×</Btn>
+              </>}
+            </div>
+          ))}
+        </Card>}
+
+      {adding && <ApptTypeForm
+        initial={{ name: "", color: COLOR_PRESETS[0], default_duration: 30, is_active: true, sort_order: (types.at(-1)?.sort_order || 0) + 1 }}
+        onClose={() => setAdding(false)} onSave={save} />}
+      {editing && <ApptTypeForm initial={editing} onClose={() => setEditing(null)} onSave={save} />}
+    </div>
+  );
+}
+
+function ApptTypeForm({ initial, onClose, onSave }) {
+  const [f, setF] = useState({ ...initial, default_duration: initial.default_duration_minutes ?? initial.default_duration ?? 30 });
+  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+  return (
+    <Modal title={initial.id ? "Edit Appointment Type" : "New Appointment Type"} onClose={onClose} maxWidth={480}>
+      <Input label="Name *" value={f.name} onChange={set("name")} placeholder="e.g. Wellness Visit" />
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <Input label="Default Duration (min)" type="number" value={f.default_duration} onChange={set("default_duration")} />
+        <Input label="Sort Order" type="number" value={f.sort_order} onChange={set("sort_order")} />
+      </div>
+      <FL>Color</FL>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+        {COLOR_PRESETS.map((c) => (
+          <button key={c} onClick={() => set("color")(c)} style={{
+            width: 32, height: 32, borderRadius: "50%", background: c,
+            border: f.color === c ? `3px solid ${C.textPrimary}` : "2px solid #fff",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0.1)", cursor: "pointer",
+          }} />
+        ))}
+        <input type="color" value={f.color} onChange={(e) => set("color")(e.target.value)}
+          style={{ width: 32, height: 32, border: "none", cursor: "pointer", background: "transparent" }} />
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <FL>Active</FL>
+        <Toggle value={f.is_active} onChange={set("is_active")} />
+      </div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={() => f.name.trim() && onSave(f)}>Save</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Rooms tab ────────────────────────────────────────────────────────────────
+function RoomsTab({ practiceId, canEdit }) {
+  const [rooms, setRooms] = useState([]);
+  const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
+
+  const load = async () => setRooms(await listRows("rooms", { order: "name" }));
+  useEffect(() => { if (practiceId) load(); }, [practiceId]);
+
+  const save = async (r) => {
+    try {
+      const payload = { name: r.name, room_type: r.room_type, is_active: r.is_active !== false };
+      if (r.id) await updateRow("rooms", r.id, payload);
+      else await insertRow("rooms", payload, practiceId);
+      setEditing(null); setAdding(false); load();
+    } catch (e) { alert(e.message); }
+  };
+  const remove = async (r) => {
+    if (!confirm(`Delete "${r.name}"?`)) return;
+    try { await deleteRow("rooms", r.id); load(); } catch (e) { alert(e.message); }
+  };
+
+  return (
+    <div style={{ maxWidth: 860, margin: "0 auto" }}>
+      <SectionHead title="Rooms" action={canEdit && <Btn size="sm" onClick={() => setAdding(true)}>+ Add Room</Btn>} />
+      {rooms.length === 0 ? <EmptyState icon="🚪" title="No rooms" />
+        : <Card style={{ padding: 0 }}>
+          {rooms.map((r, i) => (
+            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < rooms.length - 1 ? `0.5px solid ${C.borderLight}` : "none", opacity: r.is_active ? 1 : 0.55 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
+                <div style={{ fontSize: 11, color: C.textTertiary }}>{r.room_type}{!r.is_active && " · Inactive"}</div>
+              </div>
+              {canEdit && <>
+                <Btn size="sm" variant="outline" onClick={() => setEditing(r)}>Edit</Btn>
+                <Btn size="sm" variant="ghost" onClick={() => remove(r)}>×</Btn>
+              </>}
+            </div>
+          ))}
+        </Card>}
+      {adding && <RoomForm initial={{ name: "", room_type: "Exam", is_active: true }} onClose={() => setAdding(false)} onSave={save} />}
+      {editing && <RoomForm initial={editing} onClose={() => setEditing(null)} onSave={save} />}
+    </div>
+  );
+}
+function RoomForm({ initial, onClose, onSave }) {
+  const [f, setF] = useState(initial);
+  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+  return (
+    <Modal title={initial.id ? "Edit Room" : "New Room"} onClose={onClose} maxWidth={420}>
+      <Input label="Name *" value={f.name} onChange={set("name")} />
+      <Select label="Type" value={f.room_type} onChange={set("room_type")} options={ROOM_TYPES} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}><FL>Active</FL><Toggle value={f.is_active} onChange={set("is_active")} /></div>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn variant="outline" onClick={onClose}>Cancel</Btn><Btn onClick={() => f.name.trim() && onSave(f)}>Save</Btn></div>
+    </Modal>
+  );
+}
+
+// ─── Hours tab ────────────────────────────────────────────────────────────────
+function HoursTab({ practiceId, canEdit }) {
+  const [hours, setHours] = useState([]);
+  useEffect(() => {
+    if (!practiceId) return;
+    listRows("practice_hours", { order: "day_of_week" }).then(setHours);
+  }, [practiceId]);
+
+  const updateDay = async (dow, patch) => {
+    const row = hours.find((h) => h.day_of_week === dow);
+    try {
+      if (row) await updateRow("practice_hours", row.id, patch);
+      else await insertRow("practice_hours", { day_of_week: dow, ...patch }, practiceId);
+      const next = await listRows("practice_hours", { order: "day_of_week" });
+      setHours(next);
+    } catch (e) { alert(e.message); }
+  };
+
+  return (
+    <div style={{ maxWidth: 620, margin: "0 auto" }}>
+      <SectionHead title="Practice Hours" sub="Times the practice accepts appointments" />
+      <Card style={{ padding: 0 }}>
+        {[0,1,2,3,4,5,6].map((dow) => {
+          const h = hours.find((x) => x.day_of_week === dow);
+          const isClosed = h?.is_closed !== false && !h?.open_slot;
+          return (
+            <div key={dow} style={{ display: "grid", gridTemplateColumns: "100px 80px 1fr 1fr", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: dow < 6 ? `0.5px solid ${C.borderLight}` : "none" }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{DAYS_OF_WEEK[dow]}</div>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textTertiary, cursor: canEdit ? "pointer" : "default" }}>
+                <input type="checkbox" disabled={!canEdit} checked={!(h?.is_closed ?? true) || !!h?.open_slot}
+                  onChange={(e) => updateDay(dow, e.target.checked ? { open_slot: 32, close_slot: 68, is_closed: false } : { is_closed: true, open_slot: null, close_slot: null })} />
+                Open
+              </label>
+              {!isClosed && <>
+                <input type="time" disabled={!canEdit} value={h?.open_slot ? slotToTime24(h.open_slot) : "08:00"}
+                  onChange={(e) => updateDay(dow, { open_slot: time24ToSlot(e.target.value) })}
+                  style={{ padding: "6px 8px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }} />
+                <input type="time" disabled={!canEdit} value={h?.close_slot ? slotToTime24(h.close_slot) : "17:00"}
+                  onChange={(e) => updateDay(dow, { close_slot: time24ToSlot(e.target.value) })}
+                  style={{ padding: "6px 8px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }} />
+              </>}
+              {isClosed && <div style={{ gridColumn: "3 / span 2", fontSize: 11, color: C.textTertiary }}>Closed</div>}
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
+// ─── Holidays tab ─────────────────────────────────────────────────────────────
+function HolidaysTab({ practiceId, canEdit }) {
+  const [holidays, setHolidays] = useState([]);
+  const [adding, setAdding] = useState(false);
+  const load = async () => setHolidays(await listRows("holidays", { order: "holiday_date" }));
+  useEffect(() => { if (practiceId) load(); }, [practiceId]);
+
+  const add = async (h) => {
+    try {
+      await insertRow("holidays", { holiday_date: h.holiday_date, name: h.name, is_closed: true }, practiceId);
+      setAdding(false); load();
+    } catch (e) { alert(e.message); }
+  };
+  const remove = async (h) => { if (confirm(`Delete ${h.name}?`)) { await deleteRow("holidays", h.id); load(); } };
+
+  return (
+    <div style={{ maxWidth: 620, margin: "0 auto" }}>
+      <SectionHead title="Holidays" action={canEdit && <Btn size="sm" onClick={() => setAdding(true)}>+ Add Holiday</Btn>} />
+      <Card style={{ padding: 0 }}>
+        {holidays.length === 0 ? <div style={{ padding: 24, textAlign: "center", color: C.textTertiary, fontSize: 12 }}>No holidays configured</div>
+          : holidays.map((h, i) => (
+            <div key={h.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderBottom: i < holidays.length - 1 ? `0.5px solid ${C.borderLight}` : "none" }}>
+              <div style={{ fontSize: 12, color: C.textSecondary, minWidth: 100 }}>{h.holiday_date}</div>
+              <div style={{ flex: 1, fontSize: 13 }}>{h.name}</div>
+              {canEdit && <Btn size="sm" variant="ghost" onClick={() => remove(h)}>×</Btn>}
+            </div>
+          ))}
+      </Card>
+      {adding && <HolidayForm onClose={() => setAdding(false)} onSave={add} />}
+    </div>
+  );
+}
+function HolidayForm({ onClose, onSave }) {
+  const [f, setF] = useState({ name: "", holiday_date: "" });
+  const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
+  return (
+    <Modal title="Add Holiday" onClose={onClose} maxWidth={400}>
+      <Input label="Name *" value={f.name} onChange={set("name")} placeholder="e.g. Thanksgiving" />
+      <Input label="Date *" type="date" value={f.holiday_date} onChange={set("holiday_date")} />
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}><Btn variant="outline" onClick={onClose}>Cancel</Btn><Btn onClick={() => f.name && f.holiday_date && onSave(f)}>Add</Btn></div>
+    </Modal>
   );
 }
