@@ -29,6 +29,11 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: true,
     storage: typeof window !== "undefined" ? window.localStorage : undefined,
     storageKey: "practiceos.auth",
+    // Disable navigator.locks-based cross-tab sync. It is the documented cause
+    // of "Lock 'lock:...' was released because another request stole it" errors
+    // during React StrictMode double-mounts and rapid auth events. PracticeOS
+    // is a single-tab workflow; we don't need cross-tab session coordination.
+    lock: async (_name, _acquireTimeout, fn) => await fn(),
   },
   global: {
     headers: { "x-application-name": "practiceos-lite" },
