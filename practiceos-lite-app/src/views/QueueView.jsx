@@ -88,13 +88,19 @@ export default function QueueView() {
   const advance = (entry) => NEXT_STATUS[entry.queue_status] && moveTo(entry, NEXT_STATUS[entry.queue_status]);
   const retreat = (entry) => PREV_STATUS[entry.queue_status] && moveTo(entry, PREV_STATUS[entry.queue_status]);
 
-  const assignRoom = async (entry, roomId) => {
-    if (entry.queue_status === "Waiting") {
+const assignRoom = async (entry, roomId) => {
+    // Waiting + real room = advance to Roomed
+    if (entry.queue_status === "Waiting" && roomId) {
       await moveTo(entry, "Roomed", { room_id: roomId });
-    } else {
-      await updateRow("queue_entries", entry.id, { room_id: roomId });
-      await loadQueue();
+      return;
     }
+    // Otherwise just update (or clear) the room assignment
+    try {
+      await updateRow("queue_entries", entry.id, { room_id: roomId || null }, {
+        audit: { entityType: "queue_entries", patientId: entry.patient_id, details: { room_id: roomId } },
+      });
+      await loadQueue();
+    } catch (e) { setError(e.message); }
   };
 
   // Drag handlers ─────────────────────────────────────────────────────────────
@@ -203,14 +209,19 @@ function QueueCard({ entry, rooms, busyRoomIds, onAssignRoom, onAdvance, onRetre
         </div>
       )}
 
-      {entry.queue_status === "Waiting" && !entry.room_id && (
-        <select defaultValue="" onChange={(e) => e.target.value && onAssignRoom(entry, e.target.value)}
+      {(entry.queue_status === "Waiting" || entry.queue_status === "Roomed" || entry.queue_status === "In Progress") && (
+        <select
+          value={entry.room_id || ""}
+          onChange={(e) => onAssignRoom(entry, e.target.value || null)}
           onClick={(e) => e.stopPropagation()}
-          style={{ width: "100%", padding: "4px 6px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", marginBottom: 4 }}>
-          <option value="">Assign room...</option>
-          {rooms.map((r) => <option key={r.id} value={r.id} disabled={busyRoomIds.has(r.id)}>
-            {r.name}{busyRoomIds.has(r.id) ? " (busy)" : ""}
-          </option>)}
+          style={{ width: "100%", padding: "4px 6px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 11, fontFamily: "inherit", marginBottom: 4 }}
+        >
+          <option value="">{entry.room_id ? "— clear room —" : "Assign room..."}</option>
+          {rooms.map((r) => (
+            <option key={r.id} value={r.id} disabled={busyRoomIds.has(r.id) && r.id !== entry.room_id}>
+              {r.name}{busyRoomIds.has(r.id) && r.id !== entry.room_id ? " (busy)" : ""}
+            </option>
+          ))}
         </select>
       )}
 
