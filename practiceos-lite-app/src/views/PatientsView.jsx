@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
+import PatientPortalInviteButton from "./patient/PatientPortalInviteButton";
 import { insertRow, updateRow, logRead } from "../lib/db";
 import { ageFromDOB, formatPhone, initialsOf, APPT_STATUS_VARIANT, NC_PAYERS } from "../components/constants";
 import { Badge, Btn, Card, Modal, Input, Select, TopBar, TabBar, FL, Avatar, SectionHead, Loader, ErrorBanner, EmptyState, Textarea } from "../components/ui";
@@ -253,7 +254,8 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
               <Field label="SMS Opt-Out" value={patient.sms_opt_out ? "Yes" : "No"} />
               <Field label="Portal Enabled" value={patient.portal_enabled ? "Yes" : "No"} />
               <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-                <Btn variant="outline" onClick={() => setEditing(true)}>Edit Patient</Btn>
+                <PatientPortalInviteButton patient={patient} />
+                <Btn variant="outline" onClick={() => setEditing(true)} style={{ marginLeft: 8 }}>Edit Patient</Btn>
               </div>
             </div>
           )
