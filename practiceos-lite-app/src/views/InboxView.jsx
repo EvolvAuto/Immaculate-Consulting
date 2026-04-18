@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// InboxView — message_threads + messages with realtime subscription
+// InboxView — message_threads + messages with realtime + practitioner-compose
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useRef, useState } from "react";
@@ -8,7 +8,8 @@ import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
 import { insertRow, updateRow, subscribeTable, logRead } from "../lib/db";
 import { initialsOf } from "../components/constants";
-import { Badge, Btn, Card, TopBar, TabBar, Avatar, Loader, ErrorBanner, EmptyState } from "../components/ui";
+import { Badge, Btn, Card, Modal, Input, Textarea, TopBar, TabBar, Avatar, Loader, ErrorBanner, EmptyState } from "../components/ui";
+import { PatientPicker } from "./TasksView";
 
 export default function InboxView() {
   const { practiceId, profile } = useAuth();
@@ -19,6 +20,7 @@ export default function InboxView() {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [filter, setFilter] = useState("open");
+  const [composing, setComposing] = useState(false);
   const endRef = useRef(null);
 
   const loadThreads = async () => {
@@ -58,8 +60,7 @@ export default function InboxView() {
       await insertRow("messages", {
         thread_id: active.id, patient_id: active.patient_id,
         direction: "Outbound", channel: "Portal",
-        body: draft, sender_user_id: profile.id,
-        sender_label: profile.full_name,
+        body: draft, sender_user_id: profile.id, sender_label: profile.full_name,
       }, practiceId, { audit: { entityType: "messages", patientId: active.patient_id } });
       await updateRow("message_threads", active.id, { last_message_at: new Date().toISOString() });
       setDraft("");
@@ -76,6 +77,25 @@ export default function InboxView() {
     } catch (e) { setError(e.message); }
   };
 
+  const startNewThread = async ({ patient, subject, body }) => {
+    try {
+      const t = await insertRow("message_threads", {
+        patient_id: patient.id, subject, last_message_at: new Date().toISOString(),
+      }, practiceId, { audit: { entityType: "message_threads", patientId: patient.id } });
+      await insertRow("messages", {
+        thread_id: t.id, patient_id: patient.id,
+        direction: "Outbound", channel: "Portal", body,
+        sender_user_id: profile.id, sender_label: profile.full_name,
+      }, practiceId, { audit: { entityType: "messages", patientId: patient.id } });
+      setComposing(false);
+      await loadThreads();
+      // Open the new thread
+      const newThread = { ...t, patients: patient, messages: [] };
+      setActive(newThread);
+      loadMessages(t.id);
+    } catch (e) { alert(e.message); }
+  };
+
   if (loading) return <div style={{ flex: 1 }}><TopBar title="Inbox" /><Loader /></div>;
 
   const filtered = threads.filter((t) => filter === "open" ? !t.is_closed : filter === "closed" ? t.is_closed : true);
@@ -84,14 +104,17 @@ export default function InboxView() {
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <TopBar title="Inbox" sub={`${filtered.length} threads`}
-        actions={<TabBar tabs={[["open", "Open"], ["closed", "Closed"], ["all", "All"]]} active={filter} onChange={setFilter} />} />
+        actions={<>
+          <TabBar tabs={[["open", "Open"], ["closed", "Closed"], ["all", "All"]]} active={filter} onChange={setFilter} />
+          <Btn size="sm" onClick={() => setComposing(true)}>✉ New Message</Btn>
+        </>} />
 
       {error && <div style={{ padding: 12 }}><ErrorBanner message={error} /></div>}
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         <div style={{ width: 340, borderRight: `0.5px solid ${C.borderLight}`, overflowY: "auto", background: C.bgPrimary }}>
-          {filtered.length === 0 ? <EmptyState icon="✉" title="No threads" /> :
-            filtered.map((t) => {
+          {filtered.length === 0 ? <EmptyState icon="✉" title="No threads" sub="Compose a new message to start a conversation." />
+            : filtered.map((t) => {
               const last = (t.messages || []).slice(-1)[0];
               const unread = unreadCount(t);
               return (
@@ -119,7 +142,7 @@ export default function InboxView() {
         </div>
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", background: C.bgTertiary }}>
-          {!active ? <EmptyState icon="💬" title="Select a conversation" sub="Choose a thread to view messages" />
+          {!active ? <EmptyState icon="💬" title="Select a conversation" sub="Choose a thread to view messages, or compose a new one." />
             : <>
               <div style={{ padding: "12px 20px", background: C.bgPrimary, borderBottom: `0.5px solid ${C.borderLight}`, display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ flex: 1 }}>
@@ -159,6 +182,37 @@ export default function InboxView() {
             </>}
         </div>
       </div>
+
+      {composing && <ComposeModal onClose={() => setComposing(false)} onSend={startNewThread} />}
     </div>
+  );
+}
+
+function ComposeModal({ onClose, onSend }) {
+  const [patient, setPatient] = useState(null);
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+
+  const submit = () => {
+    if (!patient) return alert("Pick a patient");
+    if (!subject.trim()) return alert("Subject is required");
+    if (!body.trim()) return alert("Message body is required");
+    onSend({ patient, subject: subject.trim(), body: body.trim() });
+  };
+
+  return (
+    <Modal title="New Message to Patient" onClose={onClose} maxWidth={540}>
+      <PatientPicker value={patient} onChange={setPatient} placeholder="Search patient by name or MRN..." />
+      <Input label="Subject *" value={subject} onChange={setSubject} placeholder="e.g. Lab results available" />
+      <Textarea label="Message *" value={body} onChange={setBody} rows={6}
+        placeholder="Hi, your recent lab results have been released to your portal..." />
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+        <Btn onClick={submit}>Send Message</Btn>
+      </div>
+      <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 10, textAlign: "center" }}>
+        The patient will see this in their portal. If they've opted into SMS, they'll also receive a notification.
+      </div>
+    </Modal>
   );
 }
