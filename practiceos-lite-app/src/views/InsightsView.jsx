@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// InsightsView — practice-level KPIs: clinical quality, throughput, wait time,
-// screener operations, and network benchmarks.
+// InsightsView — daily headline + metrics + clinical quality + throughput +
+// wait time + screener ops + 30-day trend + network benchmarks
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
-import { Badge, Card, TopBar, SectionHead, Loader, ErrorBanner, EmptyState } from "../components/ui";
+import { Badge, Btn, Card, TopBar, SectionHead, StatCard, Loader, ErrorBanner, EmptyState } from "../components/ui";
 
 const daysAgoDate = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
 const daysAgoIso  = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString(); };
@@ -26,12 +26,20 @@ const atGoal = (value, metric) => {
   return null;
 };
 
+const DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 export default function InsightsView() {
   const { practiceId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [rangeDays, setRangeDays] = useState(30);
 
+  // Existing
+  const [insights, setInsights] = useState([]);
+  const [benchmarks, setBenchmarks] = useState([]);
+  const [practice, setPractice] = useState(null);
+
+  // New analytical sections
   const [panels, setPanels] = useState([]);
   const [codes, setCodes] = useState([]);
   const [metrics, setMetrics] = useState([]);
@@ -41,7 +49,6 @@ export default function InsightsView() {
   const [queueEntries, setQueueEntries] = useState([]);
   const [providers, setProviders] = useState([]);
   const [screeners, setScreeners] = useState([]);
-  const [benchmarks, setBenchmarks] = useState([]);
 
   useEffect(() => {
     if (!practiceId) return;
@@ -50,7 +57,10 @@ export default function InsightsView() {
         setLoading(true);
         const fromDate = daysAgoDate(rangeDays);
         const fromIso  = daysAgoIso(rangeDays);
-        const [pnl, cds, mts, meas, pts, appts, qe, provs, scrn, bm] = await Promise.all([
+        const [i, b, p, pnl, cds, mts, meas, pts, appts, qe, provs, scrn] = await Promise.all([
+          supabase.from("ic_insights_daily").select("*").order("snapshot_date", { ascending: false }).limit(30),
+          supabase.from("benchmark_snapshots").select("*").order("snapshot_date", { ascending: false }).limit(50),
+          supabase.from("practices").select("*").eq("id", practiceId).single(),
           supabase.from("clinical_panels").select("*").eq("is_active", true).order("sort_order"),
           supabase.from("panel_condition_codes").select("*"),
           supabase.from("clinical_metrics").select("*").eq("is_active", true).order("sort_order"),
@@ -60,9 +70,11 @@ export default function InsightsView() {
           supabase.from("queue_entries").select("id, arrived_at, roomed_at").gte("arrived_at", fromIso).not("roomed_at", "is", null),
           supabase.from("providers").select("id, first_name, last_name").eq("is_active", true),
           supabase.from("screener_responses").select("id, screener_type, requires_followup, reviewed_at, completed_at").gte("completed_at", fromIso),
-          supabase.from("benchmark_snapshots").select("*"),
         ]);
-        for (const r of [pnl, cds, mts, meas, pts, appts, qe, provs, scrn, bm]) if (r.error) throw r.error;
+        for (const r of [i, b, pnl, cds, mts, meas, pts, appts, qe, provs, scrn]) if (r.error) throw r.error;
+        setInsights(i.data || []);
+        setBenchmarks(b.data || []);
+        setPractice(p.data);
         setPanels(pnl.data || []);
         setCodes(cds.data || []);
         setMetrics(mts.data || []);
@@ -72,12 +84,24 @@ export default function InsightsView() {
         setQueueEntries(qe.data || []);
         setProviders(provs.data || []);
         setScreeners(scrn.data || []);
-        setBenchmarks(bm.data || []);
       } catch (e) { setError(e.message); }
       finally { setLoading(false); }
     })();
   }, [practiceId, rangeDays]);
 
+  const latest = insights[0];
+  const latestMetrics = latest?.metrics || {};
+
+  const compare = (myValue, b) => {
+    if (!b || myValue == null) return null;
+    if (myValue >= b.p90) return { tier: "Top 10%", color: C.green, pct: 95 };
+    if (myValue >= b.p75) return { tier: "Top quartile", color: C.teal, pct: 80 };
+    if (myValue >= b.p50) return { tier: "Above median", color: C.blue, pct: 60 };
+    if (myValue >= b.p25) return { tier: "Below median", color: C.amber, pct: 35 };
+    return { tier: "Bottom quartile", color: C.red, pct: 15 };
+  };
+
+  // Map each active patient to the panels they qualify for, via problem_list
   const panelPatientMap = useMemo(() => {
     const map = {};
     for (const panel of panels) {
@@ -114,12 +138,12 @@ export default function InsightsView() {
         const prev = byPatient.get(m.patient_id);
         if (!prev || new Date(m.measured_at) > new Date(prev.measured_at)) byPatient.set(m.patient_id, m);
       }
-      const latest = Array.from(byPatient.values());
-      const goalCount = latest.filter((m) => atGoal(m.value_numeric, primary) === true).length;
-      totalMeasured += latest.length;
+      const latestByP = Array.from(byPatient.values());
+      const goalCount = latestByP.filter((m) => atGoal(m.value_numeric, primary) === true).length;
+      totalMeasured += latestByP.length;
       totalAtGoal += goalCount;
-      if (latest.length > 0) {
-        panelScores.push({ name: panel.name, color: panel.color, rate: goalCount / latest.length, count: latest.length });
+      if (latestByP.length > 0) {
+        panelScores.push({ name: panel.name, color: panel.color, rate: goalCount / latestByP.length, count: latestByP.length });
       }
     }
     return { composite: totalMeasured > 0 ? totalAtGoal / totalMeasured : null, panelScores, totalMeasured, totalAtGoal };
@@ -134,7 +158,6 @@ export default function InsightsView() {
   }, [providers, appointments, rangeDays]);
 
   const waitTimeByDow = useMemo(() => {
-    const DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     return [0,1,2,3,4,5,6].map((idx) => {
       const entries = queueEntries.filter((q) => new Date(q.arrived_at).getDay() === idx);
       const waits = entries.map((q) => (new Date(q.roomed_at).getTime() - new Date(q.arrived_at).getTime()) / 60000);
@@ -142,25 +165,6 @@ export default function InsightsView() {
       return { idx, label: DOW[idx], count: entries.length, avgMin: Math.round(avg) };
     });
   }, [queueEntries]);
-
-  const overallWait = useMemo(() => {
-    const waits = queueEntries.map((q) => (new Date(q.roomed_at).getTime() - new Date(q.arrived_at).getTime()) / 60000);
-    return waits.length > 0 ? Math.round(waits.reduce((a, b) => a + b, 0) / waits.length) : 0;
-  }, [queueEntries]);
-
-  const todayStats = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const t = appointments.filter((a) => a.appt_date === today);
-    return { completed: t.filter((a) => a.status === "Completed").length, total: t.length };
-  }, [appointments]);
-
-  const noShowRate = useMemo(() => {
-    const c = appointments.filter((a) => a.status === "Completed").length;
-    const n = appointments.filter((a) => a.status === "No Show").length;
-    const x = appointments.filter((a) => a.status === "Cancelled").length;
-    const denom = c + n + x;
-    return denom > 0 ? n / denom : 0;
-  }, [appointments]);
 
   const screenerStats = useMemo(() => {
     const d7 = new Date(); d7.setDate(d7.getDate() - 7);
@@ -171,24 +175,16 @@ export default function InsightsView() {
     return { total: screeners.length, thisWeek, lastWeek, delta: thisWeek - lastWeek, flaggedUnreviewed };
   }, [screeners]);
 
-  if (loading) return <div style={{ flex: 1 }}><TopBar title="Insights" /><Loader /></div>;
+  if (loading) return <div style={{ flex: 1 }}><TopBar title="IC Insights" /><Loader /></div>;
 
   const maxThroughput = Math.max(...throughputByProvider.map((p) => p.completed), 1);
   const maxWait = Math.max(...waitTimeByDow.map((d) => d.avgMin), 1);
 
-  const KpiCard = ({ label, value, color, sub }) => (
-    <Card>
-      <div style={{ fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 28, fontWeight: 800, color: color || C.textPrimary }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: C.textTertiary }}>{sub}</div>}
-    </Card>
-  );
-
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <TopBar
-        title="Insights"
-        sub={`Practice-level KPIs, throughput, and benchmarks · Last ${rangeDays} days`}
+        title="IC Insights"
+        sub={latest ? `Last snapshot: ${latest.snapshot_date} · Analytics: last ${rangeDays} days` : `No insights yet · Analytics: last ${rangeDays} days`}
         actions={
           <select value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))}
             style={{ padding: "6px 10px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }}>
@@ -200,50 +196,87 @@ export default function InsightsView() {
         }
       />
 
-      {error && <div style={{ padding: 12 }}><ErrorBanner message={error} /></div>}
+      <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+        {error && <ErrorBanner message={error} />}
 
-      <div style={{ flex: 1, overflowY: "auto", padding: 20, display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <KpiCard
-            label="Clinical Quality Score"
-            value={clinicalQuality.composite == null ? "-" : `${Math.round(clinicalQuality.composite * 100)}%`}
-            color={clinicalQuality.composite == null ? C.textTertiary : clinicalQuality.composite >= 0.7 ? C.green : clinicalQuality.composite >= 0.5 ? C.amber : C.red}
-            sub={`${clinicalQuality.totalAtGoal} / ${clinicalQuality.totalMeasured} at goal`}
-          />
-          <KpiCard label="Today's Throughput" value={`${todayStats.completed} / ${todayStats.total}`} sub="completed of scheduled" />
-          <KpiCard
-            label="Avg Wait Time"
-            value={`${overallWait}m`}
-            color={overallWait > 30 ? C.red : overallWait > 15 ? C.amber : C.green}
-            sub={`${queueEntries.length} visits, arrival to roomed`}
-          />
-          <KpiCard
-            label="No-Show Rate"
-            value={`${Math.round(noShowRate * 100)}%`}
-            color={noShowRate > 0.15 ? C.red : noShowRate > 0.10 ? C.amber : C.green}
-            sub={`over ${rangeDays} days`}
-          />
-        </div>
-
-        <Card>
-          <SectionHead title="Clinical Quality — Panel Breakdown" sub="% of measured patients at goal on each panel's primary metric" />
-          {clinicalQuality.panelScores.length === 0 ? (
-            <div style={{ padding: 20, textAlign: "center", color: C.textTertiary, fontSize: 12 }}>
-              No measured patients in window. Section populates as patients get seen and measurements recorded.
-            </div>
-          ) : clinicalQuality.panelScores.map((p) => (
-            <div key={p.name} style={{ display: "grid", gridTemplateColumns: "1.5fr 2fr 0.8fr 0.8fr", gap: 12, padding: "8px 12px", fontSize: 12, alignItems: "center", borderBottom: `0.5px solid ${C.borderLight}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color || C.tealMid }} />
-                <div style={{ fontWeight: 600, color: C.textPrimary }}>{p.name}</div>
+        {/* ── Today's Headline + Recommendations ───────────────────────── */}
+        {!latest ? <EmptyState icon="📊" title="No insights available" sub="IC runs a daily snapshot of your practice metrics. Check back after the first run." />
+          : <>
+            <Card style={{ borderLeft: `4px solid ${C.teal}`, padding: 20 }}>
+              <Badge label="Today's Headline" variant="teal" />
+              <div style={{ fontSize: 22, fontWeight: 800, color: C.textPrimary, marginTop: 10, letterSpacing: "-0.02em" }}>
+                {latest.headline_stat}
               </div>
-              <div><div style={{ width: "100%", height: 8, background: C.bgSecondary, borderRadius: 4, overflow: "hidden" }}><div style={{ width: `${Math.round(p.rate * 100)}%`, height: "100%", background: p.rate >= 0.7 ? C.green : p.rate >= 0.5 ? C.amber : C.red }} /></div></div>
-              <div style={{ textAlign: "right", color: C.textSecondary }}>{p.count} measured</div>
-              <div style={{ textAlign: "right" }}><Badge label={`${Math.round(p.rate * 100)}%`} variant={p.rate >= 0.7 ? "green" : p.rate >= 0.5 ? "amber" : "red"} size="xs" /></div>
+              {Array.isArray(latest.recommendations) && latest.recommendations.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+                    Recommendations
+                  </div>
+                  {latest.recommendations.map((r, i) => (
+                    <div key={i} style={{ display: "flex", gap: 10, padding: "8px 0", borderBottom: `0.5px solid ${C.borderLight}` }}>
+                      <div style={{ width: 20, height: 20, borderRadius: "50%", background: C.tealBg, color: C.teal, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                      <div style={{ fontSize: 13, color: C.textPrimary }}>{typeof r === "string" ? r : r.text || JSON.stringify(r)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* ── Today's Metrics ─────────────────────────────────────── */}
+            <div>
+              <SectionHead title="Today's Metrics" sub="Snapshot of your operational health" />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+                {Object.entries(latestMetrics).slice(0, 8).map(([k, v]) => (
+                  <StatCard
+                    key={k}
+                    label={k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    value={typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(2)) : String(v)}
+                    color={C.teal}
+                  />
+                ))}
+                {Object.keys(latestMetrics).length === 0 && (
+                  <div style={{ gridColumn: "1 / -1", padding: 16, fontSize: 12, color: C.textTertiary, textAlign: "center" }}>
+                    Metrics JSON is empty. Once your daily snapshot runs, metrics will appear here.
+                  </div>
+                )}
+              </div>
             </div>
-          ))}
+          </>
+        }
+
+        {/* ── Clinical Quality Score ───────────────────────────────────── */}
+        <Card>
+          <SectionHead title="Clinical Quality Score" sub={`Composite at-goal rate across ${clinicalQuality.panelScores.length} active panels · last ${rangeDays} days`} />
+          {clinicalQuality.composite == null ? (
+            <div style={{ padding: 20, textAlign: "center", color: C.textTertiary, fontSize: 12 }}>
+              No measured patients in window.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 12, padding: "4px 12px 12px" }}>
+                <div style={{ fontSize: 40, fontWeight: 800, color: clinicalQuality.composite >= 0.7 ? C.green : clinicalQuality.composite >= 0.5 ? C.amber : C.red, letterSpacing: "-0.03em" }}>
+                  {Math.round(clinicalQuality.composite * 100)}%
+                </div>
+                <div style={{ fontSize: 12, color: C.textTertiary }}>
+                  {clinicalQuality.totalAtGoal} of {clinicalQuality.totalMeasured} measured patients at goal
+                </div>
+              </div>
+              {clinicalQuality.panelScores.map((p) => (
+                <div key={p.name} style={{ display: "grid", gridTemplateColumns: "1.5fr 2fr 0.8fr 0.8fr", gap: 12, padding: "8px 12px", fontSize: 12, alignItems: "center", borderBottom: `0.5px solid ${C.borderLight}` }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.color || C.tealMid }} />
+                    <div style={{ fontWeight: 600, color: C.textPrimary }}>{p.name}</div>
+                  </div>
+                  <div><div style={{ width: "100%", height: 8, background: C.bgSecondary, borderRadius: 4, overflow: "hidden" }}><div style={{ width: `${Math.round(p.rate * 100)}%`, height: "100%", background: p.rate >= 0.7 ? C.green : p.rate >= 0.5 ? C.amber : C.red }} /></div></div>
+                  <div style={{ textAlign: "right", color: C.textSecondary }}>{p.count} measured</div>
+                  <div style={{ textAlign: "right" }}><Badge label={`${Math.round(p.rate * 100)}%`} variant={p.rate >= 0.7 ? "green" : p.rate >= 0.5 ? "amber" : "red"} size="xs" /></div>
+                </div>
+              ))}
+            </>
+          )}
         </Card>
 
+        {/* ── Throughput by Provider ───────────────────────────────────── */}
         <Card>
           <SectionHead title="Throughput by Provider" sub={`Completed appointments in ${rangeDays}-day window`} />
           {throughputByProvider.filter((p) => p.scheduled > 0).length === 0 ? (
@@ -258,6 +291,7 @@ export default function InsightsView() {
           ))}
         </Card>
 
+        {/* ── Avg Wait Time by Day of Week ─────────────────────────────── */}
         <Card>
           <SectionHead title="Avg Wait Time by Day of Week" sub="Arrival to roomed" />
           {queueEntries.length === 0 ? (
@@ -272,6 +306,7 @@ export default function InsightsView() {
           ))}
         </Card>
 
+        {/* ── Screener Operations ──────────────────────────────────────── */}
         <Card>
           <SectionHead title="Screener Operations" sub="Recent velocity and follow-up review queue" />
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, padding: "12px 16px" }}>
@@ -302,20 +337,57 @@ export default function InsightsView() {
           )}
         </Card>
 
-        <Card>
-          <SectionHead title="Network Benchmarks" sub="Percentile comparison against anonymized peer practices" />
-          {benchmarks.length === 0 ? (
-            <EmptyState icon="📊" title="Benchmarks not yet available" sub="Network benchmarks populate once enough practices are on the platform and sample sizes support valid comparisons." />
-          ) : benchmarks.map((b) => (
-            <div key={b.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 12, padding: "8px 12px", fontSize: 12, borderBottom: `0.5px solid ${C.borderLight}` }}>
-              <div style={{ fontWeight: 600, color: C.textPrimary }}>{b.metric_key}</div>
-              <div style={{ textAlign: "right", color: C.textSecondary }}>P25 {b.p25}</div>
-              <div style={{ textAlign: "right", color: C.textSecondary }}>P50 {b.p50}</div>
-              <div style={{ textAlign: "right", color: C.textSecondary }}>P75 {b.p75}</div>
-              <div style={{ textAlign: "right", color: C.textSecondary }}>P90 {b.p90}</div>
+        {/* ── 30-Day Trend ─────────────────────────────────────────────── */}
+        {insights.length > 1 && (
+          <Card>
+            <SectionHead title="30-Day Trend" sub="Headline stat history" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflowY: "auto" }}>
+              {insights.slice(0, 14).map((i) => (
+                <div key={i.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "6px 8px", borderBottom: `0.5px solid ${C.borderLight}` }}>
+                  <div style={{ fontSize: 11, color: C.textTertiary, minWidth: 84 }}>{i.snapshot_date}</div>
+                  <div style={{ fontSize: 12, color: C.textPrimary, flex: 1 }}>{i.headline_stat}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </Card>
+          </Card>
+        )}
+
+        {/* ── Network Benchmarks ───────────────────────────────────────── */}
+        <div>
+          <SectionHead title="Network Benchmarks" sub="How you compare to similar NC practices (anonymized)" />
+          {benchmarks.length === 0 ? (
+            <Card><div style={{ padding: 24, textAlign: "center", color: C.textTertiary, fontSize: 12 }}>
+              No benchmark data yet. Benchmarks are published quarterly based on the IC network.
+            </div></Card>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12 }}>
+              {benchmarks.slice(0, 6).map((b) => {
+                const myVal = latestMetrics[b.metric_key];
+                const cmp = compare(myVal, b);
+                return (
+                  <Card key={b.id}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, textTransform: "uppercase", letterSpacing: "0.05em" }}>{b.metric_key}</div>
+                    <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: 8 }}>{b.specialty} · {b.practice_size_bucket}</div>
+                    {cmp && (
+                      <>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: cmp.color }}>{myVal}</div>
+                          <Badge label={cmp.tier} variant="teal" size="xs" />
+                        </div>
+                        <div style={{ height: 6, background: C.bgSecondary, borderRadius: 3, marginTop: 8, position: "relative" }}>
+                          <div style={{ position: "absolute", left: `${cmp.pct}%`, top: -3, width: 3, height: 12, background: cmp.color, borderRadius: 2 }} />
+                        </div>
+                      </>
+                    )}
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: C.textTertiary, marginTop: 6 }}>
+                      <span>p25: {b.p25}</span><span>p50: {b.p50}</span><span>p75: {b.p75}</span><span>p90: {b.p90}</span>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
