@@ -198,6 +198,8 @@ function NewEncounterModal({ onClose, onCreated, practiceId, profile }) {
 
 // ─── Encounter Editor (unchanged from prior version, SOAP + sign/amend) ──────
 function EncounterEditor({ encounter, profile, onClose, onSaved }) {
+  const [panelValues, setPanelValues] = useState({});
+  const [patient, setPatient] = useState(null);
   const [e, setE] = useState(encounter);
   const [codeModal, setCodeModal] = useState(null);
   const [amending, setAmending] = useState(false);
