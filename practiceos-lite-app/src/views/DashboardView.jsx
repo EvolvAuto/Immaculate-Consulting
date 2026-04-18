@@ -1,23 +1,29 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// DashboardView — KPI strip + today's overview across appts, queue, tasks
+// DashboardView — KPI strip + today's overview across appts, queue, tasks, inbox
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { subscribeTable } from "../lib/db";
 import { useAuth } from "../auth/AuthProvider";
-import { C, NAV_BY_ROLE } from "../lib/tokens";
+import { C } from "../lib/tokens";
 import { toISODate, slotToTime, APPT_STATUS_VARIANT, QUEUE_STATUS_VARIANT, TASK_PRIORITY_VARIANT, initialsOf } from "../components/constants";
 import { Badge, Btn, Card, TopBar, StatCard, SectionHead, Avatar, ApptTypeDot, Loader, ErrorBanner, EmptyState } from "../components/ui";
 
+// Roles that get the Inbox widget on the Dashboard.
+// Hard-coded rather than derived from NAV_BY_ROLE so this is import-safe.
+const INBOX_ROLES = ["Owner", "Manager", "Provider", "Medical Assistant", "Front Desk"];
+
 export default function DashboardView({ onNav }) {
- const { practiceId, profile, role } = useAuth();
+  const { practiceId, profile, role } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({ appts: [], queue: [], tasks: [], insights: null });
   const [threads, setThreads] = useState([]);
-  const hasInbox = (NAV_BY_ROLE[role] || []).includes("inbox");
 
+  const hasInbox = INBOX_ROLES.indexOf(role) !== -1;
+
+  // ─── Primary load: appts + queue + tasks + IC insight of the day ─────────
   useEffect(() => {
     if (!practiceId) return;
     const today = toISODate();
@@ -44,9 +50,9 @@ export default function DashboardView({ onNav }) {
       } catch (e) { setError(e.message); }
       finally { setLoading(false); }
     })();
-}, [practiceId]);
+  }, [practiceId]);
 
-  // Inbox feed — subscribes to message_threads + messages only for roles with inbox access
+  // ─── Inbox feed: realtime threads + messages for staff with inbox access ─
   useEffect(() => {
     if (!practiceId || !hasInbox) return;
     const loadThreads = async () => {
@@ -72,10 +78,9 @@ export default function DashboardView({ onNav }) {
   const activeQueue = data.queue.length;
   const urgentTasks = data.tasks.filter((t) => t.priority === "Urgent" || t.priority === "High").length;
 
-const copayExpected = todayAppts.reduce((sum, a) => sum + Number(a.copay_amount || 0), 0);
+  const copayExpected = todayAppts.reduce((sum, a) => sum + Number(a.copay_amount || 0), 0);
   const copayCollected = todayAppts.filter((a) => a.copay_collected).reduce((sum, a) => sum + Number(a.copay_amount || 0), 0);
 
-  // Inbox derived values — recomputed each render from the live threads state
   const unreadByThread = (t) => (t.messages || []).filter((m) => m.direction === "Inbound" && !m.is_read).length;
   const unreadThreads = threads.filter((t) => unreadByThread(t) > 0);
   const unreadCount = unreadThreads.reduce((sum, t) => sum + unreadByThread(t), 0);
@@ -112,15 +117,76 @@ const copayExpected = todayAppts.reduce((sum, a) => sum + Number(a.copay_amount 
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>{data.insights.headline_stat}</div>
           {Array.isArray(data.insights.recommendations) && data.insights.recommendations.slice(0, 3).map((r, i) => (
-            <div key={i} style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>• {typeof r === "string" ? r : r.text}</div>
+            <div key={i} style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>{typeof r === "string" ? r : r.text}</div>
           ))}
-          <Btn variant="outline" size="sm" style={{ marginTop: 12 }} onClick={() => onNav?.("insights")}>View all insights →</Btn>
+          <Btn variant="outline" size="sm" style={{ marginTop: 12 }} onClick={() => onNav?.("insights")}>View all insights</Btn>
         </Card>
       )}
 
-     <div style={{ display: "grid", gridTemplateColumns: hasInbox ? "2fr 1fr" : "1fr", gap: 16 }}>
+      {/* Row 1: today's schedule + live queue */}
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
         <Card>
-          <SectionHead title="Open Tasks" sub="Prioritized by urgency" action={<Btn variant="outline" size="sm" onClick={() => onNav?.("tasks")}>All Tasks →</Btn>} />
+          <SectionHead
+            title="Today's Schedule"
+            sub={`${todayAppts.length} appointments`}
+            action={<Btn variant="outline" size="sm" onClick={() => onNav?.("schedule")}>Open Schedule</Btn>}
+          />
+          {todayAppts.length === 0 ? (
+            <EmptyState icon="📅" title="No appointments scheduled today" sub="When patients book, they'll show here." />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {todayAppts.slice(0, 10).map((a) => (
+                <div key={a.id} style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "8px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 8,
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, minWidth: 72 }}>{slotToTime(a.start_slot)}</div>
+                  <ApptTypeDot type={a.appt_type} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>
+                      {a.patients ? `${a.patients.first_name} ${a.patients.last_name}` : "-"}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.textTertiary }}>
+                      {a.appt_type}{a.providers ? ` · Dr. ${a.providers.last_name}` : ""}
+                      {a.chief_complaint ? ` · ${a.chief_complaint}` : ""}
+                    </div>
+                  </div>
+                  <Badge label={a.status} variant={APPT_STATUS_VARIANT[a.status] || "neutral"} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <SectionHead title="Live Queue" sub={`${activeQueue} active`} action={<Btn variant="outline" size="sm" onClick={() => onNav?.("queue")}>Queue</Btn>} />
+          {data.queue.length === 0 ? (
+            <div style={{ fontSize: 12, color: C.textTertiary, padding: 12, textAlign: "center" }}>No patients in queue.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {data.queue.slice(0, 8).map((q) => (
+                <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Avatar initials={initialsOf(q.patients?.first_name, q.patients?.last_name)} size={26} color={C.tealMid} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {q.patients ? `${q.patients.first_name} ${q.patients.last_name}` : "-"}
+                    </div>
+                    <div style={{ fontSize: 10, color: C.textTertiary }}>
+                      {q.rooms?.name || "Lobby"}{q.providers ? ` · Dr. ${q.providers.last_name}` : ""}
+                    </div>
+                  </div>
+                  <Badge label={q.queue_status} variant={QUEUE_STATUS_VARIANT[q.queue_status] || "neutral"} size="xs" />
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Row 2: open tasks + inbox (inbox gated by role) */}
+      <div style={{ display: "grid", gridTemplateColumns: hasInbox ? "2fr 1fr" : "1fr", gap: 16 }}>
+        <Card>
+          <SectionHead title="Open Tasks" sub="Prioritized by urgency" action={<Btn variant="outline" size="sm" onClick={() => onNav?.("tasks")}>All Tasks</Btn>} />
           {data.tasks.length === 0 ? (
             <div style={{ fontSize: 12, color: C.textTertiary, padding: 12, textAlign: "center" }}>All caught up! No open tasks.</div>
           ) : (
@@ -149,7 +215,7 @@ const copayExpected = todayAppts.reduce((sum, a) => sum + Number(a.copay_amount 
             <SectionHead
               title="Inbox"
               sub={unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
-              action={<Btn variant="outline" size="sm" onClick={() => onNav?.("inbox")}>Open Inbox →</Btn>}
+              action={<Btn variant="outline" size="sm" onClick={() => onNav?.("inbox")}>Open Inbox</Btn>}
             />
             {unreadThreads.length === 0 ? (
               <div style={{ fontSize: 12, color: C.textTertiary, padding: 12, textAlign: "center" }}>
@@ -172,7 +238,7 @@ const copayExpected = todayAppts.reduce((sum, a) => sum + Number(a.copay_amount 
                           {t.patients ? `${t.patients.first_name} ${t.patients.last_name}` : "Unknown"}
                         </div>
                         <div style={{ fontSize: 10, color: C.textTertiary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {t.subject ? t.subject : (last?.body ? last.body.slice(0, 50) : "—")}
+                          {t.subject ? t.subject : (last?.body ? last.body.slice(0, 50) : "-")}
                         </div>
                       </div>
                       <Badge label={count} variant="teal" size="xs" />
@@ -184,56 +250,6 @@ const copayExpected = todayAppts.reduce((sum, a) => sum + Number(a.copay_amount 
           </Card>
         )}
       </div>
-
-        <Card>
-          <SectionHead title="Live Queue" sub={`${activeQueue} active`} action={<Btn variant="outline" size="sm" onClick={() => onNav?.("queue")}>Queue →</Btn>} />
-          {data.queue.length === 0 ? (
-            <div style={{ fontSize: 12, color: C.textTertiary, padding: 12, textAlign: "center" }}>No patients in queue.</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {data.queue.slice(0, 8).map((q) => (
-                <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Avatar initials={initialsOf(q.patients?.first_name, q.patients?.last_name)} size={26} color={C.tealMid} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {q.patients ? `${q.patients.first_name} ${q.patients.last_name}` : "—"}
-                    </div>
-                    <div style={{ fontSize: 10, color: C.textTertiary }}>
-                      {q.rooms?.name || "Lobby"}{q.providers ? ` · Dr. ${q.providers.last_name}` : ""}
-                    </div>
-                  </div>
-                  <Badge label={q.queue_status} variant={QUEUE_STATUS_VARIANT[q.queue_status] || "neutral"} size="xs" />
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-
-      <Card>
-        <SectionHead title="Open Tasks" sub="Prioritized by urgency" action={<Btn variant="outline" size="sm" onClick={() => onNav?.("tasks")}>All Tasks →</Btn>} />
-        {data.tasks.length === 0 ? (
-          <div style={{ fontSize: 12, color: C.textTertiary, padding: 12, textAlign: "center" }}>All caught up! No open tasks.</div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 8 }}>
-            {data.tasks.slice(0, 9).map((t) => (
-              <div key={t.id} style={{
-                display: "flex", alignItems: "center", gap: 10,
-                padding: "8px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 8,
-              }}>
-                <Badge label={t.priority} variant={TASK_PRIORITY_VARIANT[t.priority] || "neutral"} size="xs" />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
-                  <div style={{ fontSize: 10, color: C.textTertiary }}>
-                    {t.category}{t.due_date ? ` · due ${t.due_date}` : ""}
-                    {t.patients ? ` · ${t.patients.first_name} ${t.patients.last_name}` : ""}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
     </div>
   );
 }
