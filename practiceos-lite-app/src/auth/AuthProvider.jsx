@@ -6,12 +6,17 @@
 //
 // Reads role + practice_id from auth.user.app_metadata (set server-side via
 // admin API). Falls back to the public.users row if app_metadata is missing.
+//
+// HANG-RESISTANT BOOTSTRAP: every async branch is wrapped in try/finally so
+// setLoading(false) always runs, plus a 6-second hard timeout fallback. Audit
+// log calls are fire-and-forget so they cannot block the auth flow.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
 import { supabase, signInWithEmail, signOut as sbSignOut, logAudit } from "../lib/supabaseClient";
 
 const AuthCtx = createContext(null);
+const BOOTSTRAP_TIMEOUT_MS = 6000;
 
 export function useAuth() {
   const ctx = useContext(AuthCtx);
@@ -20,24 +25,29 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }) {
-  const [session,   setSession]   = useState(null);
-  const [profile,   setProfile]   = useState(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
 
-  // Load the public.users row that matches auth.user.id
+  // Load public.users row matching auth.user.id. Never throws.
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); return; }
-    const { data, error: pErr } = await supabase
-      .from("users")
-      .select("id, practice_id, email, full_name, role, provider_id, patient_id, avatar_url, is_active")
-      .eq("id", userId)
-      .single();
-    if (pErr) {
-      console.warn("[PracticeOS] profile load failed:", pErr.message);
+    try {
+      const { data, error: pErr } = await supabase
+        .from("users")
+        .select("id, practice_id, email, full_name, role, provider_id, patient_id, avatar_url, is_active")
+        .eq("id", userId)
+        .maybeSingle();
+      if (pErr) {
+        console.warn("[PracticeOS] profile load failed:", pErr.message);
+        setProfile(null);
+      } else {
+        setProfile(data);
+      }
+    } catch (e) {
+      console.warn("[PracticeOS] profile load threw:", e?.message || e);
       setProfile(null);
-    } else {
-      setProfile(data);
     }
   }, []);
 
@@ -45,28 +55,66 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let active = true;
 
+    // Safety net: if anything hangs, force loading off after 6s so the UI
+    // can at least render the login screen instead of a forever spinner.
+    const failSafe = setTimeout(() => {
+      if (active) {
+        console.warn("[PracticeOS] bootstrap timeout - forcing loading=false");
+        setLoading(false);
+      }
+    }, BOOTSTRAP_TIMEOUT_MS);
+
     (async () => {
-      const { data: { session: initial } } = await supabase.auth.getSession();
-      if (!active) return;
-      setSession(initial);
-      if (initial?.user) await loadProfile(initial.user.id);
-      setLoading(false);
+      try {
+        const { data, error: sErr } = await supabase.auth.getSession();
+        if (!active) return;
+        if (sErr) console.warn("[PracticeOS] getSession error:", sErr.message);
+        const initial = data?.session || null;
+        setSession(initial);
+        if (initial?.user) {
+          await loadProfile(initial.user.id);
+        }
+      } catch (e) {
+        if (!active) return;
+        console.error("[PracticeOS] bootstrap failed:", e?.message || e);
+        setError(e?.message || "Auth bootstrap failed");
+      } finally {
+        if (active) {
+          clearTimeout(failSafe);
+          setLoading(false);
+        }
+      }
     })();
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!active) return;
-      setSession(newSession);
-      if (newSession?.user) {
-        await loadProfile(newSession.user.id);
-        if (event === "SIGNED_IN") {
-          logAudit({ action: "Login", entityType: "session", entityId: newSession.user.id });
+      try {
+        setSession(newSession);
+        if (newSession?.user) {
+          await loadProfile(newSession.user.id);
+          if (event === "SIGNED_IN") {
+            // Fire-and-forget: do not block UI on audit logging
+            logAudit({
+              action: "Login",
+              entityType: "session",
+              entityId: newSession.user.id,
+            }).catch((err) => console.warn("[PracticeOS] audit Login failed:", err?.message));
+          }
+        } else {
+          setProfile(null);
         }
-      } else {
-        setProfile(null);
+      } catch (e) {
+        console.warn("[PracticeOS] auth state handler error:", e?.message || e);
+      } finally {
+        if (active) setLoading(false);
       }
     });
 
-    return () => { active = false; listener.subscription.unsubscribe(); };
+    return () => {
+      active = false;
+      clearTimeout(failSafe);
+      listener.subscription.unsubscribe();
+    };
   }, [loadProfile]);
 
   // Actions --------------------------------------------------------------------
@@ -83,16 +131,20 @@ export function AuthProvider({ children }) {
         details: { email },
         success: false,
         error: e.message,
-      });
+      }).catch(() => {});
       throw e;
     }
   }, []);
 
   const signOut = useCallback(async () => {
     if (session?.user) {
-      await logAudit({ action: "Logout", entityType: "session", entityId: session.user.id });
+      logAudit({
+        action: "Logout",
+        entityType: "session",
+        entityId: session.user.id,
+      }).catch(() => {});
     }
-    await sbSignOut();
+    try { await sbSignOut(); } catch (e) { console.warn("[PracticeOS] signOut error:", e?.message); }
     setProfile(null);
     setSession(null);
   }, [session]);
@@ -101,13 +153,13 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => {
     const md = session?.user?.app_metadata || {};
     return {
-      user:        session?.user || null,
+      user:            session?.user || null,
       session,
       profile,
-      role:        md.role       || profile?.role       || null,
-      practiceId:  md.practice_id || profile?.practice_id || null,
-      patientId:   md.patient_id  || profile?.patient_id  || null,
-      providerId:  md.provider_id || profile?.provider_id || null,
+      role:            md.role        || profile?.role        || null,
+      practiceId:      md.practice_id || profile?.practice_id || null,
+      patientId:       md.patient_id  || profile?.patient_id  || null,
+      providerId:      md.provider_id || profile?.provider_id || null,
       loading,
       error,
       isAuthenticated: !!session,
