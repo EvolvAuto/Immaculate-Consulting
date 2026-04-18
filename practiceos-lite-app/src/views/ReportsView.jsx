@@ -81,7 +81,7 @@ export default function ReportsView() {
           supabase.from("clinical_panels").select("*").eq("is_active", true).order("sort_order"),
           supabase.from("panel_condition_codes").select("*"),
           supabase.from("clinical_metrics").select("*").eq("is_active", true),
-          supabase.from("clinical_measurements").select("patient_id, metric_id, panel_id, measured_at, value, value_text").gte("measured_at", from),
+          supabase.from("clinical_measurements").select("patient_id, metric_id, measured_at, value, value_text").gte("measured_at", from),
           supabase.from("patients").select("id, first_name, last_name, date_of_birth, problem_list, mrn").eq("status", "Active"),
           supabase.from("appointments").select("id, provider_id, appt_date, status, copay_amount, copay_collected").gte("appt_date", from),
           supabase.from("providers").select("id, first_name, last_name").eq("is_active", true),
