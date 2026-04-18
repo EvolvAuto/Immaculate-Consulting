@@ -30,7 +30,7 @@ export default function SettingsView() {
   ["rooms", "Rooms"],
   ["hours", "Hours"],
   ["holidays", "Holidays"],
-]} active={tab} onChange={setTab} /> />
+]} active={tab} onChange={setTab} />
 
       <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
         {!canEdit && (
