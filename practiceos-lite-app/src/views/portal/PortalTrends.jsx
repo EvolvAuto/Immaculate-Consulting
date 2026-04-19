@@ -17,17 +17,12 @@ export default function PortalTrends({ patientId }) {
     let active = true;
     (async () => {
       try {
-        const [m, pn] = await Promise.all([
-          supabase.from("clinical_measurements")
-            .select("id, metric_id, metric_name, measured_value, unit, measured_at, source, in_goal")
-            .eq("patient_id", patientId)
-            .order("measured_at", { ascending:false }).limit(500),
-          supabase.from("clinical_panels")
-            .select("id, name, metric_ids, followup_window_days"),
-        ]);
+        const m = await supabase.from("clinical_measurements")
+          .select("id, metric_id, metric_name, value_numeric, unit, measured_at, source, is_flagged")
+          .eq("patient_id", patientId)
+          .order("measured_at", { ascending:false }).limit(500);
         if (!active) return;
         setMeasurements(m.data || []);
-        setPanels(pn.data || []);
         logAudit({ action:"Read", entityType:"clinical_measurements", entityId:patientId }).catch(()=>{});
       } catch (e) {
         console.warn("[trends] load failed:", e?.message || e);
@@ -38,10 +33,17 @@ export default function PortalTrends({ patientId }) {
     return () => { active = false; };
   }, [patientId]);
 
-  // Group by metric_name, keep oldest-first for chart
+// Group by metric_name, keep oldest-first for chart.
+  // Normalize DB columns (value_numeric, is_flagged) to the shape the
+  // rendering code below expects (measured_value, in_goal).
   const byMetric = useMemo(() => {
     const map = {};
-    [...measurements].reverse().forEach(m => {
+    [...measurements].reverse().forEach(raw => {
+      const m = {
+        ...raw,
+        measured_value: raw.value_numeric,
+        in_goal:        !raw.is_flagged,
+      };
       const k = m.metric_name || m.metric_id || "Unknown";
       if (!map[k]) map[k] = [];
       map[k].push(m);
