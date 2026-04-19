@@ -1,26 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// src/views/portal/ConsentSection.jsx
+// src/views/portal/ConsentSection.jsx  (v2)
 //
-// Drop-in replacement for the Consent and HIPAA section of the intake form.
-// Each consent policy links to a viewable modal with the full policy text,
-// and signing a policy fires the sign-consent Edge Function which records
-// a full legal attestation (typed name, IP, user agent, document hash) in
-// the consents table.
-//
-// Props:
-//   patientName     string  - patient full name (used to validate typed signature)
-//   onComplete      fn      - called after all checked policies successfully sign
-//                             ( receives { signed: [{title, consent_id}], skipped: [] } )
-//   onClose         fn      - called when user hits Close
-//
-// Usage inside PortalForms.jsx:
-//   case "consent": return (
-//     <ConsentSection
-//       patientName={patientFullName}
-//       onComplete={() => markSectionComplete("consent")}
-//       onClose={() => setActiveSection(null)}
-//     />
-//   );
+// Uses a direct fetch() call to the sign-consent Edge Function instead of
+// supabase.functions.invoke() - this rules out supabase-js wrapper quirks as
+// a cause of the "Failed to send a request" silent-preflight issue. We also
+// force supabase.auth.refreshSession() before the call to handle JWTs that
+// expired while the user was on the page.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
@@ -30,14 +15,13 @@ import { C } from "../../lib/tokens";
 export default function ConsentSection({ patientName = "", onComplete, onClose }) {
   const [loading, setLoading]     = useState(true);
   const [docs, setDocs]           = useState([]);
-  const [viewedIds, setViewedIds] = useState({}); // { consent_id: true }
-  const [checkedIds, setCheckedIds] = useState({}); // { consent_id: true }
+  const [viewedIds, setViewedIds] = useState({});
+  const [checkedIds, setCheckedIds] = useState({});
   const [typedSig, setTypedSig]   = useState("");
-  const [viewing, setViewing]     = useState(null); // current doc being viewed in modal
+  const [viewing, setViewing]     = useState(null);
   const [saving, setSaving]       = useState(false);
-  const [banner, setBanner]       = useState(null); // { kind: 'error'|'ok', msg }
+  const [banner, setBanner]       = useState(null);
 
-  // Load all active consent documents for this practice
   useEffect(() => {
     (async () => {
       try {
@@ -50,7 +34,7 @@ export default function ConsentSection({ patientName = "", onComplete, onClose }
         if (error) throw error;
         setDocs(data || []);
       } catch (e) {
-        setBanner({ kind: "error", msg: "Could not load consent documents: " + e.message });
+        setBanner({ kind: "error", msg: "Could not load consent policies: " + e.message });
       } finally {
         setLoading(false);
       }
@@ -68,32 +52,75 @@ export default function ConsentSection({ patientName = "", onComplete, onClose }
     if (!sigMatches) { setBanner({ kind: "error", msg: "The name you typed does not match your patient record (" + patientName + ")." }); return; }
 
     setSaving(true);
+
+    // ─── Force a session refresh, then pull the JWT explicitly ───────────
+    let accessToken = null;
+    try {
+      await supabase.auth.refreshSession().catch(() => {});
+      const { data: { session } } = await supabase.auth.getSession();
+      accessToken = session && session.access_token ? session.access_token : null;
+    } catch (_e) { /* fall through */ }
+
+    if (!accessToken) {
+      setSaving(false);
+      setBanner({ kind: "error", msg: "Your login session has expired. Please log out, sign in again, and retry." });
+      return;
+    }
+
+    // ─── Resolve Supabase URL + anon key ─────────────────────────────────
+    const SUPABASE_URL =
+      (supabase && supabase.supabaseUrl) ||
+      (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_SUPABASE_URL) ||
+      "";
+    const ANON_KEY =
+      (supabase && supabase.supabaseKey) ||
+      (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) ||
+      "";
+
+    if (!SUPABASE_URL || !ANON_KEY) {
+      setSaving(false);
+      setBanner({ kind: "error", msg: "Could not resolve Supabase config. Contact support." });
+      return;
+    }
+
+    const url = SUPABASE_URL.replace(/\/+$/, "") + "/functions/v1/sign-consent";
     const signed = [];
     const failed = [];
 
     for (const doc of docs) {
       if (!checkedIds[doc.id]) continue;
       try {
-        const { data, error } = await supabase.functions.invoke("sign-consent", {
-          body: {
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type":  "application/json",
+            "Authorization": "Bearer " + accessToken,
+            "apikey":        ANON_KEY,
+          },
+          body: JSON.stringify({
             consent_document_id: doc.id,
             typed_name:          typedSig.trim(),
             signed_by_name:      typedSig.trim(),
             relationship:        "self",
-          },
+          }),
         });
-        if (error) throw new Error(error.message || "unknown");
-        if (data?.error) throw new Error(data.error);
-        signed.push({ title: doc.title, consent_id: data.consent_id });
+        const payload = await resp.json().catch(() => ({}));
+        if (!resp.ok || payload.error) {
+          throw new Error(payload.error || ("HTTP " + resp.status));
+        }
+        signed.push({ title: doc.title, consent_id: payload.consent_id });
       } catch (e) {
-        failed.push({ title: doc.title, error: e.message });
+        failed.push({ title: doc.title, error: (e && e.message) || "Unknown error" });
       }
     }
 
     setSaving(false);
 
     if (failed.length > 0) {
-      setBanner({ kind: "error", msg: "Could not sign: " + failed.map(f => f.title + " (" + f.error + ")").join("; ") });
+      setBanner({
+        kind: "error",
+        msg: "Could not sign: " + failed.map(f => f.title + " (" + f.error + ")").join("; "),
+      });
       return;
     }
 
@@ -101,24 +128,19 @@ export default function ConsentSection({ patientName = "", onComplete, onClose }
     if (onComplete) onComplete({ signed, skipped: docs.filter(d => !checkedIds[d.id]).map(d => d.title) });
   };
 
-  if (loading) {
-    return <div style={s.loading}>Loading consent policies...</div>;
-  }
+  if (loading) return <div style={s.loading}>Loading consent policies...</div>;
 
   return (
     <div>
       <div style={s.intro}>
         By checking the boxes below, you acknowledge you have <strong>read</strong> each policy in full.
-        Click <em>View Policy</em> to review the document before you sign.
-        Signed policies are recorded with your typed name, the date, and a cryptographic
-        hash of the exact document text for your legal protection. You can request paper
-        copies at check-in.
+        Click <em>View Policy</em> to review the document before you sign. Signed policies are recorded
+        with your typed name, the date, and a cryptographic hash of the exact document text for your legal
+        protection. You can request paper copies at check-in.
       </div>
 
       {banner && (
-        <div style={banner.kind === "error" ? s.bannerErr : s.bannerOk}>
-          {banner.msg}
-        </div>
+        <div style={banner.kind === "error" ? s.bannerErr : s.bannerOk}>{banner.msg}</div>
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 18 }}>
@@ -177,14 +199,11 @@ export default function ConsentSection({ patientName = "", onComplete, onClose }
         <button type="button" onClick={onClose} style={s.ghostBtn}>Close</button>
       </div>
 
-      {viewing && (
-        <PolicyModal doc={viewing} onClose={() => setViewing(null)} />
-      )}
+      {viewing && (<PolicyModal doc={viewing} onClose={() => setViewing(null)} />)}
     </div>
   );
 }
 
-// ─── Policy viewer modal ────────────────────────────────────────────────────
 function PolicyModal({ doc, onClose }) {
   return (
     <div style={s.modalBackdrop} onClick={onClose}>
@@ -209,7 +228,6 @@ function PolicyModal({ doc, onClose }) {
   );
 }
 
-// ─── Lightweight markdown renderer (headings, lists, paragraphs, bold) ──────
 function MarkdownBlock({ text }) {
   const lines = String(text || "").split(/\r?\n/);
   const blocks = [];
@@ -243,14 +261,13 @@ function MarkdownBlock({ text }) {
   return <div>{blocks}</div>;
 }
 
-function renderInline(s) {
-  return String(s)
+function renderInline(str) {
+  return String(str)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>");
 }
 
-// ─── Inline styles ───────────────────────────────────────────────────────────
 const s = {
   loading: { padding: 24, textAlign: "center", color: C.textTertiary, fontSize: 12 },
   intro: { fontSize: 12, color: C.textSecondary, background: C.tealBg, border: "0.5px solid " + C.tealBorder, borderRadius: 6, padding: "10px 14px", marginBottom: 14, lineHeight: 1.6 },
