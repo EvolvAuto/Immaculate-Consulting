@@ -208,6 +208,8 @@ function RequestRow({ req, patient, currentPolicy, onApply, onReject }) {
             />
           </div>
 
+          <CardThumbnails front={req.front_image_url} back={req.back_image_url} />
+
           {req.notes && (
             <div style={{
               marginTop: 10, padding: "8px 12px",
@@ -356,7 +358,9 @@ function ActionModal({ action, currentPolicy, reviewerId, onClose, onDone }) {
         subscriber_last_name:  last,
         subscriber_dob:        req.subscriber_dob || null,
         subscriber_relation:   req.relationship || "Self",
-        is_active:             true,
+       is_active:             true,
+        card_front_url:        req.front_image_url || (currentPolicy && currentPolicy.card_front_url) || null,
+        card_back_url:         req.back_image_url  || (currentPolicy && currentPolicy.card_back_url)  || null,
         updated_at:            new Date().toISOString(),
       };
 
@@ -485,5 +489,93 @@ function ActionModal({ action, currentPolicy, reviewerId, onClose, onDone }) {
         </div>
       </div>
     </Modal>
+  );
+}
+// ─── Insurance card thumbnail pair + full-size viewer ────────────────────
+function CardThumbnails({ front, back }) {
+  if (!front && !back) return null;
+  return (
+    <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {front && <CardThumb path={front} label="Front of card" />}
+      {back  && <CardThumb path={back}  label="Back of card" />}
+    </div>
+  );
+}
+
+function CardThumb({ path, label }) {
+  const [url, setUrl]       = useState(null);
+  const [showFull, setFull] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.storage
+        .from("insurance-cards")
+        .createSignedUrl(path, 3600);
+      if (!cancelled && data) setUrl(data.signedUrl);
+    })();
+    return () => { cancelled = true; };
+  }, [path]);
+
+  const isPdf = path.toLowerCase().endsWith(".pdf");
+
+  if (!url) {
+    return (
+      <div style={{
+        width: 120, height: 80, background: C.bgSecondary,
+        borderRadius: 4, display: "flex", alignItems: "center",
+        justifyContent: "center", fontSize: 10, color: C.textTertiary,
+      }}>Loading...</div>
+    );
+  }
+
+  return (
+    <>
+      <button type="button" onClick={() => setFull(true)}
+              title={"Open " + label}
+              style={{
+                padding: 0, background: "transparent",
+                border: "0.5px solid " + C.borderMid, borderRadius: 4,
+                cursor: "pointer", overflow: "hidden",
+                width: 120, height: 80, position: "relative",
+              }}>
+        {isPdf ? (
+          <div style={{
+            width: "100%", height: "100%", display: "flex",
+            alignItems: "center", justifyContent: "center",
+            background: C.redBg, color: C.red, fontSize: 22, fontWeight: 700,
+          }}>PDF</div>
+        ) : (
+          <img src={url} alt={label}
+               style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        )}
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0,
+          background: "rgba(0,0,0,0.55)", color: "#fff",
+          fontSize: 9, fontWeight: 600, padding: "2px 4px", textAlign: "center",
+        }}>{label}</div>
+      </button>
+
+      {showFull && (
+        <Modal onClose={() => setFull(false)}>
+          <div style={{ padding: 16, maxWidth: "90vw", maxHeight: "90vh" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{label}</div>
+            {isPdf ? (
+              <iframe src={url} title={label}
+                      style={{ width: "80vw", height: "75vh", border: 0 }} />
+            ) : (
+              <img src={url} alt={label}
+                   style={{ maxWidth: "80vw", maxHeight: "75vh", display: "block" }} />
+            )}
+            <div style={{ marginTop: 10, textAlign: "right" }}>
+              <a href={url} target="_blank" rel="noopener noreferrer"
+                 style={{ fontSize: 11, color: C.teal, textDecoration: "none", fontFamily: "inherit" }}>
+                Open in new tab ↗
+              </a>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
