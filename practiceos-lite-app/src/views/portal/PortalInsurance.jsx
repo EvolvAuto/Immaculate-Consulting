@@ -47,9 +47,10 @@ export default function PortalInsurance({ patientId, practiceId }) {
   const [loading, setLoading]   = useState(true);
   const [toast, setToast]       = useState(null);
   const [editingRank, setEditingRank] = useState(null); // null | 1 | 2
-  const [form, setForm] = useState({
+ const [form, setForm] = useState({
     payer_name: "", member_id: "", group_number: "", plan_name: "",
     subscriber_name: "", subscriber_dob: "", relationship: "Self", notes: "",
+    front_image_url: "", back_image_url: "",
   });
 
   const load = async () => {
@@ -78,7 +79,7 @@ export default function PortalInsurance({ patientId, practiceId }) {
     const current = policies.find(p => p.rank === rank) || {};
     const subName = [(current.subscriber_first_name || ""), (current.subscriber_last_name || "")]
       .filter(Boolean).join(" ");
-    setForm({
+  setForm({
       payer_name:     current.payer_name || "",
       member_id:      current.member_id || "",
       group_number:   current.group_number || "",
@@ -87,6 +88,8 @@ export default function PortalInsurance({ patientId, practiceId }) {
       subscriber_dob: "",
       relationship:   current.subscriber_relation || "Self",
       notes: "",
+      front_image_url: "",
+      back_image_url:  "",
     });
     setEditingRank(rank);
   };
@@ -109,6 +112,8 @@ export default function PortalInsurance({ patientId, practiceId }) {
         subscriber_dob:  form.subscriber_dob || null,
         relationship:    form.relationship || "Self",
         notes:           form.notes || null,
+        front_image_url: form.front_image_url || null,
+        back_image_url:  form.back_image_url  || null,
         status:          "Pending Review",
       });
       if (error) throw error;
@@ -246,9 +251,38 @@ export default function PortalInsurance({ patientId, practiceId }) {
               <Input value={form.subscriber_name} onChange={v => setForm({...form, subscriber_name:v})} />
             </Field>
           )}
-          <Field label="Notes to Staff (optional)">
+         <Field label="Notes to Staff (optional)">
             <TextArea value={form.notes} onChange={v => setForm({...form, notes:v})} rows={2} />
           </Field>
+
+          <div style={{ marginTop:10, marginBottom:14 }}>
+            <div style={{ fontSize:10, fontWeight:700, color:C.textSecondary, textTransform:"uppercase", letterSpacing:0.5, marginBottom:6 }}>
+              Insurance Card Photos
+            </div>
+            <div style={{ fontSize:11, color:C.textTertiary, marginBottom:10 }}>
+              Optional but helpful - clear photos of both sides of your card let staff verify faster.
+              Accepted: JPG, PNG, HEIC, PDF (10 MB max).
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              <CardUploadField
+                label="Front of card"
+                value={form.front_image_url}
+                onChange={(path) => setForm(prev => ({ ...prev, front_image_url: path }))}
+                patientId={patientId}
+                practiceId={practiceId}
+                side="front"
+              />
+              <CardUploadField
+                label="Back of card"
+                value={form.back_image_url}
+                onChange={(path) => setForm(prev => ({ ...prev, back_image_url: path }))}
+                patientId={patientId}
+                practiceId={practiceId}
+                side="back"
+              />
+            </div>
+          </div>
+
           <div style={{ display:"flex", gap:8 }}>
             <Btn onClick={submit}>Submit for Review</Btn>
             <Btn variant="secondary" onClick={() => setEditingRank(null)}>Cancel</Btn>
@@ -282,6 +316,120 @@ export default function PortalInsurance({ patientId, practiceId }) {
             </Panel>
           ))}
         </>
+      )}
+    </div>
+  );
+}
+
+// ─── Insurance card upload field ─────────────────────────────────────────
+function CardUploadField({ label, value, onChange, patientId, practiceId, side }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError]         = useState(null);
+  const [preview, setPreview]     = useState(null);
+
+  useEffect(() => {
+    if (!value) { setPreview(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.storage
+        .from("insurance-cards")
+        .createSignedUrl(value, 3600);
+      if (!cancelled && data) setPreview(data.signedUrl);
+    })();
+    return () => { cancelled = true; };
+  }, [value]);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setError(null);
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError("File must be under 10 MB.");
+      return;
+    }
+    const allowed = ["image/jpeg","image/jpg","image/png","image/webp","image/heic","image/heif","application/pdf"];
+    if (!allowed.includes(file.type)) {
+      setError("Use JPG, PNG, WebP, HEIC, or PDF.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = practiceId + "/" + patientId + "/" + Date.now() + "_" + side + "." + ext;
+      const { error: upErr } = await supabase.storage
+        .from("insurance-cards")
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (upErr) throw upErr;
+      onChange(path);
+    } catch (e) {
+      setError((e && e.message) || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const isPdf = value && value.toLowerCase().endsWith(".pdf");
+
+  return (
+    <div style={{
+      border:"0.5px dashed " + C.borderMid, borderRadius:6, padding:8,
+      background: value ? C.tealBg : C.bgSecondary,
+    }}>
+      <div style={{ fontSize:10, fontWeight:700, color:C.textSecondary, textTransform:"uppercase", letterSpacing:0.5, marginBottom:6 }}>
+        {label}
+      </div>
+
+      {value && isPdf && (
+        <div style={{ padding:"18px 0", textAlign:"center", background:C.redBg, color:C.red, fontSize:13, fontWeight:700, borderRadius:4, marginBottom:6 }}>
+          PDF uploaded
+        </div>
+      )}
+      {value && !isPdf && preview && (
+        <div style={{ marginBottom:6 }}>
+          <img src={preview} alt={label}
+               style={{ width:"100%", maxHeight:120, objectFit:"cover", borderRadius:4, display:"block" }} />
+        </div>
+      )}
+      {value && !isPdf && !preview && (
+        <div style={{ fontSize:11, color:C.textSecondary, marginBottom:6, fontStyle:"italic" }}>
+          Preview loading...
+        </div>
+      )}
+
+      {!value && !uploading && (
+        <label style={{
+          display:"block", padding:"6px 10px", background:"#fff",
+          border:"0.5px solid " + C.tealBorder, borderRadius:4,
+          fontSize:11, color:C.teal, fontWeight:600,
+          cursor:"pointer", textAlign:"center", fontFamily:"inherit",
+        }}>
+          Choose file
+          <input type="file" accept="image/*,application/pdf"
+                 style={{ display:"none" }}
+                 onChange={(e) => handleFile(e.target.files && e.target.files[0])} />
+        </label>
+      )}
+
+      {uploading && (
+        <div style={{ fontSize:11, color:C.textSecondary, textAlign:"center", padding:"4px 0" }}>
+          Uploading...
+        </div>
+      )}
+
+      {value && !uploading && (
+        <button type="button" onClick={() => onChange("")}
+                style={{
+                  width:"100%", padding:"4px 8px", background:"transparent",
+                  border:"0.5px solid " + C.borderMid, borderRadius:4,
+                  fontSize:10, color:C.textSecondary, cursor:"pointer", fontFamily:"inherit",
+                }}>
+          Replace
+        </button>
+      )}
+
+      {error && (
+        <div style={{ fontSize:10, color:C.red, marginTop:4 }}>{error}</div>
       )}
     </div>
   );
