@@ -6,6 +6,8 @@
 // Live schema uses patients.gender (not sex).
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import ConsentSection from "./ConsentSection";
+import MedicationsSection from "./MedicationsSection";
 import { useState, useEffect, useMemo } from "react";
 import { supabase, logAudit } from "../../lib/supabaseClient";
 import {
@@ -25,7 +27,6 @@ const APPT_KEY_MAP = {
 
 const FORM_CONFIG = {
   demographics:   { label:"Patient Demographics",  required:true,  apptTypes:["new-patient","annual"] },
-  insurance:      { label:"Insurance Information", required:false, apptTypes:["new-patient","annual","follow-up"] },
   health_history: { label:"Health History",        required:false, apptTypes:["new-patient","annual"] },
   medications:    { label:"Current Medications",   required:false, apptTypes:["new-patient","annual","follow-up","sick"] },
   allergies:      { label:"Allergies",             required:false, apptTypes:["new-patient","annual","sick"] },
@@ -160,6 +161,46 @@ export default function PortalForms({ patient, patientId, practiceId, refreshBad
     }
   };
 
+  // Used by self-contained sections (consent, medications) that save their own data
+  // via edge functions or separate submission rows. Only tracks completion state here.
+  const markSectionCompleteAndClose = async (sectionKey) => {
+    if (!appt) return;
+    try {
+      const existingData = (submission && submission.data) || {};
+      const completed = existingData._completed || [];
+      if (completed.includes(sectionKey)) { setOpenSection(null); return; }
+      const newData = { ...existingData, _completed: [...completed, sectionKey] };
+
+      if (submission) {
+        const { error } = await supabase.from("portal_form_submissions")
+          .update({ data: newData }).eq("id", submission.id);
+        if (error) throw error;
+        setSubmission({ ...submission, data: newData });
+      } else {
+        const { data: inserted, error } = await supabase.from("portal_form_submissions")
+          .insert({
+            practice_id:    practiceId,
+            patient_id:     patientId,
+            appointment_id: appt.id,
+            form_type:      "pre_visit_intake",
+            data:           newData,
+            status:         "Draft",
+          })
+          .select().single();
+        if (error) throw error;
+        setSubmission(inserted);
+      }
+
+      setOpenSection(null);
+      setToast("Section saved as complete.");
+      setTimeout(()=>setToast(null), 3000);
+      if (refreshBadges) refreshBadges();
+    } catch (e) {
+      setToast("Could not mark complete: " + (e.message || e));
+      setTimeout(()=>setToast(null), 5000);
+    }
+  };
+
   const submitAll = async () => {
     if (!submission) { setToast("Please complete at least one section first."); setTimeout(()=>setToast(null),3000); return; }
     const required = activeSections.filter(([, v]) => v.required).map(([k]) => k);
@@ -244,7 +285,27 @@ export default function PortalForms({ patient, patientId, practiceId, refreshBad
               </div>
             </div>
 
-            {isOpen && (
+           {isOpen && key === "consent" && (
+              <div style={{ marginTop:12, borderTop:"0.5px solid " + C.borderLight, paddingTop:12 }}>
+                <ConsentSection
+                  patientName={((patient && patient.first_name) || "") + " " + ((patient && patient.last_name) || "")}
+                  onComplete={() => markSectionCompleteAndClose("consent")}
+                  onClose={() => setOpenSection(null)}
+                />
+              </div>
+            )}
+            {isOpen && key === "medications" && (
+              <div style={{ marginTop:12, borderTop:"0.5px solid " + C.borderLight, paddingTop:12 }}>
+                <MedicationsSection
+                  patientId={patientId}
+                  practiceId={practiceId}
+                  appointmentId={appt && appt.id}
+                  onComplete={() => markSectionCompleteAndClose("medications")}
+                  onClose={() => setOpenSection(null)}
+                />
+              </div>
+            )}
+            {isOpen && key !== "consent" && key !== "medications" && (
               <div style={{
                 marginTop:12, borderTop:"0.5px solid " + C.borderLight, paddingTop:12,
               }}>
@@ -307,22 +368,6 @@ function SectionForm({ sectionKey, draft, setDraft }) {
     );
   }
 
-  if (sectionKey === "insurance") {
-    return (
-      <>
-        <Field label="Primary Insurance"><Input value={draft.primary_insurance || ""} onChange={v => set("primary_insurance", v)} /></Field>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-          <Field label="Member ID"><Input value={draft.member_id || ""} onChange={v => set("member_id", v)} /></Field>
-          <Field label="Group Number"><Input value={draft.group_number || ""} onChange={v => set("group_number", v)} /></Field>
-        </div>
-        <Field label="Subscriber Name (if not self)"><Input value={draft.subscriber_name || ""} onChange={v => set("subscriber_name", v)} /></Field>
-        <Field label="Relationship to Subscriber">
-          <Select value={draft.relationship || "Self"} onChange={v => set("relationship", v)}
-                  options={["Self","Spouse","Parent","Child","Other"]} />
-        </Field>
-      </>
-    );
-  }
 
   if (sectionKey === "health_history") {
     return (
@@ -339,14 +384,6 @@ function SectionForm({ sectionKey, draft, setDraft }) {
     );
   }
 
-  if (sectionKey === "medications") {
-    return (
-      <Field label="Current Medications (name, dose, frequency)">
-        <TextArea value={draft.list || ""} onChange={v => set("list", v)} rows={6}
-                  placeholder="Lisinopril 10mg - once daily&#10;Metformin 500mg - twice daily" />
-      </Field>
-    );
-  }
 
   if (sectionKey === "allergies") {
     return (
@@ -407,26 +444,6 @@ function SectionForm({ sectionKey, draft, setDraft }) {
     );
   }
 
-  if (sectionKey === "consent") {
-    return (
-      <>
-        <InfoBox variant="blue">
-          By checking the boxes below, you acknowledge you have read and agree to these policies.
-          You can request paper copies at check-in.
-        </InfoBox>
-        <Checkbox label="HIPAA Notice of Privacy Practices"
-                  checked={!!draft.hipaa} onChange={v => set("hipaa", v)} />
-        <Checkbox label="Financial Policy and Responsibility"
-                  checked={!!draft.financial} onChange={v => set("financial", v)} />
-        <Checkbox label="Consent for Treatment"
-                  checked={!!draft.treatment} onChange={v => set("treatment", v)} />
-        <Field label="Digital Signature (type your full name)">
-          <Input value={draft.signature || ""} onChange={v => set("signature", v)}
-                 placeholder="Full legal name" />
-        </Field>
-      </>
-    );
-  }
 
   if (sectionKey === "womens_health") {
     return (
@@ -458,16 +475,3 @@ function SectionForm({ sectionKey, draft, setDraft }) {
   return <div style={{ fontSize:12, color:C.textTertiary }}>No fields defined for this section.</div>;
 }
 
-function Checkbox({ label, checked, onChange }) {
-  return (
-    <label style={{
-      display:"flex", alignItems:"center", gap:8, padding:"8px 10px",
-      background:C.bgSecondary, borderRadius:6, marginBottom:6, cursor:"pointer",
-      fontSize:12, color:C.textPrimary,
-    }}>
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
-             style={{ accentColor:C.teal, width:14, height:14 }} />
-      {label}
-    </label>
-  );
-}
