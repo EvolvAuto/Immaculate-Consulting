@@ -20,7 +20,7 @@ export default function PortalVisits({ patientId, practiceId }) {
       try {
         const [e, p] = await Promise.all([
           supabase.from("encounters")
-            .select("id, encounter_date, appt_type, provider_id, status, vitals, diagnoses, cpt_codes, orders, referrals, plan, chief_complaint, hpi, subjective, objective, assessment, created_at")
+            .select("id, encounter_date, appt_type, provider_id, status, vitals, diagnoses, cpt_codes, orders, referrals, plan, chief_complaint, subjective, objective, assessment, created_at")
             .eq("patient_id", patientId).eq("status", "Signed")
             .order("encounter_date", { ascending:false }).limit(30),
           supabase.from("providers")
