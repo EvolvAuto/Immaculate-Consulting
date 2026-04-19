@@ -4,8 +4,9 @@
 // Views are lazy-imported as they're built out view-by-view in subsequent sessions.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "./auth/AuthProvider";
+import { supabase } from "./lib/supabaseClient";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import { C, NAV_BY_ROLE, NAV_META, ROLE_STYLES } from "./lib/tokens";
 import ActivatePortal from "./auth/ActivatePortal";
@@ -64,7 +65,7 @@ export default function App() {
 }
 
 function Shell() {
-  const { profile, role, signOut } = useAuth();
+  const { profile, role, practiceId, signOut } = useAuth();
 
   // Patient role gets its own shell - skip the staff sidebar entirely
   if (role === "Patient") return <PortalShell />;
@@ -72,6 +73,26 @@ function Shell() {
   const navItems = NAV_BY_ROLE[role] || [];
   const [activeNav, setActiveNav] = useState(navItems[0] || "dashboard");
   const [collapsed, setCollapsed] = useState(false);
+  const [badgeCounts, setBadgeCounts] = useState({});
+
+  // Refresh sidebar badges on mount, every 60s, and after any nav change
+  useEffect(() => {
+    if (!practiceId) return;
+    let cancelled = false;
+    const fetchCounts = async () => {
+      const counts = {};
+      const { count } = await supabase
+        .from("insurance_update_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("practice_id", practiceId)
+        .eq("status", "Pending Review");
+      counts.insurance_updates = count || 0;
+      if (!cancelled) setBadgeCounts(counts);
+    };
+    fetchCounts();
+    const timer = setInterval(fetchCounts, 60000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [practiceId, activeNav]);
 
   const ActiveView = VIEWS[activeNav] || (() => <EmptyState name={activeNav} />);
   const roleStyle  = ROLE_STYLES[role] || {};
@@ -144,8 +165,25 @@ function Shell() {
                   justifyContent: collapsed ? "center" : "flex-start",
                 }}
               >
-                <span style={{ fontSize: 14 }}>{meta.icon}</span>
-                {!collapsed && <span>{meta.label}</span>}
+                <span style={{ fontSize: 14, position: "relative" }}>
+                  {meta.icon}
+                  {collapsed && badgeCounts[id] > 0 && (
+                    <span style={{
+                      position: "absolute", top: -4, right: -6,
+                      width: 8, height: 8, borderRadius: "50%",
+                      background: C.amber,
+                    }} />
+                  )}
+                </span>
+                {!collapsed && <span style={{ flex: 1 }}>{meta.label}</span>}
+                {!collapsed && badgeCounts[id] > 0 && (
+                  <span style={{
+                    background: C.amber, color: "#fff",
+                    fontSize: 10, fontWeight: 700,
+                    borderRadius: 10, padding: "2px 7px",
+                    minWidth: 18, textAlign: "center", lineHeight: 1.4,
+                  }}>{badgeCounts[id]}</span>
+                )}
               </button>
             );
           })}
