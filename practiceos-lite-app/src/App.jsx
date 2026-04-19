@@ -75,25 +75,34 @@ function Shell() {
   const [collapsed, setCollapsed] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({});
 
-  // Refresh sidebar badges on mount, every 60s, and after any nav change
+// Refresh sidebar badges on mount, every 60s, and after any nav change
   useEffect(() => {
     if (!practiceId) return;
     let cancelled = false;
     const fetchCounts = async () => {
-      const counts = {};
-      const { count } = await supabase
-        .from("insurance_update_requests")
-        .select("id", { count: "exact", head: true })
-        .eq("practice_id", practiceId)
-        .eq("status", "Pending Review");
-      counts.insurance_updates = count || 0;
+      const [insuranceRes, inboxRes] = await Promise.all([
+        supabase
+          .from("insurance_update_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("practice_id", practiceId)
+          .eq("status", "Pending Review"),
+        supabase
+          .from("messages")
+          .select("id", { count: "exact", head: true })
+          .eq("practice_id", practiceId)
+          .eq("direction", "Inbound")
+          .eq("is_read", false),
+      ]);
+      const counts = {
+        insurance_updates: insuranceRes.count || 0,
+        inbox:             inboxRes.count     || 0,
+      };
       if (!cancelled) setBadgeCounts(counts);
     };
     fetchCounts();
     const timer = setInterval(fetchCounts, 60000);
     return () => { cancelled = true; clearInterval(timer); };
   }, [practiceId, activeNav]);
-
   const ActiveView = VIEWS[activeNav] || (() => <EmptyState name={activeNav} />);
   const roleStyle  = ROLE_STYLES[role] || {};
 
