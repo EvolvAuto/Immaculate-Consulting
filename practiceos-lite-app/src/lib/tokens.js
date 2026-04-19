@@ -73,12 +73,12 @@ export const ROLE_STYLES = {
 // Which nav tabs each role can see. Matches the schema's role-based RLS.
 // 'kiosk' and 'compliance' and 'insights' are the new modules.
 export const NAV_BY_ROLE = {
-  "Owner":             ["dashboard","schedule","patients","queue","tasks","clinical","inbox","staff","eligibility","waitlist","insights","compliance","reports","settings"],
-  "Manager":           ["dashboard","schedule","patients","queue","tasks","inbox","staff","eligibility","waitlist","insights","compliance","reports","settings"],
+  "Owner":             ["dashboard","schedule","patients","queue","tasks","clinical","inbox","staff","eligibility","insurance_updates","waitlist","insights","compliance","reports","settings"],
+  "Manager":           ["dashboard","schedule","patients","queue","tasks","inbox","staff","eligibility","insurance_updates","waitlist","insights","compliance","reports","settings"],
   "Provider":          ["dashboard","schedule","patients","clinical","inbox","insights"],
   "Medical Assistant": ["dashboard","schedule","patients","queue","tasks","inbox"],
-  "Front Desk":        ["dashboard","schedule","patients","queue","tasks","waitlist","eligibility"],
-  "Billing":           ["dashboard","eligibility","reports","compliance"],
+  "Front Desk":        ["dashboard","schedule","patients","queue","tasks","waitlist","eligibility","insurance_updates"],
+  "Billing":           ["dashboard","eligibility","insurance_updates","reports","compliance"],
   "Patient":           ["portal"],
 };
 
@@ -91,8 +91,9 @@ export const NAV_META = {
   clinical:    { icon: "🩺", label: "Clinical"    },
   inbox:       { icon: "✉",  label: "Inbox"       },
   staff:       { icon: "👤", label: "Staff"       },
-  eligibility: { icon: "◈",  label: "Eligibility" },
-  waitlist:    { icon: "⌛", label: "Waitlist"    },
+  eligibility:       { icon: "◈",  label: "Eligibility"       },
+  insurance_updates: { icon: "🪪", label: "Insurance Updates" },
+  waitlist:          { icon: "⌛", label: "Waitlist"           },
   insights:    { icon: "📊", label: "IC Insights" },
   compliance:  { icon: "🛡", label: "Compliance"  },
   reports:     { icon: "📈", label: "Reports"     },
