@@ -107,35 +107,92 @@ export default function PortalTrends({ patientId }) {
   );
 }
 
-// ─── tiny inline SVG chart ────────────────────────────────────────────────────
+// ─── inline SVG chart with axes, gridlines, and date labels ─────────────────
 function MiniChart({ rows }) {
-  const W = 640, H = 120, PAD = 12;
+  const W = 700, H = 200;
+  const padL = 52, padR = 16, padT = 16, padB = 34;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+
   const vals = rows.map(r => Number(r.measured_value)).filter(v => !Number.isNaN(v));
   if (vals.length < 2) return null;
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
-  const span = (max - min) || 1;
-  const paddedMin = min - span * 0.15;
-  const paddedMax = max + span * 0.15;
-  const paddedSpan = paddedMax - paddedMin;
 
-  const points = rows.map((r, i) => {
-    const x = PAD + ((W - 2 * PAD) * (i / (rows.length - 1)));
-    const val = Number(r.measured_value);
-    const y = H - PAD - ((val - paddedMin) / paddedSpan) * (H - 2 * PAD);
-    return { x, y, in_goal: r.in_goal, date: r.measured_at, val };
-  });
+  const rawMin = Math.min(...vals);
+  const rawMax = Math.max(...vals);
+  const span = (rawMax - rawMin) || 1;
+  const yMin = rawMin - span * 0.15;
+  const yMax = rawMax + span * 0.15;
+  const ySpan = yMax - yMin;
+
+  const fmt = (v) => {
+    const av = Math.abs(v);
+    if (av >= 100) return v.toFixed(0);
+    return v.toFixed(1);
+  };
+
+  const yTicks = [yMax, (yMin + yMax) / 2, yMin];
+
+  const xFor = (i) => padL + (chartW * (i / (rows.length - 1)));
+  const yFor = (v) => padT + chartH - ((v - yMin) / ySpan) * chartH;
+
+  const points = rows.map((r, i) => ({
+    x: xFor(i),
+    y: yFor(Number(r.measured_value)),
+    in_goal: r.in_goal,
+    date: r.measured_at,
+  }));
 
   const pathD = points.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ");
 
+  const dateAt = (idx) => {
+    const d = new Date(rows[idx].measured_at);
+    return d.toLocaleDateString("en-US", { month:"short", day:"numeric" });
+  };
+  const labelIdx = rows.length >= 5
+    ? [0, Math.floor(rows.length / 2), rows.length - 1]
+    : [0, rows.length - 1];
+
   return (
     <div style={{ width:"100%", overflowX:"auto" }}>
-      <svg viewBox={"0 0 " + W + " " + H} style={{ width:"100%", height:120, display:"block" }}>
-        <path d={pathD} fill="none" stroke={C.teal} strokeWidth="1.5" />
+      <svg viewBox={"0 0 " + W + " " + H} style={{ width:"100%", height:200, display:"block" }}>
+        {/* Y-axis gridlines + value labels */}
+        {yTicks.map((t, i) => (
+          <g key={"y" + i}>
+            <line x1={padL} x2={padL + chartW}
+                  y1={yFor(t)} y2={yFor(t)}
+                  stroke={C.borderLight} strokeWidth="0.5"
+                  strokeDasharray={i === 1 ? "2,3" : "0"} />
+            <text x={padL - 8} y={yFor(t) + 3.5}
+                  textAnchor="end" fontSize="10"
+                  fill={C.textTertiary} fontFamily="inherit">
+              {fmt(t)}
+            </text>
+          </g>
+        ))}
+
+        {/* X-axis baseline */}
+        <line x1={padL} x2={padL + chartW}
+              y1={padT + chartH} y2={padT + chartH}
+              stroke={C.borderMid} strokeWidth="0.5" />
+
+        {/* X-axis date labels */}
+        {labelIdx.map((i, k) => (
+          <text key={"x" + k} x={xFor(i)} y={H - 10}
+                textAnchor="middle" fontSize="10"
+                fill={C.textTertiary} fontFamily="inherit">
+            {dateAt(i)}
+          </text>
+        ))}
+
+        {/* Data line */}
+        <path d={pathD} fill="none" stroke={C.teal} strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Data points */}
         {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="3"
+          <circle key={"pt" + i} cx={p.x} cy={p.y} r="4"
                   fill={p.in_goal ? C.teal : C.amber}
-                  stroke="#fff" strokeWidth="1" />
+                  stroke="#fff" strokeWidth="1.5" />
         ))}
       </svg>
     </div>
