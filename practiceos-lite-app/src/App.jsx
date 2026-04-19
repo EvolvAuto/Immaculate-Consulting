@@ -8,6 +8,8 @@ import { useState } from "react";
 import { useAuth } from "./auth/AuthProvider";
 import ProtectedRoute from "./auth/ProtectedRoute";
 import { C, NAV_BY_ROLE, NAV_META, ROLE_STYLES } from "./lib/tokens";
+import ActivatePortal from "./auth/ActivatePortal";
+import PortalShell    from "./views/PortalShell";
 
 // Views -----------------------------------------------------------------------
 // Stub placeholders. Each is a standalone file under src/views/ and gets
@@ -47,6 +49,11 @@ const VIEWS = {
 };
 
 export default function App() {
+  // Public activation route - runs BEFORE auth check so patients without a
+  // session can land on /activate?token=... directly from the invite email.
+  if (typeof window !== "undefined" && window.location.pathname === "/activate") {
+    return <ActivatePortal />;
+  }
   return (
     <ProtectedRoute>
       <Shell />
@@ -56,6 +63,10 @@ export default function App() {
 
 function Shell() {
   const { profile, role, signOut } = useAuth();
+
+  // Patient role gets its own shell - skip the staff sidebar entirely
+  if (role === "Patient") return <PortalShell />;
+
   const navItems = NAV_BY_ROLE[role] || [];
   const [activeNav, setActiveNav] = useState(navItems[0] || "dashboard");
   const [collapsed, setCollapsed] = useState(false);
