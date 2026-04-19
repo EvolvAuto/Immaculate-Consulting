@@ -27,25 +27,27 @@ import SettingsView    from "./views/SettingsView";
 import EligibilityView from "./views/EligibilityView";
 import WaitlistView    from "./views/WaitlistView";
 import InsightsView    from "./views/InsightsView";
-import ComplianceView  from "./views/ComplianceView";
-import PortalView      from "./views/PortalView";
+import ComplianceView       from "./views/ComplianceView";
+import InsuranceUpdatesView from "./views/InsuranceUpdatesView";
+import PortalView           from "./views/PortalView";
 
 const VIEWS = {
-  dashboard:   DashboardView,
-  schedule:    ScheduleView,
-  patients:    PatientsView,
-  queue:       QueueView,
-  tasks:       TasksView,
-  clinical:    ClinicalView,
-  inbox:       InboxView,
-  staff:       StaffView,
-  reports:     ReportsView,
-  settings:    SettingsView,
-  eligibility: EligibilityView,
-  waitlist:    WaitlistView,
-  insights:    InsightsView,
-  compliance:  ComplianceView,
-  portal:      PortalView,
+  dashboard:         DashboardView,
+  schedule:          ScheduleView,
+  patients:          PatientsView,
+  queue:             QueueView,
+  tasks:             TasksView,
+  clinical:          ClinicalView,
+  inbox:             InboxView,
+  staff:             StaffView,
+  reports:           ReportsView,
+  settings:          SettingsView,
+  eligibility:       EligibilityView,
+  waitlist:          WaitlistView,
+  insights:          InsightsView,
+  compliance:        ComplianceView,
+  insurance_updates: InsuranceUpdatesView,
+  portal:            PortalView,
 };
 
 export default function App() {
