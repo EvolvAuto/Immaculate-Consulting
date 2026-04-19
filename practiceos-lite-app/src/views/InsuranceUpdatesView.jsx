@@ -332,7 +332,7 @@ function ActionModal({ action, currentPolicy, reviewerId, onClose, onDone }) {
   const [err, setErr]       = useState(null);
 
   const apply = async () => {
-    setSaving(true); setErr(null);
+   setSaving(true); setErr(null);
     try {
       // Split "First Last" name into first + last for insurance_policies schema
       const subName = (req.subscriber_name || "").trim();
@@ -348,9 +348,9 @@ function ActionModal({ action, currentPolicy, reviewerId, onClose, onDone }) {
         patient_id:            req.patient_id,
         rank:                  req.rank,
         payer_name:            req.payer_name || "Unknown",
-        // payer_category is an enum and required. Keep existing category if updating,
-        // otherwise default to "Commercial"; staff can correct it on the patient chart.
-        payer_category:        (currentPolicy && currentPolicy.payer_category) || "Commercial",
+        payer_category:        inferPayerCategory(req.payer_name) ||
+                               (currentPolicy && currentPolicy.payer_category) ||
+                               "Commercial",
         member_id:             req.member_id || "Unknown",
         group_number:          req.group_number || null,
         plan_name:             req.plan_name || null,
@@ -578,4 +578,45 @@ function CardThumb({ path, label }) {
       )}
     </>
   );
+}
+// ─── Payer category auto-detection ────────────────────────────────────────
+// Maps payer names from the NC_PAYER_OPTIONS list (and common variants) to
+// the payer_category enum. Returns null when uncertain, which falls back to
+// existing policy category or defaults to Commercial.
+function inferPayerCategory(payerName) {
+  if (!payerName) return null;
+  const n = payerName.toLowerCase();
+
+  // Tailored Plans (behavioral health + I/DD)
+  const tailored = ["alliance health", "trillium health", "vaya health", "partners health management"];
+  if (tailored.some(t => n.includes(t))) return "NC Medicaid - Tailored";
+
+  // Standard Medicaid MCOs
+  const standard = ["amerihealth caritas", "carolina complete health", "healthy blue",
+                    "unitedhealthcare community plan", "wellcare of nc", "nc medicaid direct"];
+  if (standard.some(t => n.includes(t))) return "NC Medicaid - Standard";
+
+  // Generic Medicaid catch-all
+  if (n.includes("medicaid")) return "NC Medicaid - Other";
+
+  // Medicare (traditional + advantage)
+  if (n.includes("medicare")) return "Medicare";
+
+  // Military / VA - closest enum match is Other
+  if (n.includes("tricare") || n.includes("military") || n.includes("veterans") || n.includes("va")) {
+    return "Other";
+  }
+
+  // Self-pay
+  if (n.includes("self-pay") || n.includes("no insurance") || n.includes("self pay")) {
+    return "Other";
+  }
+
+  // Commercial plans
+  const commercial = ["blue cross blue shield", "bcbs", "aetna", "cigna", "unitedhealthcare",
+                      "humana", "ambetter", "molina", "nc state health plan"];
+  if (commercial.some(t => n.includes(t))) return "Commercial";
+
+  // Unknown - let caller decide fallback
+  return null;
 }
