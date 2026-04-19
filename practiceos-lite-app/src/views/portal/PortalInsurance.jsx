@@ -46,7 +46,7 @@ export default function PortalInsurance({ patientId, practiceId }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [toast, setToast]       = useState(null);
-  const [editing, setEditing]   = useState(false);
+  const [editingRank, setEditingRank] = useState(null); // null | 1 | 2
   const [form, setForm] = useState({
     payer_name: "", member_id: "", group_number: "", plan_name: "",
     subscriber_name: "", subscriber_dob: "", relationship: "Self", notes: "",
@@ -59,7 +59,7 @@ export default function PortalInsurance({ patientId, practiceId }) {
         .eq("patient_id", patientId)
         .order("rank", { ascending: true }),
       supabase.from("insurance_update_requests")
-        .select("id, payer_name, member_id, status, review_note, created_at, reviewed_at")
+        .select("id, rank, payer_name, member_id, status, review_note, created_at, reviewed_at")
         .eq("patient_id", patientId)
         .order("created_at", { ascending:false }).limit(10),
     ]);
@@ -74,23 +74,22 @@ export default function PortalInsurance({ patientId, practiceId }) {
     return () => { active = false; };
   }, [patientId]);
 
-  const openEdit = () => {
-    const primary = policies.find(p => p.rank === 1) || {};
-    const subName = [(primary.subscriber_first_name || ""), (primary.subscriber_last_name || "")]
+ const openEdit = (rank) => {
+    const current = policies.find(p => p.rank === rank) || {};
+    const subName = [(current.subscriber_first_name || ""), (current.subscriber_last_name || "")]
       .filter(Boolean).join(" ");
     setForm({
-      payer_name:     primary.payer_name || "",
-      member_id:      primary.member_id || "",
-      group_number:   primary.group_number || "",
-      plan_name:      primary.plan_name || "",
+      payer_name:     current.payer_name || "",
+      member_id:      current.member_id || "",
+      group_number:   current.group_number || "",
+      plan_name:      current.plan_name || "",
       subscriber_name: subName,
       subscriber_dob: "",
-      relationship:   primary.subscriber_relation || "Self",
+      relationship:   current.subscriber_relation || "Self",
       notes: "",
     });
-    setEditing(true);
+    setEditingRank(rank);
   };
-
   const submit = async () => {
     if (!form.payer_name || !form.member_id) {
       setToast("Please provide at least payer and member ID.");
@@ -101,6 +100,7 @@ export default function PortalInsurance({ patientId, practiceId }) {
       const { error } = await supabase.from("insurance_update_requests").insert({
         practice_id:     practiceId,
         patient_id:      patientId,
+        rank:            editingRank,
         payer_name:      form.payer_name,
         member_id:       form.member_id,
         group_number:    form.group_number || null,
@@ -115,10 +115,10 @@ export default function PortalInsurance({ patientId, practiceId }) {
 
       logAudit({
         action:"Create", entityType:"insurance_update_request",
-        entityId:null, details:{ payer: form.payer_name },
+        entityId:null, details:{ payer: form.payer_name, rank: editingRank },
       }).catch(()=>{});
 
-      setEditing(false);
+      setEditingRank(null);
       setToast("Insurance update submitted. Staff will review and verify eligibility within 1-2 business days.");
       setTimeout(()=>setToast(null), 5000);
       await load();
@@ -129,8 +129,76 @@ export default function PortalInsurance({ patientId, practiceId }) {
   };
 
   if (loading) return <Empty title="Loading insurance info..." />;
+
   const primary   = policies.find(p => p.rank === 1);
-  const secondary = policies.filter(p => p.rank !== 1);
+  const secondary = policies.find(p => p.rank === 2);
+
+  // Map pending requests by rank so we can show a "pending review" state per card
+  const pendingByRank = {};
+  requests.filter(r => r.status === "Pending Review").forEach(r => {
+    if (!pendingByRank[r.rank]) pendingByRank[r.rank] = r;
+  });
+
+  const isEditing = editingRank !== null;
+  const rankLabel = (r) => r === 1 ? "Primary" : r === 2 ? "Secondary" : "Rank " + r;
+  const editPolicy = editingRank != null ? policies.find(p => p.rank === editingRank) : null;
+  const editTitle = editingRank == null ? ""
+    : (editPolicy ? "Update " + rankLabel(editingRank) + " Insurance"
+                  : "Add " + rankLabel(editingRank) + " Insurance");
+
+  const renderPolicyCard = (rank, policy, label) => {
+    const pending = pendingByRank[rank];
+    const accent = policy ? C.tealMid : (rank === 1 ? C.amberMid : C.borderMid);
+    const emptyMsg = rank === 1
+      ? "No primary insurance on file."
+      : "No secondary insurance on file. Add one if you have a second plan (for example, through a spouse or Medicare).";
+    return (
+      <Panel accent={accent}>
+        <SectionHead
+          title={label}
+          right={!isEditing && !pending && (
+            <Btn onClick={() => openEdit(rank)}>{policy ? "Update" : "Add " + label}</Btn>
+          )}
+        />
+        {pending && (
+          <div style={{
+            fontSize:11, color:C.amber, fontWeight:600, marginBottom:8,
+            background:C.amberBg, border:"0.5px solid " + C.amberBorder,
+            padding:"6px 10px", borderRadius:5,
+          }}>
+            Update pending review - submitted {fmtDate(pending.created_at)}
+          </div>
+        )}
+        {!policy && !pending && (
+          <div style={{ fontSize:12, color:C.textSecondary }}>{emptyMsg}</div>
+        )}
+        {policy && (
+          <div>
+            <div style={{ fontSize:15, fontWeight:600, color:C.textPrimary, marginBottom:4 }}>
+              {policy.payer_name}
+            </div>
+            <div style={{ fontSize:11, color:C.textSecondary, fontFamily:"'DM Mono', monospace" }}>
+              Member ID: {policy.member_id}
+              {policy.group_number ? " - Group: " + policy.group_number : ""}
+            </div>
+            {policy.plan_name && (
+              <div style={{ fontSize:11, color:C.textSecondary, marginTop:3 }}>{policy.plan_name}</div>
+            )}
+            <div style={{ marginTop:8, display:"flex", gap:6, flexWrap:"wrap" }}>
+              <Badge label={policy.is_active ? "Active" : "Inactive"}
+                     variant={policy.is_active ? "teal" : "red"} />
+              {policy.effective_date && (
+                <Badge label={"Effective " + fmtDate(policy.effective_date)} variant="neutral" />
+              )}
+              {policy.termination_date && (
+                <Badge label={"Ends " + fmtDate(policy.termination_date)} variant="amber" />
+              )}
+            </div>
+          </div>
+        )}
+      </Panel>
+    );
+  };
 
   return (
     <div>
@@ -141,55 +209,12 @@ export default function PortalInsurance({ patientId, practiceId }) {
         before the information is applied to your chart.
       </InfoBox>
 
-      <Panel accent={primary ? C.tealMid : C.amberMid}>
-        <SectionHead
-          title="Primary Insurance"
-          right={!editing && <Btn onClick={openEdit}>{primary ? "Update" : "Add Insurance"}</Btn>}
-        />
-        {!primary && (
-          <div style={{ fontSize:12, color:C.textSecondary }}>No primary insurance on file.</div>
-        )}
-        {primary && (
-          <div>
-            <div style={{ fontSize:15, fontWeight:600, color:C.textPrimary, marginBottom:4 }}>
-              {primary.payer_name}
-            </div>
-            <div style={{ fontSize:11, color:C.textSecondary, fontFamily:"'DM Mono', monospace" }}>
-              Member ID: {primary.member_id}
-              {primary.group_number ? " - Group: " + primary.group_number : ""}
-            </div>
-            {primary.plan_name && (
-              <div style={{ fontSize:11, color:C.textSecondary, marginTop:3 }}>{primary.plan_name}</div>
-            )}
-            <div style={{ marginTop:8, display:"flex", gap:6, flexWrap:"wrap" }}>
-              <Badge label={primary.is_active ? "Active" : "Inactive"}
-                     variant={primary.is_active ? "teal" : "red"} />
-              {primary.effective_date && (
-                <Badge label={"Effective " + fmtDate(primary.effective_date)} variant="neutral" />
-              )}
-              {primary.termination_date && (
-                <Badge label={"Ends " + fmtDate(primary.termination_date)} variant="amber" />
-              )}
-            </div>
-          </div>
-        )}
-      </Panel>
+      {renderPolicyCard(1, primary,   "Primary Insurance")}
+      {renderPolicyCard(2, secondary, "Secondary Insurance")}
 
-      {secondary.map(p => (
-        <Panel key={p.id}>
-          <div style={{ fontSize:11, textTransform:"uppercase", color:C.textTertiary, fontWeight:600, marginBottom:4 }}>
-            {p.rank === 2 ? "Secondary" : "Rank " + p.rank}
-          </div>
-          <div style={{ fontSize:13, fontWeight:600 }}>{p.payer_name}</div>
-          <div style={{ fontSize:11, color:C.textSecondary, fontFamily:"'DM Mono', monospace", marginTop:2 }}>
-            Member ID: {p.member_id}
-          </div>
-        </Panel>
-      ))}
-
-      {editing && (
+      {isEditing && (
         <Panel accent={C.tealMid}>
-          <SectionHead title="Update Insurance Information" />
+          <SectionHead title={editTitle} />
           <Field label="Insurance Payer">
             <Select value={form.payer_name}
                     onChange={(v)=>setForm({...form, payer_name:v})}
@@ -226,7 +251,7 @@ export default function PortalInsurance({ patientId, practiceId }) {
           </Field>
           <div style={{ display:"flex", gap:8 }}>
             <Btn onClick={submit}>Submit for Review</Btn>
-            <Btn variant="secondary" onClick={() => setEditing(false)}>Cancel</Btn>
+            <Btn variant="secondary" onClick={() => setEditingRank(null)}>Cancel</Btn>
           </div>
         </Panel>
       )}
@@ -240,7 +265,10 @@ export default function PortalInsurance({ patientId, practiceId }) {
           {requests.map(r => (
             <Panel key={r.id} style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
               <div>
-                <div style={{ fontSize:12, fontWeight:600, color:C.textPrimary }}>{r.payer_name}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:2, flexWrap:"wrap" }}>
+                  <Badge label={rankLabel(r.rank)} variant={r.rank === 1 ? "teal" : "purple"} />
+                  <div style={{ fontSize:12, fontWeight:600, color:C.textPrimary }}>{r.payer_name}</div>
+                </div>
                 <div style={{ fontSize:11, color:C.textTertiary, marginTop:2 }}>
                   Member: {r.member_id} - Submitted {fmtDate(r.created_at)}
                 </div>
