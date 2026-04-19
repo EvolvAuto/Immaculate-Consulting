@@ -20,6 +20,8 @@ import PortalForms         from "./portal/PortalForms.jsx";
 import PortalInsurance     from "./portal/PortalInsurance.jsx";
 import PortalBilling       from "./portal/PortalBilling.jsx";
 import PortalDocuments     from "./portal/PortalDocuments.jsx";
+import PatientProxyManager from "./portal/PatientProxyManager.jsx";
+import AccountSwitcher     from "./portal/AccountSwitcher.jsx";
 
 const C = {
   teal:"#0F6E56", tealMid:"#1D9E75", tealBg:"#E1F5EE", tealBorder:"#9FE1CB", tealDark:"#085041",
@@ -42,6 +44,7 @@ const PORTAL_NAV = [
   { id:"insurance",    label:"Insurance"       },
   { id:"billing",      label:"Billing"         },
   { id:"documents",    label:"Documents"       },
+  { id:"access",       label:"Family Access"   },
 ];
 
 export default function PortalShell() {
@@ -51,6 +54,23 @@ export default function PortalShell() {
   const [practice, setPractice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [badges, setBadges] = useState({ messages:0, forms:0 });
+  const [homePatientId, setHomePatientId] = useState(patientId);
+
+  // Read home_patient_id from the JWT claims so we know where "switch back"
+  // should go. Set by switch-active-patient after the first proxy switch.
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const parts = session.access_token.split(".");
+        if (parts.length !== 3) return;
+        const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+        const home = payload?.app_metadata?.home_patient_id;
+        if (home) setHomePatientId(home);
+      } catch (_e) { /* fall through - default stays patientId */ }
+    })();
+  }, [patientId]);
 
   useEffect(() => {
     let active = true;
@@ -128,7 +148,7 @@ export default function PortalShell() {
   }
 
   const props = { patient, practice, patientId, practiceId, refreshBadges, goTab: setTab };
-  const TabView = {
+ const TabView = {
     dashboard:    PortalDashboard,
     appointments: PortalAppointments,
     messages:     PortalMessages,
@@ -140,6 +160,7 @@ export default function PortalShell() {
     insurance:    PortalInsurance,
     billing:      PortalBilling,
     documents:    PortalDocuments,
+    access:       PatientProxyManager,
   }[tab] || PortalDashboard;
 
   const initials = ((patient.first_name || "")[0] || "") + ((patient.last_name || "")[0] || "");
@@ -209,6 +230,10 @@ export default function PortalShell() {
               </div>
             );
           })}
+        </div>
+
+        <div style={{ padding:"8px 10px 0" }}>
+          <AccountSwitcher activePatientId={patientId} homePatientId={homePatientId} />
         </div>
 
         <div style={{
