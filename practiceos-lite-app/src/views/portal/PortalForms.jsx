@@ -8,6 +8,7 @@
 
 import ConsentSection from "./ConsentSection";
 import MedicationsSection from "./MedicationsSection";
+import PediatricIntakeSection from "./PediatricIntakeSection";
 import { useState, useEffect, useMemo } from "react";
 import { supabase, logAudit } from "../../lib/supabaseClient";
 import {
@@ -305,7 +306,19 @@ export default function PortalForms({ patient, patientId, practiceId, refreshBad
                 />
               </div>
             )}
-            {isOpen && key !== "consent" && key !== "medications" && (
+            {isOpen && key === "pediatrics" && (
+              <div style={{ marginTop:12, borderTop:"0.5px solid " + C.borderLight, paddingTop:12 }}>
+                <PediatricIntakeSection
+                  patientId={patientId}
+                  practiceId={practiceId}
+                  appointmentId={appt && appt.id}
+                  patient={patient}
+                  onComplete={() => markSectionCompleteAndClose("pediatrics")}
+                  onClose={() => setOpenSection(null)}
+                />
+              </div>
+            )}
+            {isOpen && key !== "consent" && key !== "medications" && key !== "pediatrics" && (
               <div style={{
                 marginTop:12, borderTop:"0.5px solid " + C.borderLight, paddingTop:12,
               }}>
@@ -457,20 +470,6 @@ function SectionForm({ sectionKey, draft, setDraft }) {
     );
   }
 
-  if (sectionKey === "pediatrics") {
-    return (
-      <>
-        <Field label="School / Grade Level"><Input value={draft.school || ""} onChange={v => set("school", v)} /></Field>
-        <Field label="Immunizations up to date?">
-          <Select value={draft.imm || ""} onChange={v => set("imm", v)}
-                  options={["", "Yes", "No", "Unsure"]} />
-        </Field>
-        <Field label="Developmental concerns">
-          <TextArea value={draft.dev || ""} onChange={v => set("dev", v)} rows={3} />
-        </Field>
-      </>
-    );
-  }
 
   return <div style={{ fontSize:12, color:C.textTertiary }}>No fields defined for this section.</div>;
 }
