@@ -9,13 +9,14 @@ import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
 import { toISODate, slotToTime, APPT_STATUS_VARIANT, QUEUE_STATUS_VARIANT, TASK_PRIORITY_VARIANT, initialsOf } from "../components/constants";
 import { Badge, Btn, Card, TopBar, StatCard, SectionHead, Avatar, ApptTypeDot, Loader, ErrorBanner, EmptyState } from "../components/ui";
+import ProChartPrepCard from "../components/pro/ProChartPrepCard";
 
 // Roles that get the Inbox widget on the Dashboard.
 // Hard-coded rather than derived from NAV_BY_ROLE so this is import-safe.
 const INBOX_ROLES = ["Owner", "Manager", "Provider", "Medical Assistant", "Front Desk"];
 
 export default function DashboardView({ onNav }) {
-  const { practiceId, profile, role } = useAuth();
+  const { practiceId, profile, role, tier } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({ appts: [], queue: [], tasks: [], insights: null });
@@ -108,6 +109,8 @@ export default function DashboardView({ onNav }) {
         <StatCard label="Open Tasks" value={data.tasks.length} sub={`${urgentTasks} urgent / high`} color={urgentTasks > 0 ? C.amber : C.textSecondary} icon="✓" />
         <StatCard label="Copay Collection" value={`$${copayCollected.toFixed(0)} / $${copayExpected.toFixed(0)}`} sub={copayExpected > 0 ? `${Math.round((copayCollected / copayExpected) * 100)}% collected` : "No expected copays"} color={C.green} icon="$" />
       </div>
+
+      <ProChartPrepCard practiceId={practiceId} tier={tier} onNav={onNav} />
 
       {data.insights && (
         <Card style={{ borderLeft: `3px solid ${C.teal}` }}>
