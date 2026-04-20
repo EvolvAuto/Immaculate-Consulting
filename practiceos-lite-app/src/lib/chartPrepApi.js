@@ -2,7 +2,11 @@
 //
 // Destination in the deployed repo: src/lib/chartPrepApi.js
 //
-// Depends on src/lib/supabaseClient.js (same as the other Pro modules).
+// This REPLACES the earlier version uploaded for Phase 2. New exports:
+//   - nextBusinessDayForPractice(practiceId)
+//   - chartPrepSummaryForDate(practiceId, apptDate)
+//
+// Everything else is unchanged from the Phase 2 upload.
 
 import { supabase } from "./supabaseClient";
 
@@ -21,7 +25,7 @@ async function invoke(name, body) {
         if (txt) msg = msg + " | " + txt.slice(0, 500);
       }
     } catch (_e) {
-      // best effort - keep the original message
+      // best effort
     }
     throw new Error(msg);
   }
@@ -32,9 +36,6 @@ async function invoke(name, body) {
 // Chart prep notes
 // ----------------------------------------------------------------------------
 
-// Returns an array of note rows for the given practice and date, each with
-// embedded patient, provider, and appointment metadata so the list view does
-// not need a second round trip. Rows are sorted by appointment start_slot.
 export async function listChartPrepNotesForDate(practiceId, apptDate) {
   const { data, error } = await supabase
     .from("pro_chart_prep_notes")
@@ -76,8 +77,6 @@ export async function listChartPrepNotesForDate(practiceId, apptDate) {
     .order("appt_date", { ascending: true });
   if (error) throw new Error(error.message);
 
-  // Sort by start_slot client side since Postgrest cannot order on a related
-  // column reliably with all versions.
   const sorted = (data || []).slice().sort((a, b) => {
     const sa = (a.appointments && a.appointments.start_slot) || 0;
     const sb = (b.appointments && b.appointments.start_slot) || 0;
@@ -86,7 +85,6 @@ export async function listChartPrepNotesForDate(practiceId, apptDate) {
   return sorted;
 }
 
-// Single-note fetch (used by modal refresh after regenerate).
 export async function fetchChartPrepNote(noteId) {
   const { data, error } = await supabase
     .from("pro_chart_prep_notes")
@@ -124,8 +122,6 @@ export async function fetchChartPrepNote(noteId) {
   return data;
 }
 
-// Mark a note Reviewed. Optional providerNote adds the provider's own
-// pre-visit comment.
 export async function markChartPrepReviewed(noteId, providerNote) {
   const patch = {
     status: "Reviewed",
@@ -142,15 +138,47 @@ export async function markChartPrepReviewed(noteId, providerNote) {
   return data;
 }
 
-// Dispatch a regeneration for one appointment. The edge function validates
-// that the caller is staff at the owning practice. Refresh the note row
-// after 10-15 seconds to pick up the regenerated content.
 export async function regenerateChartPrep(appointmentId) {
   return invoke("pro-chart-prep-regenerate", { appointment_id: appointmentId });
 }
 
 // ----------------------------------------------------------------------------
-// System alerts (the banner)
+// Business-day resolution (respects practice_hours + holidays + preferences)
+// ----------------------------------------------------------------------------
+
+// Returns a YYYY-MM-DD string representing the next business day for the
+// practice. If the RPC errors for any reason, falls back to a plain client-side
+// "next weekday" calculation so the caller always gets a date.
+export async function nextBusinessDayForPractice(practiceId) {
+  try {
+    const { data, error } = await supabase.rpc("next_business_day_for_practice", {
+      p_practice_id: practiceId,
+    });
+    if (error) throw error;
+    if (data) return data;
+  } catch (_e) {
+    // fall through to client-side fallback
+  }
+  return nextWeekdayClient();
+}
+
+function nextWeekdayClient() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Convenience combo for the Dashboard widget - resolves next business day,
+// fetches the notes, and returns { apptDate, notes } in one call.
+export async function chartPrepSummaryForNextBusinessDay(practiceId) {
+  const apptDate = await nextBusinessDayForPractice(practiceId);
+  const notes = await listChartPrepNotesForDate(practiceId, apptDate);
+  return { apptDate, notes };
+}
+
+// ----------------------------------------------------------------------------
+// System alerts
 // ----------------------------------------------------------------------------
 
 export async function listOpenSystemAlerts(practiceId) {
@@ -182,7 +210,6 @@ export async function acknowledgeSystemAlert(alertId) {
 // Helpers for the view
 // ----------------------------------------------------------------------------
 
-// start_slot is 15-minute blocks from midnight. 32 = 8:00, 36 = 9:00, etc.
 export function formatSlotTime(slot) {
   if (slot === null || slot === undefined) return "";
   const totalMinutes = Number(slot) * 15;
@@ -217,7 +244,6 @@ export function providerDisplayName(provider) {
   return last ? ("Dr. " + last) : null;
 }
 
-// Returns { high, medium, low } counts for easy badge display.
 export function flagCounts(flags) {
   const counts = { high: 0, medium: 0, low: 0 };
   if (!Array.isArray(flags)) return counts;
