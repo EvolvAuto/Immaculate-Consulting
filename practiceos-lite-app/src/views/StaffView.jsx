@@ -9,6 +9,7 @@ import { C } from "../lib/tokens";
 import { listRows, insertRow, updateRow } from "../lib/db";
 import { initialsOf, ROLE_META } from "../components/constants";
 import { Badge, Btn, Card, Modal, Input, Select, Avatar, TopBar, TabBar, Toggle, FL, Loader, ErrorBanner, EmptyState } from "../components/ui";
+import AddStaffModal from "./AddStaffModal";
 
 const ROLES = ["Owner", "Manager", "Provider", "Medical Assistant", "Front Desk", "Billing"];
 const COLOR_PRESETS = ["#3B82F6", "#1D9E75", "#10B981", "#8B5CF6", "#D08A2E", "#F59E0B", "#EF4444", "#EC4899", "#06B6D4", "#84CC16"];
@@ -22,6 +23,7 @@ export default function StaffView() {
   const [providers, setProviders] = useState([]);
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(null);
+  const [addingUser, setAddingUser] = useState(false);
 
   const load = async () => {
     try {
@@ -70,6 +72,7 @@ export default function StaffView() {
       <TopBar title="Staff" sub={`${users.length} users · ${providers.length} providers`}
         actions={<>
           <TabBar tabs={[["users", `Users (${users.length})`], ["providers", `Providers (${providers.length})`]]} active={tab} onChange={setTab} />
+          {tab === "users" && <Btn size="sm" onClick={() => setAddingUser(true)}>+ Add Staff Member</Btn>}
           {tab === "providers" && <Btn size="sm" onClick={() => setAdding({ first_name: "", last_name: "", credential: "MD", color: COLOR_PRESETS[Math.floor(Math.random() * COLOR_PRESETS.length)], default_duration: 30, is_active: true })}>+ Add Provider</Btn>}
         </>} />
 
@@ -122,6 +125,7 @@ export default function StaffView() {
       {editing && editing.__type === "user" && <UserForm user={editing} providers={providers} onClose={() => setEditing(null)} onSave={saveUser} />}
       {editing && editing.__type === "provider" && <ProviderForm provider={editing} users={users} onClose={() => setEditing(null)} onSave={saveProvider} />}
       {adding && <ProviderForm provider={adding} users={users} onClose={() => setAdding(null)} onSave={saveProvider} />}
+      {addingUser && <AddStaffModal practiceId={practiceId} onClose={() => setAddingUser(false)} onCreated={() => { setAddingUser(false); load(); }} />}
     </div>
   );
 }
