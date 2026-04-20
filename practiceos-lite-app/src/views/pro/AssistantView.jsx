@@ -26,15 +26,15 @@ const SUGGESTED_PROMPTS = [
   "Show pending refill requests",
 ];
 
-export default function AssistantView() {
+export default function AssistantView({ onNav }) {
   return (
     <ProGate feature="AI Practice Assistant">
-      <AssistantInner />
+      <AssistantInner onNav={onNav} />
     </ProGate>
   );
 }
 
-function AssistantInner() {
+function AssistantInner({ onNav }) {
   const { practiceId } = useAuth();
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -108,6 +108,7 @@ function AssistantInner() {
               data={active}
               onSendFollowup={handleSend}
               onOutreachGenerated={async () => { await loadActive(activeId); setUsageKey((k) => k + 1); }}
+              onNav={onNav}
               loading={loading}
             />
           )}
@@ -277,7 +278,7 @@ function NewConvoPlaceholder({ onSuggestion, disabled }) {
 }
 
 // ─── Conversation pane ─────────────────────────────────────────────────────
-function ConversationPane({ data, onSendFollowup, onOutreachGenerated, loading }) {
+function ConversationPane({ data, onSendFollowup, onOutreachGenerated, onNav, loading }) {
   const [text, setText] = useState("");
   const scrollRef = useRef(null);
 
@@ -295,7 +296,7 @@ function ConversationPane({ data, onSendFollowup, onOutreachGenerated, loading }
           <div style={{ fontSize: 11, color: C.textTertiary, textAlign: "center", marginBottom: 20 }}>
             {conversation.title}
           </div>
-          {messages.map((m) => <MessageBubble key={m.id} msg={m} onOutreachGenerated={onOutreachGenerated} />)}
+          {messages.map((m) => <MessageBubble key={m.id} msg={m} onOutreachGenerated={onOutreachGenerated} onNav={onNav} />)}
           {loading && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.textTertiary, fontSize: 12, padding: 12 }}>
               <Loader small /> Thinking...
@@ -348,7 +349,7 @@ function Composer({ value, onChange, onSubmit, disabled, placeholder }) {
 }
 
 // ─── Single message bubble ─────────────────────────────────────────────────
-function MessageBubble({ msg, onOutreachGenerated }) {
+function MessageBubble({ msg, onOutreachGenerated, onNav }) {
   if (msg.role === "user") {
     return (
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
@@ -402,6 +403,7 @@ function MessageBubble({ msg, onOutreachGenerated }) {
                 assistantMessageId={msg.id}
                 patientCount={results.filter((r) => r.patient_id).length}
                 onGenerated={onOutreachGenerated}
+                onNav={onNav}
               />
             )}
           </div>
@@ -507,7 +509,7 @@ function columnsForIntent(intent, sample) {
 }
 
 // ─── Draft outreach action ─────────────────────────────────────────────────
-function DraftOutreachAction({ assistantMessageId, patientCount, onGenerated }) {
+function DraftOutreachAction({ assistantMessageId, patientCount, onGenerated, onNav }) {
   const [open, setOpen] = useState(false);
   const [tone, setTone] = useState("warm");
   const [channel, setChannel] = useState("SMS");
@@ -575,7 +577,7 @@ function DraftOutreachAction({ assistantMessageId, patientCount, onGenerated }) 
               </Card>
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
                 <Btn variant="secondary" onClick={() => { setOpen(false); setResult(null); }}>Close</Btn>
-                <Btn onClick={() => { window.location.hash = "#/pro/outreach/" + result.batchId; setOpen(false); }}>
+                <Btn onClick={() => { if (typeof onNav === "function") onNav("pro_outreach"); setOpen(false); setResult(null); }}>
                   Review and send
                 </Btn>
               </div>
