@@ -48,7 +48,7 @@ function calcAge(dob) {
   return age;
 }
 
-export default function PortalForms({ patient, patientId, practiceId, refreshBadges }) {
+export default function PortalForms({ patient, patientId, practiceId, refreshBadges, goTab }) {
   const [appt, setAppt]       = useState(null);
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +56,8 @@ export default function PortalForms({ patient, patientId, practiceId, refreshBad
   const [draft, setDraft]     = useState({});
   const [saving, setSaving]   = useState(false);
   const [toast, setToast]     = useState(null);
+  const [assignments, setAssignments]     = useState([]);
+  const [openAssignment, setOpenAssignment] = useState(null);
 
   const age = useMemo(() => calcAge(patient && patient.date_of_birth), [patient]);
 
@@ -78,9 +80,16 @@ export default function PortalForms({ patient, patientId, practiceId, refreshBad
           sub = subs;
         }
 
+       const { data: assignData } = await supabase.from("form_assignments")
+          .select("id, form_type, form_label, instructions, due_date, status, assigned_at")
+          .eq("patient_id", patientId)
+          .in("status", ["Assigned", "In Progress"])
+          .order("due_date", { ascending: true, nullsFirst: false });
+
         if (!active) return;
         setAppt(next || null);
         setSubmission(sub);
+        setAssignments(assignData || []);
         logAudit({ action:"Read", entityType:"portal_form_submissions", entityId:patientId }).catch(()=>{});
       } catch (e) {
         console.warn("[forms] load failed:", e?.message || e);
@@ -229,17 +238,50 @@ export default function PortalForms({ patient, patientId, practiceId, refreshBad
     }
   };
 
+const markAssignmentComplete = async (assignmentId) => {
+    try {
+      const { error } = await supabase.from("form_assignments")
+        .update({ status: "Completed", completed_at: new Date().toISOString() })
+        .eq("id", assignmentId);
+      if (error) throw error;
+      setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+      setOpenAssignment(null);
+      setToast("Assignment completed.");
+      setTimeout(() => setToast(null), 3000);
+      if (refreshBadges) refreshBadges();
+    } catch (e) {
+      setToast("Could not mark complete: " + (e.message || e));
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
   if (loading) return <Empty title="Loading your forms..." />;
-  if (!appt) return <Empty title="No upcoming appointment"
-                           subtitle="Forms become available when you have an upcoming visit scheduled." />;
+  if (!appt && assignments.length === 0) {
+    return <Empty title="No forms waiting"
+                  subtitle="Forms become available when you have an upcoming visit or when your practice assigns them." />;
+  }
 
   const completed = (submission && submission.data && submission.data._completed) || [];
   const isSubmitted = submission && submission.status !== "Draft";
 
   return (
     <div>
-      <Toast show={!!toast} msg={toast || ""} />
+     <Toast show={!!toast} msg={toast || ""} />
 
+      {assignments.length > 0 && (
+        <AssignmentsPanel
+          assignments={assignments}
+          openAssignment={openAssignment}
+          setOpenAssignment={setOpenAssignment}
+          onComplete={markAssignmentComplete}
+          patient={patient}
+          patientId={patientId}
+          practiceId={practiceId}
+          goTab={goTab}
+        />
+      )}
+
+      {appt && (<>
       <Panel accent={C.amberMid}>
         <div style={{ fontSize:10, fontWeight:600, color:C.amber, textTransform:"uppercase", letterSpacing:"0.04em" }}>
           Complete before your visit: {fmtDate(appt.appt_date)} at {slotToTime(appt.start_slot)}
@@ -338,11 +380,148 @@ export default function PortalForms({ patient, patientId, practiceId, refreshBad
         );
       })}
 
-      {!isSubmitted && (
+     {!isSubmitted && (
         <div style={{ marginTop:14, display:"flex", justifyContent:"flex-end" }}>
           <Btn onClick={submitAll}>Submit All Forms</Btn>
         </div>
       )}
+      </>)}
+    </div>
+  );
+}
+
+// ─── Assigned Forms Panel ─────────────────────────────────────────────────
+function AssignmentsPanel({
+  assignments, openAssignment, setOpenAssignment, onComplete,
+  patient, patientId, practiceId, goTab,
+}) {
+  return (
+    <>
+      <Panel accent={C.teal}>
+        <div style={{ fontSize:10, fontWeight:600, color:C.teal, textTransform:"uppercase", letterSpacing:"0.04em" }}>
+          Assigned to you
+        </div>
+        <div style={{ fontSize:14, fontWeight:600, color:C.textPrimary, marginTop:3 }}>
+          {assignments.length} form{assignments.length === 1 ? "" : "s"} waiting
+        </div>
+        <div style={{ fontSize:11, color:C.textSecondary, marginTop:2 }}>
+          Your practice has asked you to complete these.
+        </div>
+      </Panel>
+
+      {assignments.map(a => {
+        const isOpen = openAssignment === a.id;
+        return (
+          <Panel key={a.id}>
+            <div style={{
+              display:"flex", justifyContent:"space-between", alignItems:"center",
+              flexWrap:"wrap", gap:8,
+            }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:C.textPrimary }}>
+                  {a.form_label}
+                </div>
+                <div style={{ fontSize:11, color:C.textTertiary, marginTop:2 }}>
+                  {a.due_date ? ("Due " + fmtDate(a.due_date)) : "No due date"}
+                </div>
+                {a.instructions && (
+                  <div style={{ fontSize:11, color:C.textSecondary, marginTop:6, lineHeight:1.4 }}>
+                    {a.instructions}
+                  </div>
+                )}
+              </div>
+              <Btn onClick={() => setOpenAssignment(isOpen ? null : a.id)}>
+                {isOpen ? "Close" : "Start"}
+              </Btn>
+            </div>
+
+            {isOpen && (
+              <div style={{ marginTop:12, borderTop:"0.5px solid " + C.borderLight, paddingTop:12 }}>
+                <AssignmentRenderer
+                  assignment={a}
+                  patient={patient}
+                  patientId={patientId}
+                  practiceId={practiceId}
+                  goTab={goTab}
+                  onComplete={() => onComplete(a.id)}
+                  onClose={() => setOpenAssignment(null)}
+                />
+              </div>
+            )}
+          </Panel>
+        );
+      })}
+    </>
+  );
+}
+
+function AssignmentRenderer({ assignment, patient, patientId, practiceId, goTab, onComplete, onClose }) {
+  const t = assignment.form_type;
+
+  if (t === "annual_consent_renewal") {
+    return (
+      <ConsentSection
+        patientName={((patient && patient.first_name) || "") + " " + ((patient && patient.last_name) || "")}
+        onComplete={onComplete}
+        onClose={onClose}
+      />
+    );
+  }
+
+  if (t === "medications_update") {
+    return (
+      <MedicationsSection
+        patientId={patientId}
+        practiceId={practiceId}
+        appointmentId={null}
+        onComplete={onComplete}
+        onClose={onClose}
+      />
+    );
+  }
+
+  if (t === "pediatric_well_check") {
+    return (
+      <PediatricIntakeSection
+        patientId={patientId}
+        practiceId={practiceId}
+        appointmentId={null}
+        patient={patient}
+        onComplete={onComplete}
+        onClose={onClose}
+      />
+    );
+  }
+
+  if (t === "insurance_update") {
+    return (
+      <div>
+        <div style={{ fontSize:12, color:C.textSecondary, lineHeight:1.5, marginBottom:12 }}>
+          To update your insurance, go to the <strong>Insurance</strong> tab and either
+          edit an existing policy or submit a new one. When you are finished, click
+          "I have updated my insurance" below.
+        </div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          {goTab && (
+            <Btn variant="secondary" onClick={() => goTab("insurance")}>
+              Go to Insurance tab
+            </Btn>
+          )}
+          <Btn onClick={onComplete}>I have updated my insurance</Btn>
+          <Btn variant="ghost" onClick={onClose}>Close</Btn>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize:12, color:C.textSecondary, lineHeight:1.5, marginBottom:12 }}>
+        This form isn't yet available for self-completion in the portal. Your
+        practice will collect it during your next visit or contact you directly
+        with another way to complete it.
+      </div>
+      <Btn variant="ghost" onClick={onClose}>Close</Btn>
     </div>
   );
 }
