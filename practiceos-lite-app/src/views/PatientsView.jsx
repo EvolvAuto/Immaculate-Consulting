@@ -13,6 +13,7 @@ import { C } from "../lib/tokens";
 import PatientPortalInviteButton from "./patient/PatientPortalInviteButton";
 import InvitePatientModal from "./InvitePatientModal";
 import AssignFormsModal from "./AssignFormsModal";
+import GrantFamilyAccessModal from "./GrantFamilyAccessModal";
 import { insertRow, updateRow, logRead } from "../lib/db";
 import { ageFromDOB, formatPhone, initialsOf, APPT_STATUS_VARIANT, NC_PAYERS } from "../components/constants";
 import { Badge, Btn, Card, Modal, Input, Select, TopBar, TabBar, FL, Avatar, SectionHead, Loader, ErrorBanner, EmptyState, Textarea } from "../components/ui";
@@ -188,6 +189,7 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
   const [editing, setEditing] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showAssignForms, setShowAssignForms] = useState(false);
+  const [showGrantAccess, setShowGrantAccess] = useState(false);
 
   const reload = async () => {
     const [a, e, i, s] = await Promise.all([
@@ -257,7 +259,8 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
               <Field label="Emergency Phone" value={formatPhone(patient.emergency_contact_phone)} />
               <Field label="SMS Opt-Out" value={patient.sms_opt_out ? "Yes" : "No"} />
               <Field label="Portal Enabled" value={patient.portal_enabled ? "Yes" : "No"} />
-              <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+             <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                <Btn variant="outline" onClick={() => setShowGrantAccess(true)}>Grant family access</Btn>
                 <Btn variant="outline" onClick={() => setShowAssignForms(true)}>Assign forms</Btn>
                 <Btn variant="outline" onClick={() => setShowInvite(true)}>Invite to portal</Btn>
                 <Btn variant="outline" onClick={() => setEditing(true)}>Edit patient</Btn>
@@ -342,11 +345,17 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
           onClose={() => setShowInvite(false)}
         />
       )}
-      {showAssignForms && (
+     {showAssignForms && (
         <AssignFormsModal
           patient={patient}
           practiceId={practiceId}
           onClose={() => setShowAssignForms(false)}
+        />
+      )}
+      {showGrantAccess && (
+        <GrantFamilyAccessModal
+          patient={patient}
+          onClose={() => setShowGrantAccess(false)}
         />
       )}
     </Modal>
