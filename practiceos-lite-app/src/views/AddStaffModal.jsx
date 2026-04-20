@@ -1,14 +1,15 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// src/views/AddStaffModal.jsx
+// src/views/AddStaffModal.jsx  (v2)
 //
-// Rendered when the "Add staff member" button is clicked in StaffView.
-// Collects { email, full_name, role, provider_id? }, calls create-staff-user,
-// and displays the activation link for the admin to share with the new hire.
-//
-// The activation link is shown both as a copyable field AND we note that
-// Supabase's default SMTP will email it to the new hire automatically if
-// configured. In production once Resend is wired up, the email path becomes
-// reliable and this manual-copy becomes a fallback.
+// v2 changes:
+//   - Sends `redirect_to: window.location.origin` so the activation link
+//     redirects to the live app (not Supabase's default localhost:3000).
+//   - Displays BOTH the activation link AND the temp password. New hires
+//     can log in either way:
+//       A. Email + temp password (works today via the standard sign-in form)
+//       B. Click the activation link (requires Supabase Site URL to be set
+//          correctly AND the app to have a /reset-password page that handles
+//          the recovery session - which is not yet built)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
@@ -28,8 +29,9 @@ export default function AddStaffModal({ practiceId, onClose, onCreated }) {
   const [error, setError]                   = useState(null);
   const [result, setResult]                 = useState(null);
   const [linkCopied, setLinkCopied]         = useState(false);
+  const [pwCopied, setPwCopied]             = useState(false);
+  const [pwVisible, setPwVisible]           = useState(false);
 
-  // Load providers list for the Provider-role dropdown
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -77,6 +79,7 @@ export default function AddStaffModal({ practiceId, onClose, onCreated }) {
           provider_id: form.provider_id || null,
           phone:       form.phone.trim() || null,
           title:       form.title.trim() || null,
+          redirect_to: window.location.origin,
         }),
       });
       const payload = await resp.json().catch(() => ({}));
@@ -96,7 +99,16 @@ export default function AddStaffModal({ practiceId, onClose, onCreated }) {
       await navigator.clipboard.writeText(result.activation_link);
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2500);
-    } catch (_e) { /* clipboard permission denied */ }
+    } catch (_e) { /* clipboard denied */ }
+  };
+
+  const copyPassword = async () => {
+    if (!result?.temp_password) return;
+    try {
+      await navigator.clipboard.writeText(result.temp_password);
+      setPwCopied(true);
+      setTimeout(() => setPwCopied(false), 2500);
+    } catch (_e) { /* clipboard denied */ }
   };
 
   const done = () => {
@@ -108,48 +120,92 @@ export default function AddStaffModal({ practiceId, onClose, onCreated }) {
     <div style={overlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={panel}>
 
-        {/* SUCCESS STATE - activation link display */}
         {result ? (
           <>
             <div style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary, marginBottom: 4 }}>
               Staff account created
             </div>
             <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 14 }}>
-              {result.full_name} ({result.role}) has been added to the practice.
+              {result.full_name} ({result.role}) has been added to the practice. Share ONE of the options below with the new hire.
             </div>
 
             <div style={{
               background: C.tealBg, border: "0.5px solid " + C.tealBorder,
-              borderRadius: 6, padding: "12px 14px", marginBottom: 14,
+              borderRadius: 6, padding: "12px 14px", marginBottom: 12,
             }}>
               <div style={{
                 fontSize: 10, fontWeight: 700, color: C.teal, textTransform: "uppercase",
-                letterSpacing: 0.5, marginBottom: 6,
-              }}>Share this link with the new hire</div>
+                letterSpacing: 0.5, marginBottom: 4,
+              }}>Option A - Sign-in credentials (works immediately)</div>
               <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 8, lineHeight: 1.5 }}>
-                They use this link to set their password. It was also emailed to <strong>{result.email}</strong>,
-                but if the email doesn't land, copy-paste this to them directly.
+                They go to the sign-in page and log in with these credentials, then change the password later.
               </div>
+
               <div style={{
                 background: "#fff", border: "0.5px solid " + C.borderLight, borderRadius: 4,
-                padding: "6px 10px", fontSize: 10, fontFamily: "monospace",
-                color: C.textPrimary, wordBreak: "break-all", marginBottom: 8,
-                maxHeight: 80, overflow: "auto",
+                padding: "6px 10px", fontSize: 11, marginBottom: 6,
               }}>
-                {result.activation_link || "(no link - check Supabase auth logs)"}
+                <div style={{ fontSize: 9, color: C.textTertiary, marginBottom: 2 }}>EMAIL</div>
+                <div style={{ fontFamily: "monospace", color: C.textPrimary }}>{result.email}</div>
               </div>
-              {result.activation_link && (
+
+              <div style={{
+                background: "#fff", border: "0.5px solid " + C.borderLight, borderRadius: 4,
+                padding: "6px 10px", fontSize: 11, marginBottom: 8,
+              }}>
+                <div style={{ fontSize: 9, color: C.textTertiary, marginBottom: 2 }}>TEMPORARY PASSWORD</div>
+                <div style={{ fontFamily: "monospace", color: C.textPrimary, wordBreak: "break-all" }}>
+                  {pwVisible ? result.temp_password : "\u2022".repeat((result.temp_password || "").length)}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button type="button" onClick={() => setPwVisible(v => !v)}
+                  style={{ ...btnSecondary, borderColor: C.tealBorder, color: C.teal }}>
+                  {pwVisible ? "Hide" : "Show"}
+                </button>
+                <button type="button" onClick={copyPassword}
+                  style={{
+                    ...btnSecondary,
+                    background: pwCopied ? C.tealMid : "#fff",
+                    color: pwCopied ? "#fff" : C.teal,
+                    borderColor: C.tealBorder,
+                  }}>
+                  {pwCopied ? "\u2713 Copied" : "Copy password"}
+                </button>
+              </div>
+            </div>
+
+            {result.activation_link && (
+              <div style={{
+                background: C.bgSecondary, border: "0.5px solid " + C.borderMid,
+                borderRadius: 6, padding: "12px 14px", marginBottom: 14,
+              }}>
+                <div style={{
+                  fontSize: 10, fontWeight: 700, color: C.textSecondary, textTransform: "uppercase",
+                  letterSpacing: 0.5, marginBottom: 4,
+                }}>Option B - Password-set link</div>
+                <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 8, lineHeight: 1.5 }}>
+                  Prompts them to set their own password. Requires a /reset-password page in the app (not built yet). If clicking the link fails, use Option A.
+                </div>
+                <div style={{
+                  background: "#fff", border: "0.5px solid " + C.borderLight, borderRadius: 4,
+                  padding: "6px 10px", fontSize: 10, fontFamily: "monospace",
+                  color: C.textPrimary, wordBreak: "break-all", marginBottom: 8,
+                  maxHeight: 80, overflow: "auto",
+                }}>
+                  {result.activation_link}
+                </div>
                 <button type="button" onClick={copyLink}
                   style={{
                     ...btnSecondary,
                     background: linkCopied ? C.tealMid : "#fff",
-                    color: linkCopied ? "#fff" : C.teal,
-                    borderColor: C.tealBorder,
+                    color: linkCopied ? "#fff" : C.textSecondary,
                   }}>
-                  {linkCopied ? "✓ Copied" : "Copy link"}
+                  {linkCopied ? "\u2713 Copied" : "Copy link"}
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button type="button" onClick={done} style={btnPrimary}>Done</button>
@@ -157,17 +213,14 @@ export default function AddStaffModal({ practiceId, onClose, onCreated }) {
           </>
         ) : (
           <>
-            {/* FORM STATE */}
             <div style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary, marginBottom: 4 }}>
               Add staff member
             </div>
             <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 14 }}>
-              Creates the account and generates a password-set link to share with the new hire.
+              Creates the account and generates credentials to share with the new hire.
             </div>
 
-            {error && (
-              <div style={errBox}>{error}</div>
-            )}
+            {error && <div style={errBox}>{error}</div>}
 
             <Field label="Email *">
               <Input type="email" value={form.email} onChange={v => set("email", v)}
@@ -224,7 +277,6 @@ export default function AddStaffModal({ practiceId, onClose, onCreated }) {
   );
 }
 
-// ─── tiny locally-scoped primitives (avoids import churn) ──────────────────
 function Field({ label, children }) {
   return (
     <div style={{ marginBottom: 10 }}>
@@ -264,7 +316,7 @@ const overlay = {
 const panel = {
   background: "#fff", borderRadius: 10,
   boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
-  padding: 22, minWidth: 460, maxWidth: 520, width: "100%",
+  padding: 22, minWidth: 460, maxWidth: 560, width: "100%",
   maxHeight: "90vh", overflowY: "auto",
   fontFamily: "Inter, system-ui, sans-serif",
 };
@@ -282,9 +334,9 @@ const btnPrimary = {
 };
 
 const btnSecondary = {
-  padding: "8px 16px", borderRadius: 6,
+  padding: "6px 12px", borderRadius: 6,
   border: "0.5px solid " + C.borderMid, background: "#fff",
-  color: C.textSecondary, fontSize: 12, fontWeight: 600,
+  color: C.textSecondary, fontSize: 11, fontWeight: 600,
   cursor: "pointer", fontFamily: "inherit",
 };
 
