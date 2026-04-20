@@ -32,6 +32,11 @@ import ComplianceView       from "./views/ComplianceView";
 import InsuranceUpdatesView from "./views/InsuranceUpdatesView";
 import PortalView           from "./views/PortalView";
 
+// Pro tier views (tier-gated via <ProGate> inside each view)
+import ProAssistantView        from "./views/pro/AssistantView";
+import ProOutreachReviewView   from "./views/pro/OutreachReviewView";
+import ProInboundSMSReviewView from "./views/pro/InboundSMSReviewView";
+
 const VIEWS = {
   dashboard:         DashboardView,
   schedule:          ScheduleView,
@@ -49,6 +54,16 @@ const VIEWS = {
   compliance:        ComplianceView,
   insurance_updates: InsuranceUpdatesView,
   portal:            PortalView,
+  pro_assistant:     ProAssistantView,
+  pro_outreach:      ProOutreachReviewView,
+  pro_inbound_sms:   ProInboundSMSReviewView,
+};
+
+// Pro nav metadata (icon + label). Kept inline so tokens.js doesn't need to change.
+const PRO_NAV_META_LOCAL = {
+  pro_assistant:   { icon: "🤖", label: "AI Assistant" },
+  pro_outreach:    { icon: "📤", label: "Outreach" },
+  pro_inbound_sms: { icon: "💬", label: "Inbound SMS" },
 };
 
 export default function App() {
@@ -65,12 +80,14 @@ export default function App() {
 }
 
 function Shell() {
-  const { profile, role, practiceId, signOut } = useAuth();
+  const { profile, role, practiceId, tier, signOut } = useAuth();
 
   // Patient role gets its own shell - skip the staff sidebar entirely
   if (role === "Patient") return <PortalShell />;
 
   const navItems = NAV_BY_ROLE[role] || [];
+  const isProTier = ["Pro", "Command"].includes(tier);
+  const proNavIds = isProTier ? ["pro_assistant", "pro_outreach", "pro_inbound_sms"] : [];
   const [activeNav, setActiveNav] = useState(navItems[0] || "dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({});
@@ -193,6 +210,46 @@ function Shell() {
                     minWidth: 18, textAlign: "center", lineHeight: 1.4,
                   }}>{badgeCounts[id]}</span>
                 )}
+              </button>
+            );
+       })}
+
+          {proNavIds.length > 0 && !collapsed && (
+            <div style={{
+              padding: "14px 12px 4px",
+              fontSize: 9, fontWeight: 700, letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "rgba(255,255,255,0.4)",
+            }}>Pro</div>
+          )}
+          {proNavIds.map(id => {
+            const meta = PRO_NAV_META_LOCAL[id];
+            if (!meta) return null;
+            const active = activeNav === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setActiveNav(id)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: collapsed ? "10px 0" : "10px 12px",
+                  marginBottom: 2,
+                  background: active ? "rgba(255,255,255,0.08)" : "transparent",
+                  border: "none",
+                  borderRadius: 8,
+                  color: active ? "#fff" : "rgba(255,255,255,0.7)",
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 500,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  justifyContent: collapsed ? "center" : "flex-start",
+                }}
+              >
+                <span style={{ fontSize: 14 }}>{meta.icon}</span>
+                {!collapsed && <span style={{ flex: 1 }}>{meta.label}</span>}
               </button>
             );
           })}
