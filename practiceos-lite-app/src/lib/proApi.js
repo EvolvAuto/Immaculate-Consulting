@@ -1,7 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// proApi - thin wrapper over supabase.functions.invoke for Pro edge functions.
-// Keeps the frontend code free of raw fetch calls and gives us one place to
-// handle quota-exhaustion and tier errors uniformly.
+// proApi - wrappers over supabase.functions.invoke + direct Pro table queries.
+//
+// v3 CHANGES:
+// - invoke() now reads error.context.body (stream) when available so we get
+//   the server's actual JSON error message instead of "Failed to send a
+//   request to the Edge Function"
+// - listInboundSmsWithDrafts disambiguates the double FK to messages table
+//   using the !inbound_message_id hint
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { supabase } from "./supabaseClient";
@@ -9,18 +14,35 @@ import { supabase } from "./supabaseClient";
 async function invoke(name, body) {
   const { data, error } = await supabase.functions.invoke(name, { body });
   if (error) {
-    const payload = error.context ? await safeJson(error.context) : null;
-    const msg = payload && payload.error ? payload.error : error.message;
-    const err = new Error(msg || "Unknown error");
-    err.status = error.status ? error.status : (payload && payload.status ? payload.status : 500);
-    err.payload = payload;
+    // supabase-js returns a FunctionsHttpError whose .context holds the raw
+    // Response object. Read the body as text so we can surface the server's
+    // JSON error rather than the generic wrapper message.
+    let serverMsg = null;
+    let serverPayload = null;
+    try {
+      if (error.context && typeof error.context.text === "function") {
+        const text = await error.context.text();
+        if (text) {
+          try {
+            serverPayload = JSON.parse(text);
+            serverMsg = serverPayload.error || serverPayload.detail || text.slice(0, 300);
+          } catch {
+            serverMsg = text.slice(0, 300);
+          }
+        }
+      }
+    } catch (_readErr) {
+      // Response body already consumed or unavailable -- fall through to error.message
+    }
+
+    const msg = serverMsg || error.message || "Unknown error";
+    const err = new Error(msg);
+    err.status = (error.context && error.context.status) || error.status || 500;
+    err.payload = serverPayload;
+    err.raw = error;
     throw err;
   }
   return data;
-}
-
-async function safeJson(res) {
-  try { return await res.json(); } catch { return null; }
 }
 
 export const proApi = {
@@ -155,10 +177,13 @@ export async function updateDraftStatus(draftId, status) {
   if (error) throw new Error(error.message);
 }
 
+// NOTE: pro_inbound_sms_drafts has TWO FKs to messages (inbound_message_id,
+// sent_message_id). PostgREST requires the !inbound_message_id hint to pick
+// which one to embed.
 export async function listInboundSmsWithDrafts(limit = 50) {
   const { data, error } = await supabase
     .from("pro_inbound_sms_drafts")
-    .select("id, practice_id, inbound_message_id, patient_id, draft_body, edited_body, final_body, classification, confidence, status, created_at, context, messages(body, thread_id, created_at, patients(first_name, last_name, mrn, phone_mobile))")
+    .select("id, practice_id, inbound_message_id, patient_id, draft_body, edited_body, final_body, classification, confidence, status, created_at, context, messages!inbound_message_id(body, thread_id, created_at, patients(first_name, last_name, mrn, phone_mobile))")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
