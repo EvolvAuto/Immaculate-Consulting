@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// proApi — thin wrapper over supabase.functions.invoke for Pro edge functions.
+// proApi - thin wrapper over supabase.functions.invoke for Pro edge functions.
 // Keeps the frontend code free of raw fetch calls and gives us one place to
-// handle quota-exhaustion (429) and tier (402) errors uniformly.
+// handle quota-exhaustion and tier errors uniformly.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { supabase } from "./supabaseClient";
@@ -12,7 +12,7 @@ async function invoke(name, body) {
     const payload = error.context ? await safeJson(error.context) : null;
     const msg = payload && payload.error ? payload.error : error.message;
     const err = new Error(msg || "Unknown error");
-    err.status = error.status || (payload && payload.status) || 500;
+    err.status = error.status ? error.status : (payload && payload.status ? payload.status : 500);
     err.payload = payload;
     throw err;
   }
@@ -35,7 +35,21 @@ export const proApi = {
 
   inboundSmsDraft: ({ messageId }) =>
     invoke("pro-inbound-sms-draft", { messageId }),
+
+  capBoostPurchase: ({ messages_added, amount_usd, note }) =>
+    invoke("pro-cap-boost-purchase", { messages_added, amount_usd, note }),
 };
+
+// Supported boost packages - keep in sync with pro-cap-boost-purchase edge fn
+export const BOOST_PACKAGES = [
+  { messages_added: 1000,  amount_usd: 20,  label: "1,000 messages",   value_desc: "$20" },
+  { messages_added: 2500,  amount_usd: 45,  label: "2,500 messages",   value_desc: "$45 - save 10%" },
+  { messages_added: 5000,  amount_usd: 80,  label: "5,000 messages",   value_desc: "$80 - save 20%" },
+  { messages_added: 10000, amount_usd: 150, label: "10,000 messages",  value_desc: "$150 - save 25%" },
+];
+
+// Roles allowed to purchase cap boosts (matches edge function gate)
+export const PURCHASE_ROLES = ["Owner", "Manager", "Billing"];
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Direct DB helpers for Pro tables (RLS gates appropriately)
@@ -44,9 +58,14 @@ export const proApi = {
 export async function fetchUsageThisMonth() {
   const { data, error } = await supabase.rpc("my_pro_usage_this_month");
   if (error) throw new Error(error.message);
-  // RPC returns a table; supabase-js returns the first row as the object.
   if (Array.isArray(data) && data.length > 0) return data[0];
-  return data || { used: 0, cap: 0, remaining: 0 };
+  return data ? data : { used: 0, cap: 0, remaining: 0 };
+}
+
+export async function fetchBoostsThisMonth() {
+  const { data, error } = await supabase.rpc("my_pro_boosts_this_month");
+  if (error) throw new Error(error.message);
+  return Array.isArray(data) ? data : [];
 }
 
 export async function listConversations(limit = 30) {
@@ -57,7 +76,7 @@ export async function listConversations(limit = 30) {
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return data || [];
+  return data ? data : [];
 }
 
 export async function fetchConversation(conversationId) {
@@ -73,7 +92,7 @@ export async function fetchConversation(conversationId) {
     .eq("conversation_id", conversationId)
     .order("created_at", { ascending: true });
   if (mErr) throw new Error(mErr.message);
-  return { conversation: convo, messages: msgs || [] };
+  return { conversation: convo, messages: msgs ? msgs : [] };
 }
 
 export async function archiveConversation(conversationId) {
@@ -99,7 +118,7 @@ export async function listOutreachBatches(limit = 50) {
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return data || [];
+  return data ? data : [];
 }
 
 export async function fetchBatchWithDrafts(batchId) {
@@ -115,7 +134,7 @@ export async function fetchBatchWithDrafts(batchId) {
     .eq("batch_id", batchId)
     .order("created_at", { ascending: true });
   if (dErr) throw new Error(dErr.message);
-  return { batch, drafts: drafts || [] };
+  return { batch, drafts: drafts ? drafts : [] };
 }
 
 export async function updateDraftBody(draftId, edited_body) {
@@ -139,28 +158,26 @@ export async function updateDraftStatus(draftId, status) {
 export async function listInboundSmsWithDrafts(limit = 50) {
   const { data, error } = await supabase
     .from("pro_inbound_sms_drafts")
-    .select("id, practice_id, inbound_message_id, patient_id, draft_body, edited_body, final_body, classification, confidence, status, created_at, messages(body, created_at, patients(first_name, last_name, mrn, phone_mobile))")
+    .select("id, practice_id, inbound_message_id, patient_id, draft_body, edited_body, final_body, classification, confidence, status, created_at, context, messages(body, thread_id, created_at, patients(first_name, last_name, mrn, phone_mobile))")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return data || [];
+  return data ? data : [];
 }
 
 export async function listInboundSmsNeedingDraft(limit = 50) {
-  // Inbound SMS messages that don't yet have an AI draft.
-  // We do this as two queries since supabase-js doesn't support NOT IN subqueries cleanly.
   const { data: drafts } = await supabase
     .from("pro_inbound_sms_drafts")
     .select("inbound_message_id")
     .limit(500);
-  const seen = new Set((drafts || []).map((d) => d.inbound_message_id));
+  const seen = new Set((drafts ? drafts : []).map((d) => d.inbound_message_id));
   const { data: msgs, error } = await supabase
     .from("messages")
-    .select("id, patient_id, body, created_at, patients(first_name, last_name, mrn)")
+    .select("id, patient_id, body, created_at, thread_id, patients(first_name, last_name, mrn)")
     .eq("direction", "Inbound")
     .eq("channel", "SMS")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return (msgs || []).filter((m) => !seen.has(m.id));
+  return (msgs ? msgs : []).filter((m) => !seen.has(m.id));
 }
