@@ -36,6 +36,8 @@ import PortalView           from "./views/PortalView";
 import ProAssistantView        from "./views/pro/AssistantView";
 import ProOutreachReviewView   from "./views/pro/OutreachReviewView";
 import ProInboundSMSReviewView from "./views/pro/InboundSMSReviewView";
+import ProChartPrepView        from "./views/pro/ProChartPrepView";
+import ProSystemAlertBanner    from "./components/pro/ProSystemAlertBanner";
 
 const VIEWS = {
   dashboard:         DashboardView,
@@ -57,10 +59,12 @@ const VIEWS = {
   pro_assistant:     ProAssistantView,
   pro_outreach:      ProOutreachReviewView,
   pro_inbound_sms:   ProInboundSMSReviewView,
+  pro_chart_prep:    ProChartPrepView,
 };
 
 // Pro nav metadata (icon + label). Kept inline so tokens.js doesn't need to change.
 const PRO_NAV_META_LOCAL = {
+  pro_chart_prep:  { icon: "📋", label: "Chart Prep" },
   pro_assistant:   { icon: "🤖", label: "AI Assistant" },
   pro_outreach:    { icon: "📤", label: "Outreach" },
   pro_inbound_sms: { icon: "💬", label: "Inbound SMS" },
@@ -87,7 +91,7 @@ function Shell() {
 
   const navItems = NAV_BY_ROLE[role] || [];
   const isProTier = ["Pro", "Command"].includes(tier);
-  const proNavIds = isProTier ? ["pro_assistant", "pro_outreach", "pro_inbound_sms"] : [];
+  const proNavIds = isProTier ? ["pro_chart_prep", "pro_assistant", "pro_outreach", "pro_inbound_sms"] : [];
   const [activeNav, setActiveNav] = useState(navItems[0] || "dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({});
@@ -299,8 +303,9 @@ function Shell() {
         </button>
       </nav>
 
-      {/* ── Main Content ──────────────────────────────────────────────── */}
+     {/* ── Main Content ──────────────────────────────────────────────── */}
      <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <ProSystemAlertBanner practiceId={practiceId} role={role} tier={tier} />
         <ActiveView onNav={setActiveNav} />
       </main>
     </div>
