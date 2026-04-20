@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
     try {
       const { data, error: pErr } = await supabase
         .from("users")
-        .select("id, practice_id, email, full_name, role, provider_id, patient_id, avatar_url, is_active")
+       .select("id, practice_id, email, full_name, role, provider_id, patient_id, avatar_url, is_active, practices(subscription_tier)")
         .eq("id", userId)
         .maybeSingle();
       if (pErr) {
@@ -156,10 +156,11 @@ export function AuthProvider({ children }) {
       user:            session?.user || null,
       session,
       profile,
-      role:            md.role        || profile?.role        || null,
+   role:            md.role        || profile?.role        || null,
       practiceId:      md.practice_id || profile?.practice_id || null,
       patientId:       md.patient_id  || profile?.patient_id  || null,
       providerId:      md.provider_id || profile?.provider_id || null,
+      tier:            profile?.practices?.subscription_tier || "Lite",
       loading,
       error,
       isAuthenticated: !!session,
