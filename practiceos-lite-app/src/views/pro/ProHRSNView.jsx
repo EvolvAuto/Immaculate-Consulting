@@ -22,6 +22,7 @@ import {
   listDueForScreening,
   getScreeningCounts,
 } from "../../lib/hrsnApi";
+import StartScreeningModal from "../../components/hrsn/StartScreeningModal";
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Shared formatting helpers
@@ -144,6 +145,18 @@ export default function ProHRSNView() {
     all: 0, needs_review: 0, urgent: 0, reviewed: 0,
   });
 
+  // Start-screening modal state
+  const [startModal, setStartModal] = useState(null); // null | { initialPatient }
+  const openStartModal = function(patient) {
+    setStartModal({ initialPatient: patient || null });
+  };
+  const closeStartModal = function() { setStartModal(null); };
+  const handleScreeningSubmitted = function() {
+    // Refresh all three lists so the new row appears and the due-for-screening
+    // list reflects the updated schedule (AFTER INSERT trigger advances due_date).
+    handleRefresh();
+  };
+
   useEffect(() => {
     if (!isProTier || !practiceId) return;
     let cancelled = false;
@@ -187,8 +200,10 @@ export default function ProHRSNView() {
 
   return (
     <div style={{ padding: "16px 20px", maxWidth: 1400, margin: "0 auto" }}>
-      <Header onRefresh={handleRefresh} />
-
+      <Header
+        onRefresh={handleRefresh}
+        onStartScreening={function() { openStartModal(null); }}
+      />
       <Tabs
         active={activeTab}
         onChange={setActiveTab}
@@ -230,7 +245,19 @@ export default function ProHRSNView() {
         />
       )}
 
-      {!loading && activeTab === "schedule" && <ScheduleTab practiceId={practiceId} />}
+      {!loading && activeTab === "schedule" && (
+        <ScheduleTab practiceId={practiceId} onStartScreening={openStartModal} />
+      )}
+
+      {startModal && (
+        <StartScreeningModal
+          practiceId={practiceId}
+          currentUser={profile}
+          initialPatient={startModal.initialPatient}
+          onClose={closeStartModal}
+          onSubmitted={handleScreeningSubmitted}
+        />
+      )}
     </div>
   );
 }
@@ -239,11 +266,11 @@ export default function ProHRSNView() {
 // Header + Tabs
 // ───────────────────────────────────────────────────────────────────────────────
 
-function Header({ onRefresh }) {
+function Header({ onRefresh, onStartScreening }) {
   return (
     <div style={{
       display: "flex", justifyContent: "space-between",
-      alignItems: "flex-start", marginBottom: 20,
+      alignItems: "flex-start", marginBottom: 20, gap: 12,
     }}>
       <div>
         <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary, marginBottom: 4 }}>
@@ -255,17 +282,29 @@ function Header({ onRefresh }) {
           drafts NCCARE360-formatted referrals for staff review.
         </div>
       </div>
-      <button
-        onClick={onRefresh}
-        style={{
-          background: "#fff", color: C.textSecondary,
-          border: "0.5px solid " + C.borderMid, borderRadius: 6,
-          padding: "8px 14px", fontSize: 12, fontWeight: 600,
-          cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        Refresh
-      </button>
+      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+        <button
+          onClick={onRefresh}
+          style={{
+            background: "#fff", color: C.textSecondary,
+            border: "0.5px solid " + C.borderMid, borderRadius: 6,
+            padding: "8px 14px", fontSize: 12, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          Refresh
+        </button>
+        <button
+          onClick={onStartScreening}
+          style={{
+            background: C.teal, color: "#fff", border: "none",
+            borderRadius: 6, padding: "8px 14px", fontSize: 12, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          + Start a screening
+        </button>
+      </div>
     </div>
   );
 }
@@ -1536,7 +1575,7 @@ function CadenceCard({ screening, currentUser, onSaved }) {
 // Schedule tab - Overdue + Coming Due
 // ───────────────────────────────────────────────────────────────────────────────
 
-function ScheduleTab({ practiceId }) {
+function ScheduleTab({ practiceId, onStartScreening }) {
   const [buckets, setBuckets] = useState({ overdue: [], comingDue: [], lookaheadDays: 30 });
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
@@ -1594,6 +1633,7 @@ function ScheduleTab({ practiceId }) {
           accent="#DC2626"
           accentBg="#FEE2E2"
           rows={overdue}
+          onStartScreening={onStartScreening}
         />
       )}
       {comingDue.length > 0 && (
@@ -1603,13 +1643,14 @@ function ScheduleTab({ practiceId }) {
           accent="#D97706"
           accentBg="#FEF3C7"
           rows={comingDue}
+          onStartScreening={onStartScreening}
         />
       )}
     </div>
   );
 }
 
-function ScheduleBucket({ title, subtitle, accent, accentBg, rows }) {
+function ScheduleBucket({ title, subtitle, accent, accentBg, rows, onStartScreening }) {
   return (
     <div>
       <div style={{ marginBottom: 10 }}>
@@ -1680,13 +1721,14 @@ function ScheduleBucket({ title, subtitle, accent, accentBg, rows }) {
                 </div>
               </div>
               <button
-                disabled
-                title="Staff 'Start screening' button is wired in Step 2b"
+                onClick={function() {
+                  if (onStartScreening) onStartScreening(r.patients);
+                }}
                 style={{
-                  background: "#fff", color: C.textTertiary,
-                  border: "0.5px solid " + C.borderMid,
+                  background: C.teal, color: "#fff",
+                  border: "none",
                   borderRadius: 6, padding: "7px 12px", fontSize: 12, fontWeight: 600,
-                  cursor: "not-allowed", fontFamily: "inherit", opacity: 0.65,
+                  cursor: "pointer", fontFamily: "inherit",
                 }}
               >
                 Start screening
