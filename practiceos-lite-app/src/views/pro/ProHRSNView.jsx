@@ -1225,6 +1225,19 @@ function CadenceCard({ screening, currentUser, onSaved }) {
     return addMonthsToDateStr(anchor, cadence);
   }, [schedule, screening, cadence]);
 
+  // Is the screening being viewed the same as the patient's most recent?
+  // If not, show a note - cadence always anchors to the most recent response,
+  // so a provider editing from an older screening may expect the projection
+  // to start from the visible screening's completed_at.
+  const viewingHistorical = useMemo(() => {
+    if (!schedule || !schedule.last_screened_at || !screening.completed_at) return false;
+    // Treat "same" as within 5 seconds to avoid timestamp-precision false positives
+    const diffMs = Math.abs(
+      new Date(schedule.last_screened_at).getTime() - new Date(screening.completed_at).getTime()
+    );
+    return diffMs > 5000;
+  }, [schedule, screening]);
+
   const hasChanges =
     !loading && (
       cadence !== (schedule?.cadence_months || 12) ||
@@ -1267,6 +1280,21 @@ function CadenceCard({ screening, currentUser, onSaved }) {
         <div style={{ fontSize: 12, color: C.textTertiary }}>Loading current schedule...</div>
       ) : (
         <>
+         {viewingHistorical && (
+            <div style={{
+              marginBottom: 12, padding: "8px 10px",
+              background: "#FEF3C7", border: "0.5px solid #D97706",
+              borderRadius: 4, fontSize: 11, color: "#92400E", lineHeight: 1.5,
+            }}>
+              <strong>Viewing an older screening.</strong> Cadence always anchors
+              to this patient's most recent HRSN response
+              {schedule && schedule.last_screened_at
+                ? (" (" + fmtDateShort(schedule.last_screened_at.slice(0, 10)) + ")")
+                : ""}
+              , not the one displayed above.
+            </div>
+          )}
+
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
             {CADENCE_OPTIONS.map(opt => {
               const selected = cadence === opt.value;
