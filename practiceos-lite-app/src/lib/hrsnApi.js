@@ -13,9 +13,19 @@ const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
 
 const DAY_MS = 86400000;
 
-export async function listRecentScreenings(practiceId, limit) {
-  const n = limit || 20;
-  const { data, error } = await supabase
+// Filter modes for listRecentScreenings:
+//   'all'          - rolling feed, most recent N
+//   'needs_review' - Success status, reviewed_at IS NULL (clinical queue)
+//   'urgent'       - same as needs_review but only with urgent_safety_alert
+//   'reviewed'     - reviewed_at IS NOT NULL
+//
+// For filtered modes, pull a wider window (finite lists shouldn't silently
+// truncate). For 'all', stay with the rolling cap.
+export async function listRecentScreenings(practiceId, limit, filter) {
+  const mode = filter || "all";
+  const cap  = mode === "all" ? (limit || 30) : 200;
+
+  let q = supabase
     .from("screener_responses")
     .select(
       "id, practice_id, patient_id, screener_type, administered_via, completion_mode, " +
@@ -25,11 +35,51 @@ export async function listRecentScreenings(practiceId, limit) {
       "patients:patient_id ( id, first_name, last_name, mrn )"
     )
     .eq("practice_id", practiceId)
-    .eq("screener_type", "HRSN")
+    .eq("screener_type", "HRSN");
+
+  if (mode === "needs_review") {
+    q = q.eq("ai_summary_status", "Success").is("reviewed_at", null);
+  } else if (mode === "urgent") {
+    // 'urgent_safety_alert' lives inside ai_summary JSONB.
+    // PostgREST supports ->> for text extraction with neq/is filters.
+    q = q.eq("ai_summary_status", "Success")
+         .is("reviewed_at", null)
+         .not("ai_summary->urgent_safety_alert", "is", null);
+  } else if (mode === "reviewed") {
+    q = q.not("reviewed_at", "is", null);
+  }
+
+  const { data, error } = await q
     .order("completed_at", { ascending: false })
-    .limit(n);
+    .limit(cap);
   if (error) throw error;
   return data || [];
+}
+
+// Counts for filter-bar badges. One round-trip, all 4 counts.
+// Uses head:true + count:'exact' so no row data is shipped.
+export async function getScreeningCounts(practiceId) {
+  const baseFilter = (q) => q
+    .eq("practice_id", practiceId)
+    .eq("screener_type", "HRSN");
+
+  const [allRes, needsRes, urgentRes, reviewedRes] = await Promise.all([
+    baseFilter(supabase.from("screener_responses").select("id", { count: "exact", head: true })),
+    baseFilter(supabase.from("screener_responses").select("id", { count: "exact", head: true }))
+      .eq("ai_summary_status", "Success").is("reviewed_at", null),
+    baseFilter(supabase.from("screener_responses").select("id", { count: "exact", head: true }))
+      .eq("ai_summary_status", "Success").is("reviewed_at", null)
+      .not("ai_summary->urgent_safety_alert", "is", null),
+    baseFilter(supabase.from("screener_responses").select("id", { count: "exact", head: true }))
+      .not("reviewed_at", "is", null),
+  ]);
+
+  return {
+    all:          allRes.count      || 0,
+    needs_review: needsRes.count    || 0,
+    urgent:       urgentRes.count   || 0,
+    reviewed:     reviewedRes.count || 0,
+  };
 }
 
 export async function listReferralDrafts(practiceId, opts) {
