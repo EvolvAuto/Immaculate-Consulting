@@ -175,9 +175,9 @@ export function scoreHOPResponses(responses) {
   const hasQualityIssue = problems.filter(function(p) { return p && p !== "None of the above"; }).length > 0;
   if (hasQualityIssue) flags.push("housing_quality_positive");
 
-  if (responses.transportation_q5 && responses.transportation_q5 !== "No") {
-    flags.push("transportation_positive");
-  }
+  const transportAnswers = Array.isArray(responses.transportation_q5) ? responses.transportation_q5 : [];
+  const transportPositive = transportAnswers.filter(function(a) { return a && a !== "No"; }).length > 0;
+  if (transportPositive) flags.push("transportation_positive");
 
   if (responses.utilities_q6 === "Yes" || responses.utilities_q6 === "Already shut off") {
     flags.push("utilities_positive");
@@ -252,18 +252,20 @@ export default function HOPScreenerForm(props) {
     setTouched(function(t) { return Object.assign({}, t, { [key]: true }); });
   };
 
+  // Values that, when selected, clear all other choices (and vice versa)
+  const CLEARING_VALUES = ["None of the above", "No"];
+
   const toggleMulti = function(key, value) {
     setResponses(function(r) {
       const current = Array.isArray(r[key]) ? r[key] : [];
       let next;
-      if (value === "None of the above") {
-        // Selecting None clears other choices
-        next = current.includes("None of the above") ? [] : ["None of the above"];
+      if (CLEARING_VALUES.includes(value)) {
+        next = current.includes(value) ? [] : [value];
       } else {
         if (current.includes(value)) {
           next = current.filter(function(x) { return x !== value; });
         } else {
-          next = current.filter(function(x) { return x !== "None of the above"; }).concat(value);
+          next = current.filter(function(x) { return !CLEARING_VALUES.includes(x); }).concat(value);
         }
       }
       return Object.assign({}, r, { [key]: next });
