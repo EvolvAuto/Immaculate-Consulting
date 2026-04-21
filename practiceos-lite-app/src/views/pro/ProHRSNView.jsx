@@ -20,6 +20,7 @@ import {
   getPracticePref,
   upsertScreeningSchedule,
   listDueForScreening,
+  getScreeningCounts,
 } from "../../lib/hrsnApi";
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -136,6 +137,12 @@ export default function ProHRSNView() {
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Recent Screenings filter: 'all' | 'needs_review' | 'urgent' | 'reviewed'
+  // Default to needs_review so the tab opens as a clinical queue, not a feed.
+  const [screeningFilter, setScreeningFilter] = useState("needs_review");
+  const [screeningCounts, setScreeningCounts] = useState({
+    all: 0, needs_review: 0, urgent: 0, reviewed: 0,
+  });
 
   useEffect(() => {
     if (!isProTier || !practiceId) return;
@@ -143,13 +150,15 @@ export default function ProHRSNView() {
     setLoading(true);
     setError(null);
     Promise.all([
-      listRecentScreenings(practiceId, 30),
+      listRecentScreenings(practiceId, 30, screeningFilter),
       listReferralDrafts(practiceId, { statuses: ["Draft", "Approved"] }),
+      getScreeningCounts(practiceId),
     ])
       .then(function(results) {
         if (cancelled) return;
         setScreenings(results[0]);
         setDrafts(results[1]);
+        setScreeningCounts(results[2]);
       })
       .catch(function(e) {
         if (!cancelled) setError(e.message || String(e));
@@ -158,7 +167,7 @@ export default function ProHRSNView() {
         if (!cancelled) setLoading(false);
       });
     return function() { cancelled = true; };
-  }, [practiceId, isProTier, refreshKey]);
+  }, [practiceId, isProTier, refreshKey, screeningFilter]);
 
   const handleRefresh = function() { setRefreshKey(function(k) { return k + 1; }); };
 
@@ -204,6 +213,12 @@ export default function ProHRSNView() {
           screenings={screenings}
           currentUser={profile}
           onUpdated={handleRefresh}
+          filter={screeningFilter}
+          onFilterChange={setScreeningFilter}
+          counts={screeningCounts}
+          onOptimisticRemove={function(id) {
+            setScreenings(function(prev) { return prev.filter(function(s) { return s.id !== id; }); });
+          }}
         />
       )}
 
@@ -310,32 +325,115 @@ function Tabs({ active, onChange, draftCount, urgentCount }) {
 // Recent Screenings tab
 // ───────────────────────────────────────────────────────────────────────────────
 
-function RecentScreeningsTab({ screenings, currentUser, onUpdated }) {
-  if (screenings.length === 0) {
-    return (
-      <EmptyState
-        title="No HRSN screenings yet"
-        body="Screenings completed by patients (via portal or staff tablet) will appear here with an AI-generated clinical summary."
-      />
-    );
-  }
+function RecentScreeningsTab({ screenings, currentUser, onUpdated, filter, onFilterChange, counts, onOptimisticRemove }) {
+  const emptyCopy = {
+    all:          { title: "No HRSN screenings yet",        body: "Screenings completed by patients (via portal or staff tablet) will appear here with an AI-generated clinical summary." },
+    needs_review: { title: "Nothing needs review",          body: "All AI summaries generated so far have been reviewed by staff. New screenings will appear here as they're completed." },
+    urgent:       { title: "No urgent alerts waiting",      body: "Nothing in the current queue was flagged with an urgent safety alert. This is a good thing." },
+    reviewed:     { title: "No reviewed screenings yet",    body: "Once staff marks a screening as reviewed, it moves here." },
+  }[filter] || { title: "No screenings", body: "" };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {screenings.map(function(s) {
+    <div>
+      <ScreeningFilterBar filter={filter} onChange={onFilterChange} counts={counts} />
+
+      {screenings.length === 0 ? (
+        <EmptyState title={emptyCopy.title} body={emptyCopy.body} />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {screenings.map(function(s) {
+            return (
+              <ScreeningCard
+                key={s.id}
+                screening={s}
+                currentUser={currentUser}
+                onUpdated={onUpdated}
+                filter={filter}
+                onOptimisticRemove={onOptimisticRemove}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScreeningFilterBar({ filter, onChange, counts }) {
+  const pills = [
+    { id: "needs_review", label: "Needs review",  count: counts.needs_review, tone: "amber",   emphasis: counts.needs_review > 0 },
+    { id: "urgent",       label: "Urgent alerts", count: counts.urgent,       tone: "red",     emphasis: counts.urgent > 0 },
+    { id: "reviewed",     label: "Reviewed",      count: counts.reviewed,     tone: "teal",    emphasis: false },
+    { id: "all",          label: "All",           count: counts.all,          tone: "neutral", emphasis: false },
+  ];
+  return (
+    <div style={{
+      display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16,
+      padding: "10px 12px", background: "#fff",
+      border: "0.5px solid " + C.borderMid, borderRadius: 8,
+    }}>
+      {pills.map(function(p) {
+        const active = filter === p.id;
+        const style  = getFilterPillStyle(p.tone, active, p.emphasis);
         return (
-          <ScreeningCard
-            key={s.id}
-            screening={s}
-            currentUser={currentUser}
-            onUpdated={onUpdated}
-          />
+          <button
+            key={p.id}
+            onClick={function() { onChange(p.id); }}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              padding: "6px 12px", borderRadius: 16,
+              border: "0.5px solid " + style.border,
+              background: style.bg, color: style.color,
+              fontSize: 12, fontWeight: active ? 700 : 600,
+              cursor: "pointer", fontFamily: "inherit",
+              transition: "background 0.12s, color 0.12s",
+            }}
+          >
+            <span>{p.label}</span>
+            <span style={{
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              minWidth: 18, height: 18, padding: "0 6px",
+              borderRadius: 10, fontSize: 10, fontWeight: 700,
+              background: style.badgeBg, color: style.badgeColor,
+            }}>
+              {p.count}
+            </span>
+          </button>
         );
       })}
     </div>
   );
 }
 
-function ScreeningCard({ screening, currentUser, onUpdated }) {
+function getFilterPillStyle(tone, active, emphasis) {
+  // Active = the currently-selected filter (solid look)
+  // Emphasis = non-zero count on a tone that needs attention (amber/red glow even when inactive)
+  const palettes = {
+    amber:   { base:"#FEF3C7", border:"#D97706", color:"#92400E", activeBg:"#D97706", activeColor:"#fff" },
+    red:     { base:"#FEE2E2", border:"#DC2626", color:"#991B1B", activeBg:"#DC2626", activeColor:"#fff" },
+    teal:    { base:"#D1FAE5", border:"#059669", color:"#065F46", activeBg:"#059669", activeColor:"#fff" },
+    neutral: { base:"#F3F4F6", border:C.borderMid, color:C.textSecondary, activeBg:C.textPrimary, activeColor:"#fff" },
+  };
+  const p = palettes[tone] || palettes.neutral;
+  if (active) {
+    return {
+      bg: p.activeBg, color: p.activeColor, border: p.activeBg,
+      badgeBg: "rgba(255,255,255,0.25)", badgeColor: "#fff",
+    };
+  }
+  if (emphasis) {
+    return {
+      bg: p.base, color: p.color, border: p.border,
+      badgeBg: "#fff", badgeColor: p.color,
+    };
+  }
+  return {
+    bg: "#fff", color: C.textSecondary, border: C.borderMid,
+    badgeBg: "#F3F4F6", badgeColor: C.textTertiary,
+  };
+}
+
+function ScreeningCard({ screening, currentUser, onUpdated, filter, onOptimisticRemove }) {
   const [expanded, setExpanded] = useState(false);
   const [marking, setMarking]   = useState(false);
 
@@ -357,11 +455,19 @@ function ScreeningCard({ screening, currentUser, onUpdated }) {
   const hasCaveat = !!(summary.staff_assisted_completion_caveat);
 
   const canMarkReviewed = status === "Success" && !s.reviewed_at;
+  const isReviewed      = !!s.reviewed_at;
+  const needsReview     = status === "Success" && !isReviewed;
 
   const handleMarkReviewed = async function() {
     setMarking(true);
     try {
       await markResponseReviewed(s.id, currentUser);
+      // Optimistic removal: if we're viewing a filter this row no longer
+      // matches (needs_review or urgent), slide it out immediately so the
+      // provider sees an inbox-like clearing behavior.
+      if ((filter === "needs_review" || filter === "urgent") && onOptimisticRemove) {
+        onOptimisticRemove(s.id);
+      }
       if (onUpdated) onUpdated();
     } catch (e) {
       alert("Failed to mark reviewed: " + (e.message || e));
@@ -421,7 +527,28 @@ function ScreeningCard({ screening, currentUser, onUpdated }) {
             })}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11, color: C.textSecondary }}>
+       <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: C.textSecondary }}>
+          {isReviewed && (
+            <span
+              title={"Reviewed " + fmtDateTime(s.reviewed_at)}
+              style={{
+                background: "#D1FAE5", color: "#065F46",
+                fontSize: 10, fontWeight: 600,
+                padding: "3px 8px", borderRadius: 10,
+              }}
+            >
+              Reviewed
+            </span>
+          )}
+          {needsReview && !hasUrgent && (
+            <span style={{
+              background: "#FEF3C7", color: "#92400E",
+              fontSize: 10, fontWeight: 600,
+              padding: "3px 8px", borderRadius: 10,
+            }}>
+              Needs review
+            </span>
+          )}
           <span style={{
             background: statusStyle.bg, color: statusStyle.color,
             fontSize: 10, fontWeight: 600,
