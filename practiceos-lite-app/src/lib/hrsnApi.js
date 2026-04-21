@@ -75,6 +75,30 @@ export async function updateReferralDraft(draftId, updates, user) {
   return data;
 }
 
+// Dedicated send helper - captures method + recipient + stamps sent_at.
+// sentVia must be one of: 'NCCARE360 Portal' | 'NCCARE360 API' | 'Email' |
+// 'Fax' | 'Phone' | 'Printed / In-person' | 'Other'
+export async function markReferralSent(draftId, meta, user) {
+  const patch = {
+    status: "Sent",
+    sent_via: meta.sent_via,
+    sent_to_recipient: meta.sent_to_recipient || null,
+    sent_at: new Date().toISOString(),
+  };
+  if (user && user.id) {
+    patch.reviewed_by = user.id;
+    patch.reviewed_at = new Date().toISOString();
+  }
+  const { data, error } = await supabase
+    .from("hrsn_referral_drafts")
+    .update(patch)
+    .eq("id", draftId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function markResponseReviewed(responseId, user) {
   const patch = { reviewed_at: new Date().toISOString() };
   if (user && user.id) patch.reviewed_by = user.id;
