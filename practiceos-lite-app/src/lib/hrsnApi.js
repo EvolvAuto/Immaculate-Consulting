@@ -200,7 +200,7 @@ export async function listDueForScreening(practiceId, lookaheadDays) {
     .from("patient_screening_schedule")
     .select(
       "id, patient_id, screener_type, cadence_months, last_screened_at, due_date, reason_for_cadence, " +
-      "patients:patient_id ( id, first_name, last_name, mrn, dob )"
+      "patients:patient_id ( id, first_name, last_name, mrn )"
     )
     .eq("practice_id", practiceId)
     .eq("screener_type", "HRSN")
