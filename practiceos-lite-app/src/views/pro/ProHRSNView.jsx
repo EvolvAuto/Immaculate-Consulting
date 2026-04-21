@@ -13,6 +13,7 @@ import {
   listRecentScreenings,
   listReferralDrafts,
   updateReferralDraft,
+  markReferralSent,
   markResponseReviewed,
   getEffectiveNarrative,
 } from "../../lib/hrsnApi";
@@ -44,6 +45,19 @@ const STATUS_STYLES = {
   Sent:       { bg: "#E0E7FF", color: "#3730A3", label: "Sent" },
   Dismissed:  { bg: "#F3F4F6", color: "#6B7280", label: "Dismissed" },
 };
+
+// Channels through which staff can send a referral. Order reflects likely
+// frequency for NC Medicaid practices; "NCCARE360 API" is provisioned for
+// future per-practice API integration.
+const SEND_VIA_OPTIONS = [
+  { value: "NCCARE360 Portal",     label: "NCCARE360 Portal (copy/paste)" },
+  { value: "NCCARE360 API",        label: "NCCARE360 API" },
+  { value: "Email",                label: "Email" },
+  { value: "Fax",                  label: "Fax" },
+  { value: "Phone",                label: "Phone call" },
+  { value: "Printed / In-person",  label: "Printed / handed to patient" },
+  { value: "Other",                label: "Other" },
+];
 
 const AI_STATUS_STYLES = {
   None:    { bg: "#F3F4F6", color: "#6B7280", label: "Not generated" },
@@ -765,16 +779,29 @@ function ReferralDraftCard({ draft, currentUser, onUpdated }) {
     }
   };
 
+  const [sendModalOpen, setSendModalOpen] = useState(false);
+
   const handleStatusChange = async function(newStatus) {
     if (!confirm("Change status to " + newStatus + "?")) return;
     setSaving(true);
     try {
-      const patch = { status: newStatus };
-      if (newStatus === "Sent") patch.sent_via = "Copy to Clipboard";
-      await updateReferralDraft(draft.id, patch, currentUser);
+      await updateReferralDraft(draft.id, { status: newStatus }, currentUser);
       if (onUpdated) onUpdated();
     } catch (e) {
       alert("Status update failed: " + (e.message || e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSendComplete = async function(meta) {
+    setSaving(true);
+    try {
+      await markReferralSent(draft.id, meta, currentUser);
+      setSendModalOpen(false);
+      if (onUpdated) onUpdated();
+    } catch (e) {
+      alert("Mark-as-sent failed: " + (e.message || e));
     } finally {
       setSaving(false);
     }
@@ -939,17 +966,26 @@ function ReferralDraftCard({ draft, currentUser, onUpdated }) {
               )}
               {draft.status === "Approved" && (
                 <button
-                  onClick={function() { handleStatusChange("Sent"); }}
+                  onClick={function() { setSendModalOpen(true); }}
                   disabled={saving}
                   style={btnPrimary(saving)}
                 >
-                  Mark as Sent
+                  I sent this - record it
                 </button>
               )}
             </>
           )}
         </div>
       </div>
+
+      {sendModalOpen && (
+        <SendReferralModal
+          draft={draft}
+          onCancel={function() { setSendModalOpen(false); }}
+          onConfirm={handleSendComplete}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }
@@ -970,6 +1006,131 @@ function btnSecondary(disabled) {
     cursor: disabled ? "wait" : "pointer", fontFamily: "inherit",
     opacity: disabled ? 0.6 : 1,
   };
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// SendReferralModal - captures sent_via + optional recipient when staff marks
+// a referral as externally sent. Feeds reporting ("% of transportation
+// referrals via NCCARE360 last month") and will gracefully accommodate the
+// future NCCARE360 API integration without schema changes.
+// ───────────────────────────────────────────────────────────────────────────────
+
+function SendReferralModal({ draft, onCancel, onConfirm, saving }) {
+  const [sentVia, setSentVia]           = useState(SEND_VIA_OPTIONS[0].value);
+  const [recipient, setRecipient]       = useState("");
+
+  const domainLabel = DOMAIN_LABELS[draft.domain] || draft.domain;
+
+  const handleSubmit = function() {
+    if (!sentVia) return;
+    onConfirm({
+      sent_via: sentVia,
+      sent_to_recipient: recipient.trim() || null,
+    });
+  };
+
+  const recipientPlaceholder =
+    sentVia === "Email" ? "e.g. partner@foodbank.org" :
+    sentVia === "Fax"   ? "e.g. (919) 555-0199" :
+    sentVia === "Phone" ? "e.g. Care coordinator - Jane Smith" :
+    sentVia === "NCCARE360 Portal" ? "e.g. Food Bank of Central NC" :
+    sentVia === "NCCARE360 API"    ? "e.g. Food Bank of Central NC (auto-filled from response)" :
+    "Partner name or contact info (optional)";
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={function(e) { e.stopPropagation(); }}
+        style={{
+          background: "#fff", borderRadius: 8,
+          maxWidth: 480, width: "90vw",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.2)",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{
+          padding: "16px 20px",
+          borderBottom: "0.5px solid " + C.borderMid,
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary }}>
+            Record referral as sent
+          </div>
+          <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>
+            {domainLabel} referral for {patientName(draft.patients)}
+          </div>
+        </div>
+
+        <div style={{ padding: "18px 20px" }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
+            color: C.textTertiary, marginBottom: 6,
+          }}>
+            HOW WAS THIS SENT?
+          </div>
+          <select
+            value={sentVia}
+            onChange={function(e) { setSentVia(e.target.value); }}
+            disabled={saving}
+            style={{
+              width: "100%", padding: "8px 10px",
+              border: "0.5px solid " + C.borderMid, borderRadius: 6,
+              fontSize: 13, color: C.textPrimary, fontFamily: "inherit",
+              background: "#fff",
+            }}
+          >
+            {SEND_VIA_OPTIONS.map(function(opt) {
+              return <option key={opt.value} value={opt.value}>{opt.label}</option>;
+            })}
+          </select>
+
+          <div style={{
+            fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
+            color: C.textTertiary, marginTop: 16, marginBottom: 6,
+          }}>
+            RECIPIENT <span style={{ color: C.textTertiary, fontWeight: 500, letterSpacing: 0 }}>(optional)</span>
+          </div>
+          <input
+            type="text"
+            value={recipient}
+            onChange={function(e) { setRecipient(e.target.value); }}
+            placeholder={recipientPlaceholder}
+            disabled={saving}
+            style={{
+              width: "100%", padding: "8px 10px",
+              border: "0.5px solid " + C.borderMid, borderRadius: 6,
+              fontSize: 13, color: C.textPrimary, fontFamily: "inherit",
+            }}
+          />
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 6, lineHeight: 1.5 }}>
+            Who or what organization received this referral. Used for follow-up
+            and reporting.
+          </div>
+        </div>
+
+        <div style={{
+          padding: "12px 20px",
+          borderTop: "0.5px solid " + C.borderMid,
+          background: C.bgSecondary,
+          display: "flex", justifyContent: "flex-end", gap: 8,
+        }}>
+          <button onClick={onCancel} disabled={saving} style={btnSecondary(saving)}>
+            Cancel
+          </button>
+          <button onClick={handleSubmit} disabled={saving || !sentVia} style={btnPrimary(saving)}>
+            {saving ? "Recording..." : "Confirm sent"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
