@@ -1395,7 +1395,7 @@ function CadenceCard({ screening, currentUser, onSaved, aiSummary }) {
       try {
         const { data } = await supabase
           .from("patient_screening_schedule")
-          .select("id, cadence_months, reason_for_cadence, last_screened_at, due_date, updated_at, created_at")
+          .select("id, cadence_months, reason_for_cadence, last_screened_at, due_date, provider_set_cadence_at")
           .eq("practice_id",   screening.practice_id)
           .eq("patient_id",    screening.patient_id)
           .eq("screener_type", "HRSN")
@@ -1403,13 +1403,12 @@ function CadenceCard({ screening, currentUser, onSaved, aiSummary }) {
         if (cancelled) return;
         if (data) {
           setSchedule(data);
-          // The AFTER INSERT trigger auto-creates a row with cadence=12 when a
-          // screening lands. To detect "provider has never explicitly set this,"
-          // we treat created_at ~= updated_at as "untouched."
-          const untouched = !data.updated_at || !data.created_at ||
-            Math.abs(new Date(data.updated_at).getTime() - new Date(data.created_at).getTime()) < 2000;
-
-          if (untouched && aiSuggested) {
+          // Explicit contract: provider_set_cadence_at is null until a
+          // provider actively saves from the CadenceCard. Trigger-driven
+          // auto-updates leave it null. If null AND Claude suggested a
+          // cadence for this screening, pre-select the AI suggestion.
+          const providerHasSet = !!data.provider_set_cadence_at;
+          if (!providerHasSet && aiSuggested) {
             setCadence(aiSuggested);
             setUsedAISuggestion(true);
           } else {
@@ -1417,7 +1416,6 @@ function CadenceCard({ screening, currentUser, onSaved, aiSummary }) {
           }
           setReason(data.reason_for_cadence || "");
         } else if (aiSuggested) {
-          // No schedule row yet somehow - use AI suggestion as default
           setCadence(aiSuggested);
           setUsedAISuggestion(true);
         }
