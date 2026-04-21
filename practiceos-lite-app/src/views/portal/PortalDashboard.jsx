@@ -17,6 +17,8 @@ export default function PortalDashboard({ patient, practice, patientId, practice
   const [pendingForms, setPendingForms] = useState(0);
   const [insurance, setInsurance]       = useState(null);
   const [recentPayments, setRecentPayments] = useState(0);
+  const [hrsnSchedule, setHrsnSchedule] = useState(null);
+  const [hrsnLastResponse, setHrsnLastResponse] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -72,6 +74,59 @@ export default function PortalDashboard({ patient, practice, patientId, practice
     })();
     return () => { active = false; };
   }, [patientId, practiceId]);
+
+  // Separate HRSN fetch - scoped to Pro/Command practices only so Lite
+  // patients don't get an invisible-to-staff screening CTA.
+  useEffect(() => {
+    const tier = practice && practice.subscription_tier;
+    if (tier !== "Pro" && tier !== "Command") return;
+    let active = true;
+    (async () => {
+      try {
+        const [schedRes, respRes] = await Promise.all([
+          supabase.from("patient_screening_schedule")
+            .select("id, due_date, cadence_months, last_screened_at")
+            .eq("patient_id", patientId)
+            .eq("screener_type", "HRSN")
+            .maybeSingle(),
+          supabase.from("screener_responses")
+            .select("id, completed_at")
+            .eq("patient_id", patientId)
+            .eq("screener_type", "HRSN")
+            .order("completed_at", { ascending: false })
+            .limit(1),
+        ]);
+        if (!active) return;
+        setHrsnSchedule(schedRes.data || null);
+        setHrsnLastResponse((respRes.data || [])[0] || null);
+      } catch (e) {
+        console.warn("[dashboard] HRSN fetch failed:", e && e.message ? e.message : e);
+      }
+    })();
+    return () => { active = false; };
+  }, [patientId, practice]);
+
+  // Derive whether to show the HRSN screening CTA panel
+  const hrsnState = (() => {
+    const tier = practice && practice.subscription_tier;
+    if (tier !== "Pro" && tier !== "Command") return { show: false };
+
+    // Recently screened? Don't nudge them again.
+    if (hrsnLastResponse) {
+      const daysSince = (Date.now() - new Date(hrsnLastResponse.completed_at).getTime()) / 86400000;
+      if (daysSince < 14) return { show: false };
+    }
+
+    // Scheduled for later? Don't nudge yet.
+    if (hrsnSchedule && hrsnSchedule.due_date) {
+      const due = new Date(hrsnSchedule.due_date + "T00:00:00");
+      if (due > new Date()) return { show: false };
+    }
+
+    // Show - differentiate first-time from re-screen for copy
+    const isFirstTime = !hrsnLastResponse;
+    return { show: true, isFirstTime: isFirstTime, lastScreenedAt: hrsnLastResponse && hrsnLastResponse.completed_at };
+  })();
 
   const firstName = patient.first_name || "";
   const insuranceOk = insurance && insurance.is_active;
@@ -195,7 +250,7 @@ export default function PortalDashboard({ patient, practice, patientId, practice
         </div>
       </Panel>
 
-      {nextAppt && (
+     {nextAppt && (
         <Panel accent={C.amberMid}>
           <SectionHead
             title="Upcoming Appointment"
@@ -219,6 +274,31 @@ export default function PortalDashboard({ patient, practice, patientId, practice
                   Complete Forms ({pendingForms})
                 </Btn>
               )}
+            </div>
+          </div>
+        </Panel>
+      )}
+
+      {hrsnState.show && (
+        <Panel accent={C.tealMid}>
+          <SectionHead
+            title={hrsnState.isFirstTime ? "Help us care for your whole health" : "Time for your check-in"}
+          />
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <div style={{ flex:1, minWidth:240 }}>
+              <div style={{ fontSize:10, fontWeight:600, color:C.teal, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>
+                Social Needs Screening
+              </div>
+              <div style={{ fontSize:13, color:C.textSecondary, lineHeight:1.55 }}>
+                {hrsnState.isFirstTime
+                  ? "Your care team wants to understand the things outside the exam room that affect your health - food, housing, transportation, and more. Your answers stay private. Takes about 3 minutes."
+                  : "Check in with your care team about the things outside the exam room - food, housing, transportation, and more. Let us know if anything has changed. Takes about 3 minutes."}
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              <Btn variant="primary" onClick={()=>goTab("hrsn")}>
+                {hrsnState.isFirstTime ? "Start screening" : "Update my screening"}
+              </Btn>
             </div>
           </div>
         </Panel>
