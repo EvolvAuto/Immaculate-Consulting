@@ -11,6 +11,8 @@ import { supabase } from "./supabaseClient";
 
 const PRIORITY_ORDER = { urgent: 0, high: 1, medium: 2, low: 3 };
 
+const DAY_MS = 86400000;
+
 export async function listRecentScreenings(practiceId, limit) {
   const n = limit || 20;
   const { data, error } = await supabase
@@ -117,4 +119,100 @@ export function getEffectiveNarrative(draft) {
   // NOT async - used directly inside useState() initialization.
   if (!draft) return "";
   return draft.staff_edited_narrative || draft.packet_narrative || "";
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Cadence + Due-for-Screening
+// ───────────────────────────────────────────────────────────────────────────────
+
+export async function getPracticePref(practiceId, key) {
+  const { data, error } = await supabase.rpc("get_practice_preference", {
+    p_practice_id: practiceId,
+    p_key: key,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertScreeningSchedule(input) {
+  // input: { practice_id, patient_id, screener_type, cadence_months,
+  //         reason_for_cadence (optional), last_screened_at (optional) }
+  //
+  // Upserts the schedule row. If last_screened_at is provided, due_date is
+  // recomputed from it + cadence. Otherwise due_date is preserved from the
+  // existing row but shifted to reflect the new cadence (keeping the anchor
+  // date stable).
+  if (!input || !input.practice_id || !input.patient_id || !input.screener_type || !input.cadence_months) {
+    throw new Error("upsertScreeningSchedule: missing required fields");
+  }
+
+  // Fetch current row (if any) to compute new due_date from existing anchor
+  const { data: existing } = await supabase
+    .from("patient_screening_schedule")
+    .select("id, last_screened_at, due_date, cadence_months")
+    .eq("practice_id",   input.practice_id)
+    .eq("patient_id",    input.patient_id)
+    .eq("screener_type", input.screener_type)
+    .maybeSingle();
+
+  const anchor = input.last_screened_at
+    ? new Date(input.last_screened_at)
+    : (existing && existing.last_screened_at ? new Date(existing.last_screened_at) : new Date());
+
+  const newDue = new Date(anchor);
+  newDue.setMonth(newDue.getMonth() + Number(input.cadence_months));
+  const dueDateStr = newDue.toISOString().slice(0, 10);
+
+  const payload = {
+    practice_id:        input.practice_id,
+    patient_id:         input.patient_id,
+    screener_type:      input.screener_type,
+    cadence_months:     Number(input.cadence_months),
+    due_date:           dueDateStr,
+    reason_for_cadence: input.reason_for_cadence || null,
+  };
+  if (input.last_screened_at) {
+    payload.last_screened_at = input.last_screened_at;
+  } else if (existing && existing.last_screened_at) {
+    payload.last_screened_at = existing.last_screened_at;
+  }
+
+  const { data, error } = await supabase
+    .from("patient_screening_schedule")
+    .upsert(payload, { onConflict: "practice_id,patient_id,screener_type" })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function listDueForScreening(practiceId, lookaheadDays) {
+  // Returns { overdue: [], comingDue: [], lookaheadDays }
+  // overdue:    due_date <= today
+  // comingDue:  today < due_date <= today + lookahead
+  const lookahead = Number(lookaheadDays) > 0 ? Number(lookaheadDays) : 30;
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const horizon = new Date(today.getTime() + lookahead * DAY_MS);
+  const horizonStr = horizon.toISOString().slice(0, 10);
+
+  const { data, error } = await supabase
+    .from("patient_screening_schedule")
+    .select(
+      "id, patient_id, screener_type, cadence_months, last_screened_at, due_date, reason_for_cadence, " +
+      "patients:patient_id ( id, first_name, last_name, mrn, dob )"
+    )
+    .eq("practice_id", practiceId)
+    .eq("screener_type", "HRSN")
+    .lte("due_date", horizonStr)
+    .order("due_date", { ascending: true });
+  if (error) throw error;
+
+  const overdue = [];
+  const comingDue = [];
+  (data || []).forEach(function(row) {
+    if (row.due_date <= todayStr) overdue.push(row);
+    else                           comingDue.push(row);
+  });
+  return { overdue: overdue, comingDue: comingDue, lookaheadDays: lookahead };
 }
