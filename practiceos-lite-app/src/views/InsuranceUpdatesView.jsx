@@ -90,8 +90,8 @@ export default function InsuranceUpdatesView() {
   if (loading) return <Loader />;
   if (error)   return <ErrorBanner msg={error} />;
 
-  return (
-    <div>
+ return (
+    <div style={{ paddingTop: 12 }}>
       <SectionHead
         title="Insurance Updates"
         sub="Review patient-submitted changes to primary and secondary coverage. Approving applies the change to the patient's chart."
