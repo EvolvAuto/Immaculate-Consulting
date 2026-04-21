@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../auth/AuthProvider";
+import { supabase } from "../../lib/supabaseClient";
 import { C } from "../../lib/tokens";
 import {
   listRecentScreenings,
@@ -16,6 +17,9 @@ import {
   markReferralSent,
   markResponseReviewed,
   getEffectiveNarrative,
+  getPracticePref,
+  upsertScreeningSchedule,
+  listDueForScreening,
 } from "../../lib/hrsnApi";
 
 // ───────────────────────────────────────────────────────────────────────────────
@@ -67,6 +71,35 @@ const AI_STATUS_STYLES = {
   Failed:  { bg: "#FEE2E2", color: "#991B1B", label: "Summary failed" },
   Skipped: { bg: "#F3F4F6", color: "#6B7280", label: "Skipped" },
 };
+
+// Cadence dropdown options. Aligned with NC Medicaid norms: 6 months for
+// high-need patients, 12 months standard, 24 months for stable low-risk.
+const CADENCE_OPTIONS = [
+  { value: 6,  label: "6 months",  helper: "High-need patient" },
+  { value: 12, label: "12 months", helper: "Standard" },
+  { value: 24, label: "24 months", helper: "Stable / low-risk" },
+];
+
+function addMonthsToDateStr(dateStr, months) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + Number(months));
+  return d.toISOString().slice(0, 10);
+}
+
+function fmtDateShort(dateStr) {
+  if (!dateStr) return "-";
+  const d = new Date(dateStr + (dateStr.length === 10 ? "T00:00:00" : ""));
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function daysBetween(dateStr) {
+  if (!dateStr) return 0;
+  const d = new Date(dateStr + "T00:00:00").getTime();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((d - today.getTime()) / 86400000);
+}
 
 function fmtDate(ts) {
   if (!ts) return "-";
@@ -182,7 +215,7 @@ export default function ProHRSNView() {
         />
       )}
 
-      {!loading && activeTab === "schedule" && <ScheduleTabStub />}
+      {!loading && activeTab === "schedule" && <ScheduleTab practiceId={practiceId} />}
     </div>
   );
 }
@@ -416,12 +449,15 @@ function ScreeningCard({ screening, currentUser, onUpdated }) {
             <FailureBanner error={s.ai_summary_error} attempts={s.ai_summary_attempts} />
           )}
 
-          {status === "Success" && (
+         {status === "Success" && (
             <AISummaryBody
               summary={summary}
               canMarkReviewed={canMarkReviewed}
               marking={marking}
               onMarkReviewed={handleMarkReviewed}
+              screening={s}
+              currentUser={currentUser}
+              onCadenceSaved={onUpdated}
             />
           )}
 
@@ -482,7 +518,7 @@ function FailureBanner({ error, attempts }) {
 // AI Summary rendering (the payoff)
 // ───────────────────────────────────────────────────────────────────────────────
 
-function AISummaryBody({ summary, canMarkReviewed, marking, onMarkReviewed }) {
+function AISummaryBody({ summary, canMarkReviewed, marking, onMarkReviewed, screening, currentUser, onCadenceSaved }) {
   const alert   = summary.urgent_safety_alert;
   const caveat  = summary.staff_assisted_completion_caveat;
   const domains = summary.domains || {};
@@ -642,6 +678,11 @@ function AISummaryBody({ summary, canMarkReviewed, marking, onMarkReviewed }) {
             Full referral packets are in the Draft Referrals tab for staff review.
           </div>
         </div>
+      )}
+
+     {/* Cadence setter */}
+      {screening && (
+        <CadenceCard screening={screening} currentUser={currentUser} onSaved={onCadenceSaved} />
       )}
 
       {/* Mark reviewed action */}
@@ -1134,15 +1175,372 @@ function SendReferralModal({ draft, onCancel, onConfirm, saving }) {
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
-// Schedule tab (stub - full implementation in Step 3)
+// ───────────────────────────────────────────────────────────────────────────────
+// Cadence card - provider sets re-screen interval from within the summary view
 // ───────────────────────────────────────────────────────────────────────────────
 
-function ScheduleTabStub() {
+function CadenceCard({ screening, currentUser, onSaved }) {
+  // We show the current schedule state + allow the provider to change cadence.
+  // On save, we upsert patient_screening_schedule. The existing AFTER INSERT
+  // trigger already set a 12-month default from this screening; this lets the
+  // provider override to 6 or 24.
+  const [cadence, setCadence] = useState(12);
+  const [reason, setReason]   = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving]   = useState(false);
+  const [savedAt, setSavedAt] = useState(null);
+  const [error, setError]     = useState(null);
+  const [schedule, setSchedule] = useState(null);
+
+  useEffect(() => {
+    if (!screening || !screening.practice_id || !screening.patient_id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("patient_screening_schedule")
+          .select("id, cadence_months, reason_for_cadence, last_screened_at, due_date")
+          .eq("practice_id",   screening.practice_id)
+          .eq("patient_id",    screening.patient_id)
+          .eq("screener_type", "HRSN")
+          .maybeSingle();
+        if (cancelled) return;
+        if (data) {
+          setSchedule(data);
+          setCadence(data.cadence_months || 12);
+          setReason(data.reason_for_cadence || "");
+        }
+      } catch (e) {
+        if (!cancelled) setError(e && e.message ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return function() { cancelled = true; };
+  }, [screening]);
+
+  const projectedDue = useMemo(() => {
+    const anchor = (schedule && schedule.last_screened_at) || screening.completed_at;
+    if (!anchor) return null;
+    return addMonthsToDateStr(anchor, cadence);
+  }, [schedule, screening, cadence]);
+
+  const hasChanges =
+    !loading && (
+      cadence !== (schedule?.cadence_months || 12) ||
+      reason  !== (schedule?.reason_for_cadence || "")
+    );
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await upsertScreeningSchedule({
+        practice_id:         screening.practice_id,
+        patient_id:          screening.patient_id,
+        screener_type:       "HRSN",
+        cadence_months:      cadence,
+        reason_for_cadence:  reason.trim() || null,
+      });
+      setSavedAt(Date.now());
+      if (onSaved) onSaved();
+    } catch (e) {
+      setError(e && e.message ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <EmptyState
-      title="Due-for-screening tracking coming in Step 3"
-      body="This tab will show patients whose HRSN re-screening is due based on their cadence interval (annual by default, 6 months for high-need patients). Cadence is set by the provider after reviewing each screening."
-    />
+    <div style={{
+      background: "#fff", border: "0.5px solid " + C.borderMid,
+      borderRadius: 6, padding: "14px 16px",
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+        color: C.textTertiary, marginBottom: 10,
+      }}>
+        RE-SCREENING CADENCE
+      </div>
+
+      {loading ? (
+        <div style={{ fontSize: 12, color: C.textTertiary }}>Loading current schedule...</div>
+      ) : (
+        <>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+            {CADENCE_OPTIONS.map(opt => {
+              const selected = cadence === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setCadence(opt.value)}
+                  disabled={saving}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    width: "100%", textAlign: "left",
+                    padding: "9px 12px",
+                    background: selected ? "#E0F2FE" : "#fff",
+                    border: "0.5px solid " + (selected ? "#0284C7" : C.borderMid),
+                    borderRadius: 6,
+                    cursor: saving ? "wait" : "pointer",
+                    fontFamily: "inherit", fontSize: 12,
+                    color: selected ? "#075985" : C.textPrimary,
+                    fontWeight: selected ? 600 : 500,
+                  }}
+                >
+                  <span style={{
+                    width: 14, height: 14, borderRadius: "50%",
+                    border: "1.5px solid " + (selected ? "#0284C7" : C.borderMid),
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {selected && <span style={{
+                      width: 6, height: 6, borderRadius: "50%", background: "#0284C7",
+                    }} />}
+                  </span>
+                  <span style={{ flex: 1 }}>{opt.label}</span>
+                  <span style={{ fontSize: 10, color: C.textTertiary, fontWeight: 500 }}>
+                    {opt.helper}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
+            color: C.textTertiary, marginBottom: 5,
+          }}>
+            REASON <span style={{ fontWeight: 500, letterSpacing: 0 }}>(optional)</span>
+          </div>
+          <input
+            type="text"
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="e.g. High-need per PCP assessment"
+            disabled={saving}
+            style={{
+              width: "100%", padding: "7px 10px",
+              border: "0.5px solid " + C.borderMid, borderRadius: 6,
+              fontSize: 12, color: C.textPrimary, fontFamily: "inherit",
+              marginBottom: 12,
+            }}
+          />
+
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            flexWrap: "wrap", gap: 10,
+          }}>
+            <div style={{ fontSize: 11, color: C.textSecondary }}>
+              Next screening due: <strong style={{ color: C.textPrimary }}>
+                {fmtDateShort(projectedDue)}
+              </strong>
+              {schedule && schedule.due_date !== projectedDue && (
+                <span style={{ color: C.textTertiary, marginLeft: 6 }}>
+                  (was {fmtDateShort(schedule.due_date)})
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {savedAt && !hasChanges && (
+                <span style={{ fontSize: 11, color: "#065F46" }}>Saved</span>
+              )}
+              <button
+                onClick={handleSave}
+                disabled={saving || !hasChanges}
+                style={{
+                  background: hasChanges ? C.teal : C.textTertiary,
+                  color: "#fff", border: "none",
+                  borderRadius: 6, padding: "7px 14px", fontSize: 12, fontWeight: 600,
+                  cursor: saving ? "wait" : (hasChanges ? "pointer" : "not-allowed"),
+                  fontFamily: "inherit",
+                  opacity: saving ? 0.7 : 1,
+                }}
+              >
+                {saving ? "Saving..." : "Save cadence"}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <div style={{
+              marginTop: 10, padding: "8px 10px",
+              background: "#FEE2E2", border: "0.5px solid #DC2626",
+              color: "#991B1B", fontSize: 11, borderRadius: 4,
+            }}>
+              {error}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// Schedule tab - Overdue + Coming Due
+// ───────────────────────────────────────────────────────────────────────────────
+
+function ScheduleTab({ practiceId }) {
+  const [buckets, setBuckets] = useState({ overdue: [], comingDue: [], lookaheadDays: 30 });
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+
+  useEffect(() => {
+    if (!practiceId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const pref = await getPracticePref(practiceId, "pro_hrsn_due_lookahead_days");
+        const lookahead = (typeof pref === "number" && pref > 0) ? pref : 30;
+        const result = await listDueForScreening(practiceId, lookahead);
+        if (!cancelled) setBuckets(result);
+      } catch (e) {
+        if (!cancelled) setError(e && e.message ? e.message : String(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return function() { cancelled = true; };
+  }, [practiceId]);
+
+  if (loading) return <LoadingState />;
+  if (error) {
+    return (
+      <div style={{
+        background: "#FEE2E2", border: "0.5px solid #DC2626",
+        color: "#991B1B", padding: "10px 14px", borderRadius: 6,
+        fontSize: 12,
+      }}>
+        Error loading: {error}
+      </div>
+    );
+  }
+
+  const { overdue, comingDue, lookaheadDays } = buckets;
+
+  if (overdue.length === 0 && comingDue.length === 0) {
+    return (
+      <EmptyState
+        title="No screenings due right now"
+        body={"All patients with HRSN screening schedules are current. Patients coming due within " + lookaheadDays + " days will surface here."}
+      />
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {overdue.length > 0 && (
+        <ScheduleBucket
+          title="Overdue"
+          subtitle="Re-screening due date has passed"
+          accent="#DC2626"
+          accentBg="#FEE2E2"
+          rows={overdue}
+        />
+      )}
+      {comingDue.length > 0 && (
+        <ScheduleBucket
+          title="Coming due"
+          subtitle={"Re-screening due within " + lookaheadDays + " days"}
+          accent="#D97706"
+          accentBg="#FEF3C7"
+          rows={comingDue}
+        />
+      )}
+    </div>
+  );
+}
+
+function ScheduleBucket({ title, subtitle, accent, accentBg, rows }) {
+  return (
+    <div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 3 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary }}>
+            {title}
+          </div>
+          <span style={{
+            background: accentBg, color: accent,
+            fontSize: 11, fontWeight: 700,
+            padding: "2px 9px", borderRadius: 10,
+          }}>
+            {rows.length}
+          </span>
+        </div>
+        <div style={{ fontSize: 11, color: C.textTertiary }}>{subtitle}</div>
+      </div>
+
+      <div style={{
+        background: "#fff",
+        border: "0.5px solid " + C.borderMid,
+        borderRadius: 8, overflow: "hidden",
+      }}>
+        {rows.map(function(r, i) {
+          const p        = r.patients || {};
+          const name     = ((p.first_name || "") + " " + (p.last_name || "")).trim() || "Unknown patient";
+          const mrn      = p.mrn || "-";
+          const days     = daysBetween(r.due_date);
+          const dayLabel =
+            days < 0  ? (Math.abs(days) + " day" + (Math.abs(days) === 1 ? "" : "s") + " ago") :
+            days === 0 ? "Today" :
+                         ("in " + days + " day" + (days === 1 ? "" : "s"));
+          return (
+            <div
+              key={r.id}
+              style={{
+                padding: "12px 16px",
+                borderTop: i > 0 ? ("0.5px solid " + C.borderLight) : "none",
+                display: "flex", alignItems: "center",
+                gap: 12, flexWrap: "wrap",
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>
+                  {name}
+                </div>
+                <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>
+                  MRN {mrn}
+                  {r.last_screened_at && (
+                    <span> · Last screened {fmtDateShort(r.last_screened_at.slice(0, 10))}</span>
+                  )}
+                  {r.cadence_months && (
+                    <span> · {r.cadence_months}-month cadence</span>
+                  )}
+                </div>
+                {r.reason_for_cadence && (
+                  <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 3, fontStyle: "italic" }}>
+                    {r.reason_for_cadence}
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: accent }}>
+                  Due {fmtDateShort(r.due_date)}
+                </div>
+                <div style={{ fontSize: 11, color: C.textTertiary }}>
+                  {dayLabel}
+                </div>
+              </div>
+              <button
+                disabled
+                title="Staff 'Start screening' button is wired in Step 2b"
+                style={{
+                  background: "#fff", color: C.textTertiary,
+                  border: "0.5px solid " + C.borderMid,
+                  borderRadius: 6, padding: "7px 12px", fontSize: 12, fontWeight: 600,
+                  cursor: "not-allowed", fontFamily: "inherit", opacity: 0.65,
+                }}
+              >
+                Start screening
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
