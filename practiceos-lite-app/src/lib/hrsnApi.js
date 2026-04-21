@@ -214,12 +214,13 @@ export async function upsertScreeningSchedule(input) {
   const dueDateStr = newDue.toISOString().slice(0, 10);
 
   const payload = {
-    practice_id:        input.practice_id,
-    patient_id:         input.patient_id,
-    screener_type:      input.screener_type,
-    cadence_months:     Number(input.cadence_months),
-    due_date:           dueDateStr,
-    reason_for_cadence: input.reason_for_cadence || null,
+    practice_id:             input.practice_id,
+    patient_id:              input.patient_id,
+    screener_type:           input.screener_type,
+    cadence_months:          Number(input.cadence_months),
+    due_date:                dueDateStr,
+    reason_for_cadence:      input.reason_for_cadence || null,
+    provider_set_cadence_at: new Date().toISOString(),
   };
   if (input.last_screened_at) {
     payload.last_screened_at = input.last_screened_at;
