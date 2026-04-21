@@ -17,6 +17,7 @@ import GrantFamilyAccessModal from "./GrantFamilyAccessModal";
 import { insertRow, updateRow, logRead } from "../lib/db";
 import { ageFromDOB, formatPhone, initialsOf, APPT_STATUS_VARIANT, NC_PAYERS } from "../components/constants";
 import { Badge, Btn, Card, Modal, Input, Select, TopBar, TabBar, FL, Avatar, SectionHead, Loader, ErrorBanner, EmptyState, Textarea } from "../components/ui";
+import StartScreeningModal from "../components/hrsn/StartScreeningModal";
 
 const GENDERS = ["Male", "Female", "Non-Binary", "Other", "Unknown"];
 const STATUSES = ["Active", "Inactive", "Deceased", "Merged"];
@@ -29,7 +30,7 @@ const SCREENER_SEVERITY_COLORS = {
 const PAGE = 25;
 
 export default function PatientsView() {
-  const { practiceId } = useAuth();
+  const { practiceId, tier } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [patients, setPatients] = useState([]);
@@ -171,7 +172,7 @@ export default function PatientsView() {
         )}
       </div>
 
-      {viewing && <PatientDetailModal patient={viewing} practiceId={practiceId}
+      {viewing && <PatientDetailModal patient={viewing} practiceId={practiceId} tier={tier}
         onClose={() => setViewing(null)}
         onUpdate={(u) => { setPatients((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p)); setViewing({ ...viewing, ...u }); load(); }} />}
       {adding && <NewPatientModal onClose={() => setAdding(false)} practiceId={practiceId} onAdd={(p) => { load(); setAdding(false); }} />}
@@ -180,16 +181,19 @@ export default function PatientsView() {
 }
 
 // ─── Detail modal with tabs ───────────────────────────────────────────────────
-function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
+function PatientDetailModal({ patient, practiceId, tier, onClose, onUpdate }) {
+  const { profile } = useAuth();
+  const isProTier = ["Pro", "Command"].includes(tier);
   const [tab, setTab] = useState("info");
   const [appts, setAppts] = useState([]);
   const [encounters, setEncounters] = useState([]);
   const [insurance, setInsurance] = useState([]);
- const [screeners, setScreeners] = useState([]);
+  const [screeners, setScreeners] = useState([]);
   const [editing, setEditing] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showAssignForms, setShowAssignForms] = useState(false);
   const [showGrantAccess, setShowGrantAccess] = useState(false);
+  const [showStartScreening, setShowStartScreening] = useState(false);
 
   const reload = async () => {
     const [a, e, i, s] = await Promise.all([
@@ -206,7 +210,8 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
   useEffect(() => { reload(); }, [patient.id]);
 
   const activeInsurance = insurance.filter((i) => i.is_active);
-  const hrsnScreener = screeners.find((s) => s.screener_type === "HRSN");
+  const hrsnScreeners = screeners.filter((s) => s.screener_type === "HRSN"); // All HRSN, most recent first
+  const latestHrsn = hrsnScreeners[0]; // For summary widget on info tab
   const mentalHealthScreeners = screeners.filter((s) => ["PHQ-9", "PHQ-2", "GAD-7", "AUDIT-C"].includes(s.screener_type));
 
   return (
@@ -230,7 +235,7 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
     ["notes", `Notes (${encounters.length})`],
     ["trends", "Trends"],
     ["meds", "Medications"],
-    ["screening", "SDOH"],
+    ["screening", `Screenings (${hrsnScreeners.length + mental.length})`],
     ["clinical", "Clinical"],
     ["insurance", `Insurance (${insurance.length})`],
   ]}
@@ -247,23 +252,35 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
               } catch (e) { alert(e.message); }
             }} onCancel={() => setEditing(false)} />
           : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <Field label="Mobile Phone" value={formatPhone(patient.phone_mobile)} />
-              <Field label="Email" value={patient.email} />
-              <Field label="Preferred Language" value={patient.preferred_language} />
-              <Field label="Pronouns" value={patient.pronouns} />
-              <Field label="Address" value={[patient.address_line1, patient.city, patient.state, patient.zip].filter(Boolean).join(", ")} span={2} />
-              <Field label="County" value={patient.county} />
-              <Field label="Interpreter Needed" value={patient.interpreter_needed ? "Yes" : "No"} />
-              <Field label="Emergency Contact" value={patient.emergency_contact_name} />
-              <Field label="Emergency Phone" value={formatPhone(patient.emergency_contact_phone)} />
-              <Field label="SMS Opt-Out" value={patient.sms_opt_out ? "Yes" : "No"} />
-              <Field label="Portal Enabled" value={patient.portal_enabled ? "Yes" : "No"} />
-             <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                <Btn variant="outline" onClick={() => setShowGrantAccess(true)}>Grant family access</Btn>
-                <Btn variant="outline" onClick={() => setShowAssignForms(true)}>Assign forms</Btn>
-                <Btn variant="outline" onClick={() => setShowInvite(true)}>Invite to portal</Btn>
-                <Btn variant="outline" onClick={() => setEditing(true)}>Edit patient</Btn>
+            <div>
+              {isProTier && (
+                <HRSNSummaryWidget
+                  latest={latestHrsn}
+                  count={hrsnScreeners.length}
+                  onOpenScreeningsTab={() => setTab("screening")}
+                />
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <Field label="Mobile Phone" value={formatPhone(patient.phone_mobile)} />
+                <Field label="Email" value={patient.email} />
+                <Field label="Preferred Language" value={patient.preferred_language} />
+                <Field label="Pronouns" value={patient.pronouns} />
+                <Field label="Address" value={[patient.address_line1, patient.city, patient.state, patient.zip].filter(Boolean).join(", ")} span={2} />
+                <Field label="County" value={patient.county} />
+                <Field label="Interpreter Needed" value={patient.interpreter_needed ? "Yes" : "No"} />
+                <Field label="Emergency Contact" value={patient.emergency_contact_name} />
+                <Field label="Emergency Phone" value={formatPhone(patient.emergency_contact_phone)} />
+                <Field label="SMS Opt-Out" value={patient.sms_opt_out ? "Yes" : "No"} />
+                <Field label="Portal Enabled" value={patient.portal_enabled ? "Yes" : "No"} />
+               <div style={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                  <Btn variant="outline" onClick={() => setShowGrantAccess(true)}>Grant family access</Btn>
+                  <Btn variant="outline" onClick={() => setShowAssignForms(true)}>Assign forms</Btn>
+                  <Btn variant="outline" onClick={() => setShowInvite(true)}>Invite to portal</Btn>
+                  {isProTier && (
+                    <Btn variant="outline" onClick={() => setShowStartScreening(true)}>Start HRSN screening</Btn>
+                  )}
+                  <Btn variant="outline" onClick={() => setEditing(true)}>Edit patient</Btn>
+                </div>
               </div>
             </div>
           )
@@ -331,8 +348,13 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
         <InsuranceTab patient={patient} insurance={insurance} practiceId={practiceId} onReload={reload} />
       )}
 
-      {tab === "sdoh" && (
-        <SDOHTab hrsn={hrsnScreener} mental={mentalHealthScreeners} />
+      {tab === "screening" && (
+        <ScreeningsTab
+          hrsnScreeners={hrsnScreeners}
+          mental={mentalHealthScreeners}
+          isProTier={isProTier}
+          onStartScreening={() => setShowStartScreening(true)}
+        />
       )}
       {tab === "trends" && <TrendsTab patient={patient} />}
 
@@ -358,48 +380,93 @@ function PatientDetailModal({ patient, practiceId, onClose, onUpdate }) {
           onClose={() => setShowGrantAccess(false)}
         />
       )}
+      {showStartScreening && (
+        <StartScreeningModal
+          practiceId={practiceId}
+          currentUser={profile}
+          initialPatient={patient}
+          onClose={() => setShowStartScreening(false)}
+          onSubmitted={() => { reload(); }}
+        />
+      )}
     </Modal>
   );
 }
 
-// ─── SDOH tab ─────────────────────────────────────────────────────────────────
-function SDOHTab({ hrsn, mental }) {
-  if (!hrsn && mental.length === 0) {
-    return <EmptyState icon="📋" title="No screeners on file" sub="HRSN / PHQ-9 / GAD-7 / AUDIT-C screeners will appear here once completed." />;
+// ─── Screenings tab (expanded from the old SDOH tab) ──────────────────────────
+// Shows HRSN longitudinal history (up to 3 most recent screenings with domain
+// status columns for trend visualization), plus the existing mental-health
+// screeners section. Pro tier gets the longitudinal domain timeline.
+const HRSN_DOMAIN_KEYS = [
+  { key: "food_insecurity",      label: "Food" },
+  { key: "housing_instability",  label: "Housing" },
+  { key: "housing_quality",      label: "Housing qual." },
+  { key: "transportation",       label: "Transport" },
+  { key: "utilities",            label: "Utilities" },
+  { key: "interpersonal_safety", label: "Safety" },
+];
+
+function ScreeningsTab({ hrsnScreeners, mental, isProTier, onStartScreening }) {
+  if (hrsnScreeners.length === 0 && mental.length === 0) {
+    return (
+      <div>
+        <EmptyState icon="📋" title="No screeners on file" sub="HRSN / PHQ-9 / GAD-7 / AUDIT-C screeners will appear here once completed." />
+        {isProTier && (
+          <div style={{ display: "flex", justifyContent: "center", marginTop: 12 }}>
+            <Btn onClick={onStartScreening}>Start HRSN screening</Btn>
+          </div>
+        )}
+      </div>
+    );
   }
+
+  const mostRecentHrsn = hrsnScreeners[0];
+
   return (
     <div>
-      {hrsn && (
+      {hrsnScreeners.length > 0 && (
         <>
-          <SectionHead title="HRSN (Health-Related Social Needs)" sub={`Completed ${new Date(hrsn.completed_at).toLocaleDateString()}`} />
-          <Card style={{ marginBottom: 16, borderLeft: `4px solid ${SCREENER_SEVERITY_COLORS[hrsn.severity] || C.textSecondary}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-              <Badge label={hrsn.severity || "—"} variant="teal" />
-              {hrsn.requires_followup && <Badge label="Follow-up required" variant="amber" size="xs" />}
-              <div style={{ marginLeft: "auto", fontSize: 11, color: C.textTertiary }}>via {hrsn.administered_via}</div>
-            </div>
-            {Array.isArray(hrsn.flags) && hrsn.flags.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, textTransform: "uppercase", marginBottom: 6 }}>Flagged needs</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {hrsn.flags.map((f, i) => <Badge key={i} label={typeof f === "string" ? f : (f.domain || f.name)} variant="amber" size="xs" />)}
-                </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <SectionHead
+              title="HRSN (Health-Related Social Needs)"
+              sub={hrsnScreeners.length > 1
+                ? `${hrsnScreeners.length} screenings on file - most recent ${new Date(mostRecentHrsn.completed_at).toLocaleDateString()}`
+                : `Completed ${new Date(mostRecentHrsn.completed_at).toLocaleDateString()}`}
+            />
+            {isProTier && (
+              <Btn size="sm" onClick={onStartScreening}>+ New screening</Btn>
+            )}
+          </div>
+
+          {/* Longitudinal domain table - only renders when 2+ screenings AND Pro tier */}
+          {isProTier && hrsnScreeners.length >= 2 && (
+            <HRSNLongitudinalTable screenings={hrsnScreeners.slice(0, 3)} />
+          )}
+
+          {/* Most recent screening card (detailed) */}
+          <HRSNScreeningCard screening={mostRecentHrsn} isLatest={true} />
+
+          {/* Older screenings collapsed */}
+          {hrsnScreeners.length > 1 && (
+            <details style={{ marginTop: 10 }}>
+              <summary style={{
+                cursor: "pointer", fontSize: 12, fontWeight: 600, color: C.textSecondary,
+                padding: "8px 4px",
+              }}>
+                Show {hrsnScreeners.length - 1} older screening{hrsnScreeners.length - 1 === 1 ? "" : "s"}
+              </summary>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                {hrsnScreeners.slice(1).map((s) => (
+                  <HRSNScreeningCard key={s.id} screening={s} isLatest={false} />
+                ))}
               </div>
-            )}
-            {hrsn.responses && typeof hrsn.responses === "object" && (
-              <details style={{ fontSize: 12, color: C.textSecondary }}>
-                <summary style={{ cursor: "pointer", fontWeight: 600 }}>View responses</summary>
-                <pre style={{ marginTop: 8, background: C.bgSecondary, padding: 10, borderRadius: 6, fontSize: 11, overflow: "auto" }}>
-                  {JSON.stringify(hrsn.responses, null, 2)}
-                </pre>
-              </details>
-            )}
-          </Card>
+            </details>
+          )}
         </>
       )}
 
       {mental.length > 0 && (
-        <>
+        <div style={{ marginTop: 20 }}>
           <SectionHead title="Mental Health Screeners" />
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {mental.map((s) => (
@@ -414,12 +481,235 @@ function SDOHTab({ hrsn, mental }) {
               </Card>
             ))}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
 }
 
+// Compact summary widget on the info tab. Tells the provider at a glance
+// whether the patient has been screened, when, and whether there are positives.
+function HRSNSummaryWidget({ latest, count, onOpenScreeningsTab }) {
+  if (!latest) {
+    return (
+      <div style={{
+        background: C.bgSecondary, border: `0.5px solid ${C.borderLight}`,
+        borderRadius: 8, padding: "10px 14px", marginBottom: 14,
+        display: "flex", alignItems: "center", gap: 12,
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.textPrimary, marginBottom: 2 }}>
+            Social Needs (HRSN)
+          </div>
+          <div style={{ fontSize: 11, color: C.textSecondary }}>
+            No HRSN screenings on file for this patient.
+          </div>
+        </div>
+        <Btn size="sm" variant="ghost" onClick={onOpenScreeningsTab}>View</Btn>
+      </div>
+    );
+  }
+
+  const summary = latest.ai_summary || {};
+  const domains = summary.domains || {};
+  const positiveDomains = Object.keys(domains).filter(k => domains[k] && domains[k].status === "positive");
+  const hasUrgent = !!summary.urgent_safety_alert;
+  const when = new Date(latest.completed_at).toLocaleDateString();
+
+  return (
+    <div style={{
+      background: hasUrgent ? "#FEE2E2" : C.bgSecondary,
+      border: `0.5px solid ${hasUrgent ? "#DC2626" : C.borderLight}`,
+      borderRadius: 8, padding: "10px 14px", marginBottom: 14,
+      display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+    }}>
+      <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C.textPrimary }}>
+            Social Needs (HRSN)
+          </div>
+          {hasUrgent && (
+            <span style={{
+              background: "#DC2626", color: "#fff",
+              fontSize: 9, fontWeight: 700, letterSpacing: "0.05em",
+              padding: "2px 7px", borderRadius: 3, textTransform: "uppercase",
+            }}>
+              Urgent alert
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 6 }}>
+          Last screened {when}
+          {count > 1 ? ` · ${count} on file` : ""}
+        </div>
+        {positiveDomains.length > 0 ? (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+            {positiveDomains.map(d => {
+              const meta = HRSN_DOMAIN_KEYS.find(k => k.key === d);
+              return (
+                <span key={d} style={{
+                  background: "#FEF3C7", color: "#92400E",
+                  fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 10,
+                }}>
+                  {meta ? meta.label : d}
+                </span>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ fontSize: 11, color: C.textTertiary, fontStyle: "italic" }}>
+            No positive screens
+          </div>
+        )}
+      </div>
+      <Btn size="sm" onClick={onOpenScreeningsTab}>View screenings</Btn>
+    </div>
+  );
+}
+
+// Longitudinal table - compact view of the most recent 3 screenings side by
+// side with their domain status. Lets a provider see trends at a glance.
+// (Chart-based visualization deferred to v2 - a table is more legible at
+// 3 data points and fits the modal constraint.)
+function HRSNLongitudinalTable({ screenings }) {
+  return (
+    <div style={{
+      marginBottom: 14,
+      border: `0.5px solid ${C.borderLight}`,
+      borderRadius: 8, overflow: "hidden",
+    }}>
+      <div style={{
+        padding: "8px 12px", background: C.bgSecondary,
+        fontSize: 10, fontWeight: 700, letterSpacing: "0.06em",
+        color: C.textSecondary, textTransform: "uppercase",
+      }}>
+        Domain trend - last {screenings.length} screenings
+      </div>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `140px repeat(${screenings.length}, 1fr)`,
+        fontSize: 11,
+      }}>
+        {/* Header row */}
+        <div style={{ padding: "8px 12px", background: C.bgSecondary, borderTop: `0.5px solid ${C.borderLight}`, fontWeight: 600, color: C.textSecondary }}>
+          Domain
+        </div>
+        {screenings.map((s) => (
+          <div key={s.id} style={{ padding: "8px 12px", background: C.bgSecondary, borderTop: `0.5px solid ${C.borderLight}`, fontWeight: 600, color: C.textSecondary }}>
+            {new Date(s.completed_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" })}
+          </div>
+        ))}
+
+        {/* One row per domain */}
+        {HRSN_DOMAIN_KEYS.map((d) => (
+          <DomainTrendRow key={d.key} domain={d} screenings={screenings} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DomainTrendRow({ domain, screenings }) {
+  return (
+    <>
+      <div style={{ padding: "7px 12px", borderTop: `0.5px solid ${C.borderLight}`, color: C.textPrimary, fontWeight: 500 }}>
+        {domain.label}
+      </div>
+      {screenings.map((s) => {
+        const d = (s.ai_summary && s.ai_summary.domains && s.ai_summary.domains[domain.key]) || null;
+        const status = d ? d.status : null;
+        return (
+          <div key={s.id} style={{ padding: "7px 12px", borderTop: `0.5px solid ${C.borderLight}` }}>
+            <DomainStatusPill status={status} severity={d ? d.severity : null} />
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function DomainStatusPill({ status, severity }) {
+  if (!status) {
+    return <span style={{ fontSize: 10, color: C.textTertiary }}>—</span>;
+  }
+  if (status === "positive") {
+    return (
+      <span style={{
+        background: "#FEF3C7", color: "#92400E",
+        fontSize: 9, fontWeight: 700, letterSpacing: "0.05em",
+        padding: "2px 7px", borderRadius: 3, textTransform: "uppercase",
+      }}>
+        Pos{severity ? ` · ${severity}` : ""}
+      </span>
+    );
+  }
+  if (status === "partial") {
+    return (
+      <span style={{
+        background: "#E0F2FE", color: "#075985",
+        fontSize: 9, fontWeight: 700, letterSpacing: "0.05em",
+        padding: "2px 7px", borderRadius: 3, textTransform: "uppercase",
+      }}>
+        Partial
+      </span>
+    );
+  }
+  return (
+    <span style={{ fontSize: 10, color: C.textTertiary }}>Neg</span>
+  );
+}
+
+function HRSNScreeningCard({ screening, isLatest }) {
+  const summary = screening.ai_summary || {};
+  const domains = summary.domains || {};
+  const positive = Object.keys(domains).filter(k => domains[k] && domains[k].status === "positive");
+  const hasUrgent = !!summary.urgent_safety_alert;
+  const aiReady = screening.ai_summary_status === "Success";
+
+  return (
+    <Card style={{
+      marginBottom: 10,
+      borderLeft: hasUrgent
+        ? `4px solid #DC2626`
+        : positive.length > 0
+          ? `4px solid #D97706`
+          : `4px solid ${C.tealMid}`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+        {isLatest && <Badge label="Latest" variant="teal" size="xs" />}
+        <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>
+          {new Date(screening.completed_at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+        </div>
+        {hasUrgent && <Badge label="Urgent alert" variant="red" size="xs" />}
+        {positive.map(p => {
+          const meta = HRSN_DOMAIN_KEYS.find(k => k.key === p);
+          return <Badge key={p} label={meta ? meta.label : p} variant="amber" size="xs" />;
+        })}
+        <div style={{ marginLeft: "auto", fontSize: 10, color: C.textTertiary }}>
+          {screening.completion_mode || screening.administered_via || "—"}
+        </div>
+      </div>
+
+      {aiReady && summary.summary_paragraph && (
+        <div style={{ fontSize: 12, color: C.textPrimary, lineHeight: 1.55, marginBottom: 8 }}>
+          {summary.summary_paragraph}
+        </div>
+      )}
+
+      {!aiReady && screening.ai_summary_status && (
+        <div style={{ fontSize: 11, color: C.textTertiary, fontStyle: "italic" }}>
+          AI summary: {screening.ai_summary_status}
+        </div>
+      )}
+
+      {summary.suggested_cadence && summary.suggested_cadence.months && (
+        <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 6 }}>
+          <span style={{ fontWeight: 700 }}>Suggested cadence:</span> {summary.suggested_cadence.months} months
+        </div>
+      )}
+    </Card>
+  );
+}
 // ─── Insurance tab with NC payer selector ────────────────────────────────────
 function InsuranceTab({ patient, insurance, practiceId, onReload }) {
   const [adding, setAdding] = useState(false);
