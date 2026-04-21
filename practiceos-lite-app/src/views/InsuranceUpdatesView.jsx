@@ -969,20 +969,66 @@ function CardThumbnails({ front, back }) {
 
 function CardThumb({ path, label }) {
   const [url, setUrl]       = useState(null);
+  const [loadError, setLoadError] = useState(null); // null | "access_denied" | "not_found" | "network" | "image_render"
   const [showFull, setFull] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    setUrl(null); setLoadError(null);
     (async () => {
-      const { data } = await supabase.storage
-        .from("insurance-cards")
-        .createSignedUrl(path, 3600);
-      if (!cancelled && data) setUrl(data.signedUrl);
+      try {
+        const { data, error } = await supabase.storage
+          .from("insurance-cards")
+          .createSignedUrl(path, 3600);
+        if (cancelled) return;
+        if (error) {
+          // Supabase storage errors don't always have a reliable status code in the
+          // JS SDK; fall back to message-string sniffing. Common cases:
+          //   - RLS-blocked path: 400 "new row violates RLS" or 403
+          //   - Missing object: 404 "not found"
+          const msg = (error.message || String(error)).toLowerCase();
+          if (msg.includes("not found") || msg.includes("404")) setLoadError("not_found");
+          else if (msg.includes("permission") || msg.includes("denied") || msg.includes("403") || msg.includes("400")) setLoadError("access_denied");
+          else setLoadError("network");
+          return;
+        }
+        if (!data || !data.signedUrl) { setLoadError("not_found"); return; }
+        setUrl(data.signedUrl);
+      } catch (e) {
+        if (!cancelled) setLoadError("network");
+      }
     })();
     return () => { cancelled = true; };
   }, [path]);
 
-  const isPdf = path.toLowerCase().endsWith(".pdf");
+  const isPdf = (path || "").toLowerCase().endsWith(".pdf");
+
+  // Error state: show a compact broken-thumbnail tile with a tooltip. Staff
+  // can hover to see the underlying reason; this is diagnostic without being
+  // alarming. Covers every failure path except a successful image URL that
+  // then 404s when the <img> tries to render - handled by onError below.
+  if (loadError) {
+    const copy = {
+      access_denied: { icon: "🔒", line1: "Can't access",   line2: "RLS or permissions" },
+      not_found:     { icon: "✕",  line1: "Image missing",  line2: "File not in storage" },
+      network:       { icon: "⚠",  line1: "Load failed",    line2: "Network or server" },
+      image_render:  { icon: "✕",  line1: "Image corrupt",  line2: "Cannot display" },
+    }[loadError];
+    return (
+      <div title={label + " - " + copy.line1 + " (" + copy.line2 + ")\nPath: " + path}
+           style={{
+             width: 120, height: 80, background: C.bgSecondary,
+             border: "0.5px dashed " + C.borderMid, borderRadius: 4,
+             display: "flex", flexDirection: "column",
+             alignItems: "center", justifyContent: "center",
+             gap: 2, cursor: "help",
+           }}>
+        <div style={{ fontSize: 16, lineHeight: 1, color: C.textTertiary }}>{copy.icon}</div>
+        <div style={{ fontSize: 9, fontWeight: 600, color: C.textSecondary }}>{copy.line1}</div>
+        <div style={{ fontSize: 8, color: C.textTertiary, fontStyle: "italic" }}>{label}</div>
+      </div>
+    );
+  }
 
   if (!url) {
     return (
@@ -1012,6 +1058,7 @@ function CardThumb({ path, label }) {
           }}>PDF</div>
         ) : (
           <img src={url} alt={label}
+               onError={() => setLoadError("image_render")}
                style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         )}
         <div style={{
