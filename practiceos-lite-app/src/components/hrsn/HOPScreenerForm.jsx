@@ -93,14 +93,15 @@ const ITEMS = [
     key: "transportation_q5",
     domain: "transportation",
     domainLabel: "Transportation",
-    type: "single",
+    type: "multi",
     options: [
       "Yes - medical appointments",
       "Yes - work or school",
       "Yes - things for daily living",
       "No",
     ],
-    question: "In the past 12 months, has lack of reliable transportation kept you from medical appointments, meetings, work, or from getting things needed for daily living?",
+    question: "In the past 12 months, has lack of reliable transportation kept you from any of the following? (Check all that apply)",
+    helper: "Selecting 'No' clears the other choices.",
   },
   {
     key: "utilities_q6",
