@@ -303,8 +303,8 @@ function Shell() {
         </button>
       </nav>
 
-     {/* ── Main Content ──────────────────────────────────────────────── */}
-     <main style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    {/* ── Main Content ──────────────────────────────────────────────── */}
+     <main style={{ flex: 1, minWidth: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
         <ProSystemAlertBanner practiceId={practiceId} role={role} tier={tier} />
         <ActiveView onNav={setActiveNav} />
       </main>
