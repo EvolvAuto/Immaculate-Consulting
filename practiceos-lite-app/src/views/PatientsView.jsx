@@ -235,7 +235,7 @@ function PatientDetailModal({ patient, practiceId, tier, onClose, onUpdate }) {
     ["notes", `Notes (${encounters.length})`],
     ["trends", "Trends"],
     ["meds", "Medications"],
-    ["screening", `Screenings (${hrsnScreeners.length + mental.length})`],
+    ["screening", `Screenings (${hrsnScreeners.length + mentalHealthScreeners.length})`],
     ["clinical", "Clinical"],
     ["insurance", `Insurance (${insurance.length})`],
   ]}
