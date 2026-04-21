@@ -18,7 +18,7 @@ export async function listRecentScreenings(practiceId, limit) {
   const { data, error } = await supabase
     .from("screener_responses")
     .select(
-      "id, patient_id, screener_type, administered_via, completion_mode, " +
+      "id, practice_id, patient_id, screener_type, administered_via, completion_mode, " +
       "responses, flags, requires_followup, completed_at, " +
       "ai_summary, ai_summary_status, ai_summary_generated_at, ai_summary_error, " +
       "ai_summary_model, ai_summary_attempts, reviewed_at, reviewed_by, " +
@@ -38,9 +38,9 @@ export async function listReferralDrafts(practiceId, opts) {
   const { data, error } = await supabase
     .from("hrsn_referral_drafts")
     .select(
-      "id, patient_id, screener_response_id, domain, priority, " +
+      "id, practice_id, patient_id, screener_response_id, domain, priority, " +
       "nccare360_category, packet_narrative, staff_edited_narrative, " +
-      "staff_notes, status, sent_via, reviewed_by, reviewed_at, sent_at, " +
+      "staff_notes, status, sent_via, reviewed_by, reviewed_at, sent_at, sent_to_recipient, " +
       "created_at, updated_at, " +
       "patients:patient_id ( id, first_name, last_name, mrn )"
     )
