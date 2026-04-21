@@ -743,6 +743,21 @@ function AISummaryBody({ summary, canMarkReviewed, marking, onMarkReviewed, scre
           <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.55 }}>
             {summary.summary_paragraph}
           </div>
+          {summary.suggested_cadence && summary.suggested_cadence.months && (
+            <div style={{
+              marginTop: 12, paddingTop: 10,
+              borderTop: "0.5px dashed " + C.borderLight,
+              fontSize: 12, color: C.textSecondary, lineHeight: 1.5,
+            }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.05em",
+                color: C.teal, marginRight: 8,
+              }}>
+                SUGGESTED CADENCE {"\u00B7"} {summary.suggested_cadence.months} MONTHS
+              </span>
+              <span>{summary.suggested_cadence.reasoning}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -848,7 +863,12 @@ function AISummaryBody({ summary, canMarkReviewed, marking, onMarkReviewed, scre
 
      {/* Cadence setter */}
       {screening && (
-        <CadenceCard screening={screening} currentUser={currentUser} onSaved={onCadenceSaved} />
+        <CadenceCard
+          screening={screening}
+          currentUser={currentUser}
+          onSaved={onCadenceSaved}
+          aiSummary={summary}
+        />
       )}
 
       {/* Mark reviewed action */}
@@ -1345,18 +1365,28 @@ function SendReferralModal({ draft, onCancel, onConfirm, saving }) {
 // Cadence card - provider sets re-screen interval from within the summary view
 // ───────────────────────────────────────────────────────────────────────────────
 
-function CadenceCard({ screening, currentUser, onSaved }) {
+function CadenceCard({ screening, currentUser, onSaved, aiSummary }) {
   // We show the current schedule state + allow the provider to change cadence.
-  // On save, we upsert patient_screening_schedule. The existing AFTER INSERT
-  // trigger already set a 12-month default from this screening; this lets the
-  // provider override to 6 or 24.
-  const [cadence, setCadence] = useState(12);
+  // On save, we upsert patient_screening_schedule.
+  //
+  // Priority for the initially-selected cadence value:
+  //   1. Existing schedule row's cadence_months (provider already decided)
+  //   2. AI-suggested cadence from the summary (if present and untouched)
+  //   3. Default 12 months
+  //
+  // This way, a provider who already set 6 months last time doesn't have the
+  // AI suggestion override their explicit choice.
+  const aiSuggested = aiSummary && aiSummary.suggested_cadence && aiSummary.suggested_cadence.months;
+  const aiReasoning = aiSummary && aiSummary.suggested_cadence && aiSummary.suggested_cadence.reasoning;
+
+  const [cadence, setCadence] = useState(aiSuggested || 12);
   const [reason, setReason]   = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving]   = useState(false);
   const [savedAt, setSavedAt] = useState(null);
   const [error, setError]     = useState(null);
   const [schedule, setSchedule] = useState(null);
+  const [usedAISuggestion, setUsedAISuggestion] = useState(false);
 
   useEffect(() => {
     if (!screening || !screening.practice_id || !screening.patient_id) return;
@@ -1365,7 +1395,7 @@ function CadenceCard({ screening, currentUser, onSaved }) {
       try {
         const { data } = await supabase
           .from("patient_screening_schedule")
-          .select("id, cadence_months, reason_for_cadence, last_screened_at, due_date")
+          .select("id, cadence_months, reason_for_cadence, last_screened_at, due_date, updated_at, created_at")
           .eq("practice_id",   screening.practice_id)
           .eq("patient_id",    screening.patient_id)
           .eq("screener_type", "HRSN")
@@ -1373,8 +1403,23 @@ function CadenceCard({ screening, currentUser, onSaved }) {
         if (cancelled) return;
         if (data) {
           setSchedule(data);
-          setCadence(data.cadence_months || 12);
+          // The AFTER INSERT trigger auto-creates a row with cadence=12 when a
+          // screening lands. To detect "provider has never explicitly set this,"
+          // we treat created_at ~= updated_at as "untouched."
+          const untouched = !data.updated_at || !data.created_at ||
+            Math.abs(new Date(data.updated_at).getTime() - new Date(data.created_at).getTime()) < 2000;
+
+          if (untouched && aiSuggested) {
+            setCadence(aiSuggested);
+            setUsedAISuggestion(true);
+          } else {
+            setCadence(data.cadence_months || 12);
+          }
           setReason(data.reason_for_cadence || "");
+        } else if (aiSuggested) {
+          // No schedule row yet somehow - use AI suggestion as default
+          setCadence(aiSuggested);
+          setUsedAISuggestion(true);
         }
       } catch (e) {
         if (!cancelled) setError(e && e.message ? e.message : String(e));
@@ -1383,7 +1428,7 @@ function CadenceCard({ screening, currentUser, onSaved }) {
       }
     })();
     return function() { cancelled = true; };
-  }, [screening]);
+  }, [screening, aiSuggested]);
 
   const projectedDue = useMemo(() => {
     const anchor = (schedule && schedule.last_screened_at) || screening.completed_at;
@@ -1458,6 +1503,16 @@ function CadenceCard({ screening, currentUser, onSaved }) {
                 ? (" (" + fmtDateShort(schedule.last_screened_at.slice(0, 10)) + ")")
                 : ""}
               , not the one displayed above.
+            </div>
+          )}
+
+          {usedAISuggestion && aiReasoning && (
+            <div style={{
+              marginBottom: 12, padding: "8px 10px",
+              background: "#E0F2FE", border: "0.5px solid #0284C7",
+              borderRadius: 4, fontSize: 11, color: "#075985", lineHeight: 1.5,
+            }}>
+              <strong>AI pre-selected {aiSuggested} months.</strong> {aiReasoning}
             </div>
           )}
 
