@@ -88,8 +88,9 @@ export async function markResponseReviewed(responseId, user) {
   return data;
 }
 
-export async function getEffectiveNarrative(draft) {
+export function getEffectiveNarrative(draft) {
   // Returns the edited narrative if staff edited it, else the AI draft.
+  // NOT async - used directly inside useState() initialization.
   if (!draft) return "";
   return draft.staff_edited_narrative || draft.packet_narrative || "";
 }
