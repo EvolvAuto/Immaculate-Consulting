@@ -37,6 +37,7 @@ import ProAssistantView        from "./views/pro/AssistantView";
 import ProOutreachReviewView   from "./views/pro/OutreachReviewView";
 import ProInboundSMSReviewView from "./views/pro/InboundSMSReviewView";
 import ProChartPrepView        from "./views/pro/ProChartPrepView";
+import ProHRSNView             from "./views/pro/ProHRSNView";
 import ProSystemAlertBanner    from "./components/pro/ProSystemAlertBanner";
 
 const VIEWS = {
@@ -60,11 +61,13 @@ const VIEWS = {
   pro_outreach:      ProOutreachReviewView,
   pro_inbound_sms:   ProInboundSMSReviewView,
   pro_chart_prep:    ProChartPrepView,
+  pro_hrsn:          ProHRSNView,
 };
 
 // Pro nav metadata (icon + label). Kept inline so tokens.js doesn't need to change.
 const PRO_NAV_META_LOCAL = {
   pro_chart_prep:  { icon: "📋", label: "Chart Prep" },
+  pro_hrsn:        { icon: "🤝", label: "HRSN" },
   pro_assistant:   { icon: "🤖", label: "AI Assistant" },
   pro_outreach:    { icon: "📤", label: "Outreach" },
   pro_inbound_sms: { icon: "💬", label: "Inbound SMS" },
@@ -91,7 +94,7 @@ function Shell() {
 
   const navItems = NAV_BY_ROLE[role] || [];
   const isProTier = ["Pro", "Command"].includes(tier);
-  const proNavIds = isProTier ? ["pro_chart_prep", "pro_assistant", "pro_outreach", "pro_inbound_sms"] : [];
+  const proNavIds = isProTier ? ["pro_chart_prep", "pro_hrsn", "pro_assistant", "pro_outreach", "pro_inbound_sms"] : [];
   const [activeNav, setActiveNav] = useState(navItems[0] || "dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [badgeCounts, setBadgeCounts] = useState({});
