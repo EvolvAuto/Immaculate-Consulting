@@ -22,6 +22,7 @@ import PortalBilling       from "./portal/PortalBilling.jsx";
 import PortalDocuments     from "./portal/PortalDocuments.jsx";
 import PatientProxyManager from "./portal/PatientProxyManager.jsx";
 import AccountSwitcher     from "./portal/AccountSwitcher.jsx";
+import PortalHRSNView      from "./portal/PortalHRSNView.jsx";
 
 const C = {
   teal:"#0F6E56", tealMid:"#1D9E75", tealBg:"#E1F5EE", tealBorder:"#9FE1CB", tealDark:"#085041",
@@ -161,6 +162,7 @@ export default function PortalShell() {
     billing:      PortalBilling,
     documents:    PortalDocuments,
     access:       PatientProxyManager,
+    hrsn:         PortalHRSNView,
   }[tab] || PortalDashboard;
 
   const initials = ((patient.first_name || "")[0] || "") + ((patient.last_name || "")[0] || "");
