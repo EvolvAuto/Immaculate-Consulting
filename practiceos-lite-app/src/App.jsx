@@ -28,6 +28,9 @@ import ComplianceView       from "./views/ComplianceView";
 import InsuranceUpdatesView from "./views/InsuranceUpdatesView";
 import PortalView           from "./views/PortalView";
 
+// Command tier views (tier + role gate is inside each view)
+import CareManagementView   from "./views/CareManagementView";
+
 // Pro tier views (tier gate is inside each view)
 import ProAssistantView        from "./views/pro/AssistantView";
 import ProOutreachReviewView   from "./views/pro/OutreachReviewView";
@@ -83,6 +86,9 @@ export default function App() {
           <Route path="/pro/inbound-sms" element={<ProInboundSMSReviewView />} />
           <Route path="/pro/chart-prep"  element={<ProChartPrepView />} />
           <Route path="/pro/hrsn"        element={<ProHRSNView />} />
+
+          {/* Command tier */}
+          <Route path="/care-management" element={<CareManagementView />} />
 
           {/* Any unknown protected URL falls back to dashboard. */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
