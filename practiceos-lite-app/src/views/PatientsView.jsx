@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
@@ -21,6 +21,7 @@ const PAGE = 25;
 
 export default function PatientsView() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { practiceId } = useAuth();
 
@@ -114,7 +115,14 @@ export default function PatientsView() {
   // External URL change (e.g., browser back restores filters) - re-sync input
   useEffect(() => { setQInput(qParam); }, [qParam]);
 
-  const openDetail = (p) => { navigate(`/patients/${p.id}/info`); };
+  // Pass current URL in state so the chart's Back button can return here with
+  // all filters/search/page intact. Deep-link entries arrive without this
+  // state, in which case Back falls back to a clean /patients.
+  const openDetail = (p) => {
+    navigate(`/patients/${p.id}/info`, {
+      state: { returnTo: location.pathname + location.search }
+    });
+  };
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
