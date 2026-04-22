@@ -1,18 +1,18 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // src/views/patient/PatientChartPage.jsx
-// Full patient chart surface. In Stage 1b this is still rendered inside
-// PatientDetailModal (a thin wrapper in PatientsView.jsx). Stage 1c will route
-// directly to this component as a full page at /patients/:id.
-// Content and behavior are identical to the pre-1b modal.
+// Routed at /patients/:id/:tab? - full-page chart surface.
+// Loads its own patient by :id param. Tab state lives in the URL (/screening,
+// /insurance, etc) so deep-linking and browser back/forward work correctly.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthProvider";
 import { C } from "../../lib/tokens";
-import { insertRow, updateRow } from "../../lib/db";
+import { insertRow, updateRow, logRead } from "../../lib/db";
 import { ageFromDOB, formatPhone, initialsOf, APPT_STATUS_VARIANT, NC_PAYERS } from "../../components/constants";
-import { Badge, Btn, Card, Modal, Input, Select, TabBar, FL, Avatar, SectionHead, EmptyState } from "../../components/ui";
+import { Badge, Btn, Card, Modal, Input, Select, TabBar, FL, Avatar, SectionHead, Loader, ErrorBanner, EmptyState } from "../../components/ui";
 import InvitePatientModal from "../InvitePatientModal";
 import AssignFormsModal from "../AssignFormsModal";
 import GrantFamilyAccessModal from "../GrantFamilyAccessModal";
@@ -20,7 +20,7 @@ import StartScreeningModal from "../../components/hrsn/StartScreeningModal";
 import TrendsTab from "./TrendsTab";
 import MedicationsTab from "./MedicationsTab";
 
-// ─── Constants used by the chart's screening surfaces ────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 const HRSN_DOMAIN_KEYS = [
   { key: "food_insecurity",      label: "Food" },
   { key: "housing_instability",  label: "Housing" },
@@ -36,13 +36,27 @@ const SCREENER_SEVERITY_COLORS = {
   "Low Risk": C.green, "Moderate Risk": C.amber, "High Risk": C.red,
 };
 
+const VALID_TABS = ["info", "appts", "notes", "trends", "meds", "screening", "clinical", "insurance"];
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// PatientChartPage - main surface
+// PatientChartPage
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function PatientChartPage({ patient, practiceId, tier, onUpdate }) {
-  const { profile } = useAuth();
+export default function PatientChartPage() {
+  const { id: patientId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { profile, practiceId, tier } = useAuth();
   const isProTier = ["Pro", "Command"].includes(tier);
-  const [tab, setTab] = useState("info");
+
+  // Derive current tab from URL. /patients/:id -> default to 'info'.
+  // /patients/:id/screening -> 'screening'. Invalid segment falls back to 'info'.
+  const urlTab = location.pathname.split("/")[3] || "info";
+  const tab = VALID_TABS.includes(urlTab) ? urlTab : "info";
+  const setTab = (t) => navigate(`/patients/${patientId}/${t}`, { replace: false });
+
+  const [patient, setPatient] = useState(null);
+  const [loadingPatient, setLoadingPatient] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [appts, setAppts] = useState([]);
   const [encounters, setEncounters] = useState([]);
   const [insurance, setInsurance] = useState([]);
@@ -53,31 +67,94 @@ export default function PatientChartPage({ patient, practiceId, tier, onUpdate }
   const [showGrantAccess, setShowGrantAccess] = useState(false);
   const [showStartScreening, setShowStartScreening] = useState(false);
 
+  // Load the patient when the URL :id changes.
+  useEffect(() => {
+    if (!patientId || !practiceId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoadingPatient(true);
+        setLoadError(null);
+        const { data, error } = await supabase
+          .from("patients")
+          .select("*, pcp:providers!patients_pcp_provider_id_fkey(first_name, last_name)")
+          .eq("id", patientId)
+          .single();
+        if (error) throw error;
+        if (cancelled) return;
+        await logRead("patients", patientId, patientId);
+        setPatient(data);
+      } catch (e) {
+        if (!cancelled) setLoadError(e.message);
+      } finally {
+        if (!cancelled) setLoadingPatient(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [patientId, practiceId]);
+
+  // Load related data once patient is loaded.
   const reload = async () => {
+    if (!patientId) return;
     const [a, e, i, s] = await Promise.all([
-      supabase.from("appointments").select("id, appt_date, start_slot, appt_type, status, providers(last_name)").eq("patient_id", patient.id).order("appt_date", { ascending: false }).limit(30),
-      supabase.from("encounters").select("id, encounter_date, status, appt_type, chief_complaint, assessment, provider_id, providers(first_name, last_name)").eq("patient_id", patient.id).order("encounter_date", { ascending: false }).limit(20),
-      supabase.from("insurance_policies").select("*").eq("patient_id", patient.id).order("rank"),
-      supabase.from("screener_responses").select("*").eq("patient_id", patient.id).order("completed_at", { ascending: false }).limit(20),
+      supabase.from("appointments").select("id, appt_date, start_slot, appt_type, status, providers(last_name)").eq("patient_id", patientId).order("appt_date", { ascending: false }).limit(30),
+      supabase.from("encounters").select("id, encounter_date, status, appt_type, chief_complaint, assessment, provider_id, providers(first_name, last_name)").eq("patient_id", patientId).order("encounter_date", { ascending: false }).limit(20),
+      supabase.from("insurance_policies").select("*").eq("patient_id", patientId).order("rank"),
+      supabase.from("screener_responses").select("*").eq("patient_id", patientId).order("completed_at", { ascending: false }).limit(20),
     ]);
     setAppts(a.data || []);
     setEncounters(e.data || []);
     setInsurance(i.data || []);
     setScreeners(s.data || []);
   };
-  useEffect(() => { reload(); }, [patient.id]);
+  useEffect(() => { if (patient) reload(); }, [patient?.id]);
 
-  const activeInsurance = insurance.filter((i) => i.is_active);
+  const onUpdate = (u) => { setPatient((prev) => ({ ...prev, ...u })); };
+
+  // ── Loading / error states ──────────────────────────────────────────────────
+  if (loadingPatient) {
+    return (
+      <div style={{ padding: 40, display: "flex", justifyContent: "center" }}>
+        <Loader />
+      </div>
+    );
+  }
+  if (loadError) {
+    return (
+      <div style={{ padding: 24 }}>
+        <ErrorBanner message={loadError} />
+        <div style={{ marginTop: 16 }}>
+          <Btn variant="outline" onClick={() => navigate("/patients")}>← Back to patients</Btn>
+        </div>
+      </div>
+    );
+  }
+  if (!patient) {
+    return (
+      <div style={{ padding: 24 }}>
+        <EmptyState icon="👤" title="Patient not found" sub="This record may have been removed or you don't have access." />
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
+          <Btn variant="outline" onClick={() => navigate("/patients")}>← Back to patients</Btn>
+        </div>
+      </div>
+    );
+  }
+
   const hrsnScreeners = screeners.filter((s) => s.screener_type === "HRSN");
   const latestHrsn = hrsnScreeners[0];
   const mentalHealthScreeners = screeners.filter((s) => ["PHQ-9", "PHQ-2", "GAD-7", "AUDIT-C"].includes(s.screener_type));
 
   return (
-    <div>
+    <div style={{ padding: "20px 24px", maxWidth: 1280, margin: "0 auto", width: "100%" }}>
+      {/* Back link + patient header */}
+      <div style={{ marginBottom: 14 }}>
+        <Btn variant="ghost" size="sm" onClick={() => navigate("/patients")}>← Back to patients</Btn>
+      </div>
+
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <Avatar initials={initialsOf(patient.first_name, patient.last_name)} size={48} color={C.tealMid} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>{patient.first_name} {patient.last_name}</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>{patient.first_name} {patient.last_name}</div>
           <div style={{ fontSize: 12, color: C.textSecondary }}>
             DOB {patient.date_of_birth} ({ageFromDOB(patient.date_of_birth)} y/o {patient.gender}) · MRN {patient.mrn || "—"}
           </div>
@@ -332,7 +409,7 @@ function ScreeningsTab({ hrsnScreeners, mental, isProTier, onStartScreening }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// HRSN Summary widget (info tab)
+// HRSN summary widget
 // ═══════════════════════════════════════════════════════════════════════════════
 function HRSNSummaryWidget({ latest, count, onOpenScreeningsTab }) {
   if (!latest) {
@@ -413,7 +490,7 @@ function HRSNSummaryWidget({ latest, count, onOpenScreeningsTab }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// HRSN longitudinal table
+// HRSN longitudinal table + pills
 // ═══════════════════════════════════════════════════════════════════════════════
 function HRSNLongitudinalTable({ screenings }) {
   return (
@@ -688,7 +765,7 @@ function InsuranceFormModal({ initial, patientId, practiceId, onClose, onSaved }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Patient edit form + Field helper
+// Edit form + Field helper
 // ═══════════════════════════════════════════════════════════════════════════════
 const GENDERS = ["Male", "Female", "Non-Binary", "Other", "Unknown"];
 
