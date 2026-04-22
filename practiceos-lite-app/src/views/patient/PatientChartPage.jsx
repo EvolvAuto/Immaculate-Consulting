@@ -146,11 +146,20 @@ export default function PatientChartPage() {
 
   return (
     <div style={{ padding: "20px 24px", maxWidth: 1280, margin: "0 auto", width: "100%" }}>
-      {/* Back link + patient header */}
+      {/* Back link - stays on grey page background */}
       <div style={{ marginBottom: 14 }}>
         <Btn variant="ghost" size="sm" onClick={() => navigate("/patients")}>← Back to patients</Btn>
       </div>
 
+      {/* White chart surface - gives inner borders + grey panels contrast against the grey page.
+          Before this, the chart lived inside a <Modal> which supplied the white bg. */}
+      <div style={{
+        background: "#fff",
+        borderRadius: 12,
+        border: `0.5px solid ${C.borderLight}`,
+        padding: "24px 28px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+      }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <Avatar initials={initialsOf(patient.first_name, patient.last_name)} size={48} color={C.tealMid} />
         <div style={{ flex: 1 }}>
@@ -293,6 +302,8 @@ export default function PatientChartPage() {
       )}
       {tab === "trends" && <TrendsTab patient={patient} />}
       {tab === "meds" && <MedicationsTab patient={patient} />}
+      </div>
+      {/* end white chart surface */}
 
       {showInvite && (
         <InvitePatientModal
