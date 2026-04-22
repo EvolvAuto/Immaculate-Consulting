@@ -1,12 +1,12 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// PatientsView — searchable list.
-// Stage 1c: chart is now a route. Clicking a row navigates to /patients/:id
-// instead of opening a modal. logRead moved to PatientChartPage since that's
-// the component that actually opens the chart.
+// PatientsView - searchable list.
+// Filter state lives in URL query params (useSearchParams) so that navigating
+// into a chart and clicking Back restores the exact filters/search/page the
+// user had. This also makes filtered lists URL-shareable.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
@@ -21,20 +21,45 @@ const PAGE = 25;
 
 export default function PatientsView() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { practiceId } = useAuth();
+
+  // URL-backed filter state. All defaults kept out of URL for clean sharing.
+  const status      = searchParams.get("status") || "Active";
+  const payerFilter = searchParams.get("payer")  || "all";
+  const pcpFilter   = searchParams.get("pcp")    || "all";
+  const sortBy      = searchParams.get("sort")   || "last_name";
+  const page        = parseInt(searchParams.get("page") || "0", 10);
+  const qParam      = searchParams.get("q")      || "";
+
+  // Local state for the search input - debounced into URL so typing doesn't
+  // spam history entries. Synced from URL on mount (and when URL changes
+  // externally, e.g. browser back).
+  const [qInput, setQInput] = useState(qParam);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [patients, setPatients] = useState([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("Active");
-  const [payerFilter, setPayerFilter] = useState("all");
-  const [pcpFilter, setPcpFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("last_name");
   const [providers, setProviders] = useState([]);
   const [adding, setAdding] = useState(false);
 
+  // Helper: update multiple URL params at once, replace (don't push) history.
+  // Values equal to defaults ("", "all", or "0" for page) are stripped from
+  // the URL for cleanliness.
+  const updateParams = (updates) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      Object.entries(updates).forEach(([k, v]) => {
+        const isDefault = !v || v === "all" || (k === "page" && v === "0");
+        if (isDefault) next.delete(k);
+        else next.set(k, v);
+      });
+      return next;
+    }, { replace: true });
+  };
+
+  // Load providers once
   useEffect(() => {
     if (!practiceId) return;
     supabase.from("providers").select("id, first_name, last_name").eq("is_active", true).order("last_name")
@@ -59,8 +84,8 @@ export default function PatientsView() {
         .select("*, pcp:providers!patients_pcp_provider_id_fkey(first_name, last_name), insurance_policies(payer_category, payer_name, rank, is_active)", { count: "exact" })
         .eq("status", status);
 
-      if (q.trim()) {
-        const t = q.trim();
+      if (qParam.trim()) {
+        const t = qParam.trim();
         query = query.or(`first_name.ilike.%${t}%,last_name.ilike.%${t}%,mrn.ilike.%${t}%,phone_mobile.ilike.%${t}%`);
       }
       if (patientIdsFromInsurance) query = query.in("id", patientIdsFromInsurance);
@@ -74,11 +99,20 @@ export default function PatientsView() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { if (practiceId) load(); }, [practiceId, page, status, payerFilter, pcpFilter, sortBy]);
+  // Reload when any URL-backed filter changes
+  useEffect(() => { if (practiceId) load(); }, [practiceId, page, status, payerFilter, pcpFilter, sortBy, qParam]);
+
+  // Debounced: sync search input into URL after typing settles
   useEffect(() => {
-    const t = setTimeout(() => { setPage(0); if (practiceId) load(); }, 250);
+    if (qInput === qParam) return;
+    const t = setTimeout(() => {
+      updateParams({ q: qInput, page: "0" });
+    }, 250);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [qInput]);
+
+  // External URL change (e.g., browser back restores filters) - re-sync input
+  useEffect(() => { setQInput(qParam); }, [qParam]);
 
   const openDetail = (p) => { navigate(`/patients/${p.id}/info`); };
 
@@ -86,23 +120,23 @@ export default function PatientsView() {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
       <TopBar title="Patients" sub={`${total} ${status.toLowerCase()}`}
         actions={<>
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, MRN, phone..."
+          <input value={qInput} onChange={(e) => setQInput(e.target.value)} placeholder="Search name, MRN, phone..."
             style={{ padding: "6px 10px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit", width: 220 }} />
-          <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(0); }}
+          <select value={status} onChange={(e) => updateParams({ status: e.target.value, page: "0" })}
             style={{ padding: "6px 10px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }}>
             {STATUSES.map((s) => <option key={s}>{s}</option>)}
           </select>
-          <select value={payerFilter} onChange={(e) => { setPayerFilter(e.target.value); setPage(0); }}
+          <select value={payerFilter} onChange={(e) => updateParams({ payer: e.target.value, page: "0" })}
             style={{ padding: "6px 10px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }}>
             <option value="all">All insurance</option>
             {PAYER_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select value={pcpFilter} onChange={(e) => { setPcpFilter(e.target.value); setPage(0); }}
+          <select value={pcpFilter} onChange={(e) => updateParams({ pcp: e.target.value, page: "0" })}
             style={{ padding: "6px 10px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }}>
             <option value="all">All PCPs</option>
             {providers.map((p) => <option key={p.id} value={p.id}>Dr. {p.last_name}</option>)}
           </select>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}
+          <select value={sortBy} onChange={(e) => updateParams({ sort: e.target.value })}
             style={{ padding: "6px 10px", border: `0.5px solid ${C.borderMid}`, borderRadius: 6, fontSize: 12, fontFamily: "inherit" }}>
             <option value="last_name">Sort: Last name</option>
             <option value="first_name">Sort: First name</option>
@@ -115,7 +149,7 @@ export default function PatientsView() {
       <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
         {error && <ErrorBanner message={error} />}
         {loading ? <Loader /> : patients.length === 0 ? (
-          <EmptyState icon="👤" title="No patients match" sub={q || payerFilter !== "all" || pcpFilter !== "all" ? "Try adjusting your filters" : "Add your first patient to get started"}
+          <EmptyState icon="👤" title="No patients match" sub={qParam || payerFilter !== "all" || pcpFilter !== "all" ? "Try adjusting your filters" : "Add your first patient to get started"}
             action={<Btn onClick={() => setAdding(true)}>+ New Patient</Btn>} />
         ) : (
           <Card style={{ padding: 0, overflow: "hidden" }}>
@@ -154,9 +188,9 @@ export default function PatientsView() {
 
         {total > PAGE && (
           <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 16 }}>
-            <Btn variant="ghost" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>← Prev</Btn>
+            <Btn variant="ghost" size="sm" disabled={page === 0} onClick={() => updateParams({ page: String(page - 1) })}>← Prev</Btn>
             <div style={{ padding: "6px 12px", fontSize: 12, color: C.textSecondary }}>Page {page + 1} of {Math.ceil(total / PAGE)}</div>
-            <Btn variant="ghost" size="sm" disabled={(page + 1) * PAGE >= total} onClick={() => setPage((p) => p + 1)}>Next →</Btn>
+            <Btn variant="ghost" size="sm" disabled={(page + 1) * PAGE >= total} onClick={() => updateParams({ page: String(page + 1) })}>Next →</Btn>
           </div>
         )}
       </div>
