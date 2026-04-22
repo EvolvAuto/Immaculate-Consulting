@@ -761,6 +761,11 @@ function RegistryTab() {
   const [programFilter, setProgramFilter] = useState("all");
   const [statusFilter, setStatusFilter]   = useState("Active");
   const [selected, setSelected]           = useState(null);
+  const [showNewEnroll, setShowNewEnroll] = useState(false);
+
+  // Role gate for enrollment creation. CHW cannot create; Owner/Manager/CM can.
+  const role = profile?.role;
+  const canCreateEnroll = role && role !== "CHW";
 
   const load = useCallback(async () => {
     if (!practiceId) return;
@@ -936,7 +941,12 @@ function RegistryTab() {
             <option value="General Engagement">General Engagement</option>
           </select>
         </div>
-        <Btn variant="outline" size="sm" onClick={load} style={{ marginLeft: "auto" }}>Refresh</Btn>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {canCreateEnroll && (
+            <Btn variant="primary" size="sm" onClick={() => setShowNewEnroll(true)}>+ New enrollment</Btn>
+          )}
+          <Btn variant="outline" size="sm" onClick={load}>Refresh</Btn>
+        </div>
       </Card>
 
       {/* Registry table */}
@@ -1001,6 +1011,14 @@ function RegistryTab() {
 
       {selected && (
         <EnrollmentDetail enrollment={selected} onClose={() => setSelected(null)} />
+      )}
+      {showNewEnroll && (
+        <NewEnrollmentModal
+          practiceId={practiceId}
+          userId={profile?.id}
+          onClose={() => setShowNewEnroll(false)}
+          onCreated={() => { setShowNewEnroll(false); load(); }}
+        />
       )}
     </div>
   );
@@ -1481,7 +1499,7 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
     if (!practiceId) return;
     supabase
       .from("cm_enrollments")
-      .select("id, patient_id, program_type, acuity_tier, enrollment_status, patients(first_name, last_name, date_of_birth)")
+      .select("id, patient_id, program_type, acuity_tier, enrollment_status, patients(first_name, last_name, date_of_birth, mrn)")
       .eq("practice_id", practiceId)
       .in("enrollment_status", ["Active", "Pending"])
       .order("enrollment_status", { ascending: true })
@@ -1526,6 +1544,7 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
           id: e.patient_id,
           first_name: e.patients?.first_name || "",
           last_name:  e.patients?.last_name || "",
+          mrn:        e.patients?.mrn || "",
         });
       }
     }
@@ -1630,7 +1649,9 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
           <select value={patientId} onChange={e => setPatientId(e.target.value)} style={selectStyle}>
             <option value="">-- Select patient --</option>
             {patientOptions.map(p => (
-              <option key={p.id} value={p.id}>{p.last_name}, {p.first_name}</option>
+              <option key={p.id} value={p.id}>
+                {p.last_name}, {p.first_name}{p.mrn ? " (" + p.mrn + ")" : ""}
+              </option>
             ))}
           </select>
           {enrolledPatients.length === 0 && (
@@ -1819,6 +1840,342 @@ function CHWTab() {
       description="CHW to Care Manager direction relationships with FTE gauge (2.0 FTE cap enforced by DB trigger per NC Medicaid TCM April 2022 guidance). Conflict-of-interest override workflow with required rationale."
       schemaNote="Tables ready: cm_chw_assignments, users.chw_* columns (13 credentialing fields)"
     />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NewEnrollmentModal - create a new Care Management enrollment.
+//
+// Required fields: patient, program type. Everything else has a DB default
+// or is nullable. The partial-unique index idx_cm_enrollments_patient_program_active
+// prevents two Active enrollments for the same (patient, program) pair -
+// we surface this as a warning BEFORE save so the user sees it as UX, not
+// as a DB error.
+//
+// Typical flow: practice identifies a candidate -> creates as Pending,
+// assigns a Care Manager to reach out, consents the patient, transitions
+// to Active once engaged. Default status is therefore Pending.
+//
+// Audit fields (created_by, acuity_tier_set_by/at) are stamped here so we
+// do not lose the attribution when triggers fire.
+// ---------------------------------------------------------------------------
+
+function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
+  // Lookup data
+  const [patients, setPatients]           = useState([]);
+  const [existing, setExisting]           = useState([]); // existing active enrollments, for dup check
+  const [careManagers, setCareManagers]   = useState([]);
+  const [loading, setLoading]             = useState(true);
+
+  // Form state
+  const [patientSearch, setPatientSearch] = useState("");
+  const [patientId, setPatientId]         = useState("");
+  const [programType, setProgramType]     = useState("");
+  const [payerName, setPayerName]         = useState("");
+  const [planMemberId, setPlanMemberId]   = useState("");
+  const [acuityTier, setAcuityTier]       = useState("");
+  const [status, setStatus]               = useState("Pending");
+  const [enrolledAt, setEnrolledAt]       = useState(() => new Date().toISOString().split("T")[0]);
+  const [assignedCM, setAssignedCM]       = useState("");
+  const [hopEligible, setHopEligible]     = useState(false);
+  const [notes, setNotes]                 = useState("");
+
+  const [saving, setSaving]               = useState(false);
+  const [error, setError]                 = useState(null);
+
+  // Load patients, existing active enrollments, and care managers in parallel
+  useEffect(() => {
+    if (!practiceId) return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([
+      supabase
+        .from("patients")
+        .select("id, first_name, last_name, mrn, date_of_birth")
+        .eq("practice_id", practiceId)
+        .order("last_name", { ascending: true })
+        .limit(2000),
+      supabase
+        .from("cm_enrollments")
+        .select("patient_id, program_type, enrollment_status")
+        .eq("practice_id", practiceId)
+        .eq("enrollment_status", "Active"),
+      supabase
+        .from("users")
+        .select("id, full_name, role")
+        .eq("practice_id", practiceId)
+        .in("role", ["Care Manager", "Supervising Care Manager", "Care Manager Supervisor"])
+        .order("full_name", { ascending: true }),
+    ]).then(([pRes, eRes, cmRes]) => {
+      if (cancelled) return;
+      setPatients(pRes.data || []);
+      setExisting(eRes.data || []);
+      setCareManagers(cmRes.data || []);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [practiceId]);
+
+  // Filter patient list by search term (name or MRN)
+  const patientMatches = useMemo(() => {
+    if (!patientSearch.trim()) return patients.slice(0, 25);
+    const q = patientSearch.trim().toLowerCase();
+    return patients
+      .filter(p => {
+        const name = ((p.first_name || "") + " " + (p.last_name || "")).toLowerCase();
+        const mrn  = (p.mrn || "").toLowerCase();
+        return name.includes(q) || mrn.includes(q);
+      })
+      .slice(0, 25);
+  }, [patients, patientSearch]);
+
+  // Selected patient object
+  const selectedPatient = useMemo(
+    () => patients.find(p => p.id === patientId) || null,
+    [patients, patientId]
+  );
+
+  // Duplicate-enrollment check: does this (patient, program) already have an Active?
+  const duplicateWarning = useMemo(() => {
+    if (!patientId || !programType) return null;
+    const dup = existing.find(e => e.patient_id === patientId && e.program_type === programType);
+    return dup ? "This patient already has an Active enrollment in " + programType + ". Disenroll the existing enrollment first, or pick a different program." : null;
+  }, [patientId, programType, existing]);
+
+  const save = async () => {
+    if (!patientId)    { setError("Pick a patient"); return; }
+    if (!programType)  { setError("Pick a program type"); return; }
+    if (duplicateWarning) { setError(duplicateWarning); return; }
+    if (status === "Active" && !enrolledAt) { setError("Enrolled date required for Active status"); return; }
+
+    setSaving(true);
+    setError(null);
+
+    const nowIso = new Date().toISOString();
+    const payload = {
+      practice_id:       practiceId,
+      patient_id:        patientId,
+      program_type:      programType,
+      enrollment_status: status,
+      created_by:        userId || null,
+    };
+    if (payerName.trim())     payload.payer_name     = payerName.trim();
+    if (planMemberId.trim())  payload.plan_member_id = planMemberId.trim();
+    if (acuityTier) {
+      payload.acuity_tier         = acuityTier;
+      payload.acuity_tier_set_at  = nowIso;
+      payload.acuity_tier_set_by  = userId || null;
+    }
+    if (status === "Active" && enrolledAt) {
+      payload.enrolled_at = new Date(enrolledAt + "T12:00:00Z").toISOString();
+    }
+    if (assignedCM) {
+      payload.assigned_care_manager_id = assignedCM;
+      payload.assigned_at              = nowIso;
+    }
+    if (hopEligible) payload.hop_eligible = true;
+    if (notes.trim())  payload.notes = notes.trim();
+
+    try {
+      const { error: insErr } = await supabase.from("cm_enrollments").insert(payload);
+      if (insErr) throw insErr;
+      onCreated();
+    } catch (e) {
+      setError(e.message || "Failed to create enrollment");
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Modal title="New enrollment" onClose={onClose} width={720}>
+        <Loader label="Loading practice patients..." />
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title="New enrollment" onClose={onClose} width={720}>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        {/* Patient picker with inline search */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Patient</FL>
+          {selectedPatient ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", border: "0.5px solid " + C.borderLight, borderRadius: 8, background: C.bgSecondary }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary }}>
+                  {selectedPatient.last_name}, {selectedPatient.first_name}
+                </div>
+                <div style={{ fontSize: 11, color: C.textTertiary, fontFamily: "monospace", marginTop: 2 }}>
+                  {selectedPatient.mrn || "no MRN"}
+                  {selectedPatient.date_of_birth ? " | DOB " + new Date(selectedPatient.date_of_birth).toLocaleDateString() : ""}
+                </div>
+              </div>
+              <Btn size="sm" variant="outline" onClick={() => { setPatientId(""); setPatientSearch(""); }}>
+                Change
+              </Btn>
+            </div>
+          ) : (
+            <div>
+              <input
+                type="text"
+                value={patientSearch}
+                onChange={e => setPatientSearch(e.target.value)}
+                placeholder="Search by name or MRN..."
+                style={{ ...inputStyle, width: "100%" }}
+              />
+              {patientSearch.trim() && (
+                <div style={{ marginTop: 6, maxHeight: 180, overflow: "auto", border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
+                  {patientMatches.length === 0 ? (
+                    <div style={{ padding: 12, fontSize: 12, color: C.textTertiary, textAlign: "center" }}>
+                      No patients match "{patientSearch}"
+                    </div>
+                  ) : patientMatches.map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => { setPatientId(p.id); setPatientSearch(""); }}
+                      style={{
+                        display: "block", width: "100%", textAlign: "left",
+                        padding: "8px 12px", border: "none",
+                        borderBottom: "0.5px solid " + C.borderLight,
+                        background: C.bgPrimary, cursor: "pointer",
+                        fontFamily: "inherit", fontSize: 13,
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, color: C.textPrimary }}>
+                        {p.last_name}, {p.first_name}
+                      </div>
+                      <div style={{ fontSize: 11, color: C.textTertiary, fontFamily: "monospace" }}>
+                        {p.mrn || "no MRN"}
+                        {p.date_of_birth ? " | DOB " + new Date(p.date_of_birth).toLocaleDateString() : ""}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <FL>Program type</FL>
+          <select value={programType} onChange={e => setProgramType(e.target.value)} style={selectStyle}>
+            <option value="">-- Select program --</option>
+            <option value="TCM">TCM (Tailored Care Management)</option>
+            <option value="AMH Plus">AMH Plus</option>
+            <option value="AMH Tier 3">AMH Tier 3</option>
+            <option value="CMA">CMA</option>
+            <option value="CIN CM">CIN Care Management</option>
+            <option value="General Engagement">General Engagement</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <FL>Initial status</FL>
+          <select value={status} onChange={e => setStatus(e.target.value)} style={selectStyle}>
+            <option value="Pending">Pending (outreach not started)</option>
+            <option value="Active">Active (consented + engaged)</option>
+            <option value="On Hold">On Hold</option>
+          </select>
+        </div>
+
+        <div>
+          <FL>Payer name (optional)</FL>
+          <input
+            type="text"
+            value={payerName}
+            onChange={e => setPayerName(e.target.value)}
+            placeholder="e.g. Vaya Health, Alliance Health"
+            style={inputStyle}
+          />
+        </div>
+
+        <div>
+          <FL>Plan member ID / CNDS (optional)</FL>
+          <input
+            type="text"
+            value={planMemberId}
+            onChange={e => setPlanMemberId(e.target.value)}
+            placeholder="e.g. 944HG128X2"
+            style={{ ...inputStyle, fontFamily: "monospace" }}
+          />
+        </div>
+
+        <div>
+          <FL>Acuity tier (optional, set after assessment)</FL>
+          <select value={acuityTier} onChange={e => setAcuityTier(e.target.value)} style={selectStyle}>
+            <option value="">-- Not yet set --</option>
+            <option value="High">High</option>
+            <option value="Moderate">Moderate</option>
+            <option value="Low">Low</option>
+          </select>
+        </div>
+
+        <div>
+          <FL>Assigned care manager (optional)</FL>
+          <select value={assignedCM} onChange={e => setAssignedCM(e.target.value)} style={selectStyle}>
+            <option value="">-- Unassigned --</option>
+            {careManagers.map(cm => (
+              <option key={cm.id} value={cm.id}>{cm.full_name} ({cm.role})</option>
+            ))}
+          </select>
+        </div>
+
+        {status === "Active" && (
+          <div>
+            <FL>Enrolled date</FL>
+            <input
+              type="date"
+              value={enrolledAt}
+              onChange={e => setEnrolledAt(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+        )}
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "8px 0" }}>
+            <input type="checkbox" checked={hopEligible} onChange={e => setHopEligible(e.target.checked)} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>
+                HOP eligible
+              </div>
+              <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
+                Patient is eligible for Healthy Opportunities Pilot HRSN interventions. HOP active can be toggled later based on interventions.
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Notes (optional)</FL>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            rows={3}
+            placeholder="Referral source, outreach strategy, initial clinical context..."
+            style={{ ...inputStyle, resize: "vertical" }}
+          />
+        </div>
+      </div>
+
+      {duplicateWarning && (
+        <div style={{ marginTop: 12, padding: 12, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 8, fontSize: 12, color: C.textPrimary }}>
+          <strong>Duplicate check:</strong> {duplicateWarning}
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="primary" disabled={saving || !!duplicateWarning} onClick={save}>
+          {saving ? "Creating..." : "Create enrollment"}
+        </Btn>
+      </div>
+    </Modal>
   );
 }
 
