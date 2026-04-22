@@ -325,7 +325,7 @@ function PRLInbound({ practiceId }) {
         <ImportDetail importRow={selected} onClose={() => setSelected(null)} onResolved={load} />
       )}
       {showNew && (
-        <NewImportModal practiceId={practiceId} onClose={() => setShowNew(false)} onCreated={(id) => { setShowNew(false); load().then(() => runEdge("prl-parse", { import_id: id })); }} />
+        <NewImportModal practiceId={practiceId} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); }} />
       )}
     </div>
   );
