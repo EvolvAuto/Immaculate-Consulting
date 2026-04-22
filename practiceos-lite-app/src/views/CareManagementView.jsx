@@ -769,7 +769,7 @@ function RegistryTab() {
       // Fetch enrollments + patient names in one call via the embedded FK select.
       const { data: enrollments, error: e1 } = await supabase
         .from("cm_enrollments")
-        .select("id, patient_id, program_type, enrollment_status, acuity_tier, payer_name, plan_member_id, enrolled_at, assigned_at, disenrolled_at, disenrollment_reason_code, assigned_care_manager_id, hop_eligible, hop_active, patients(first_name, last_name, dob)")
+        .select("id, patient_id, program_type, enrollment_status, acuity_tier, payer_name, plan_member_id, enrolled_at, assigned_at, disenrolled_at, disenrollment_reason_code, assigned_care_manager_id, hop_eligible, hop_active, patients(first_name, last_name, date_of_birth)")
         .eq("practice_id", practiceId)
         .order("enrollment_status", { ascending: true })
         .order("acuity_tier",        { ascending: true })
