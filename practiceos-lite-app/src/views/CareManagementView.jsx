@@ -6,6 +6,7 @@ import {
   Badge, Btn, Card, Modal, Loader, EmptyState, ErrorBanner,
   SectionHead, FL, TabBar
 } from "../components/ui";
+import { stalenessBand, isBillableProgram, isPastBillingRiskDay } from "../lib/cmCadence";
 
 // ===============================================================================
 // CareManagementView - entry point for the Care Management Console (Command tier)
@@ -859,14 +860,16 @@ function RegistryTab() {
     //                        once we are past day 20 of the month (billing at risk).
     // See stalenessBand() for threshold rationale. These numbers are calibrated against
     // the TCM Provider Manual (monthly billing floor + 3-contacts/month rate assumption).
-    const today = new Date();
-    const pastDay20 = today.getUTCDate() >= 20;
+    const pastDay20 = isPastBillingRiskDay();
     const needsAttention = new Set();
 
     for (const r of active) {
-      const band = stalenessBand(r.acuity_tier, r.days_since_contact);
+      const band = stalenessBand(r.acuity_tier, r.days_since_contact, r.program_type);
       if (band === "amber" || band === "red") needsAttention.add(r.id);
-      if (pastDay20 && !r.has_contact_this_month) needsAttention.add(r.id);
+      // BILL RISK only counts for programs with a monthly billing floor.
+      if (pastDay20 && !r.has_contact_this_month && isBillableProgram(r.program_type)) {
+        needsAttention.add(r.id);
+      }
     }
     for (const r of pending) {
       const tooOld = r.days_since_enrolled !== null && r.days_since_enrolled >= 14;
@@ -876,7 +879,7 @@ function RegistryTab() {
       if (tooOld && noSuccess) needsAttention.add(r.id);
     }
 
-    const billingAtRisk = active.filter(r => pastDay20 && !r.has_contact_this_month).length;
+    const billingAtRisk = active.filter(r => pastDay20 && !r.has_contact_this_month && isBillableProgram(r.program_type)).length;
 
     return {
       total:           rows.length,
@@ -978,11 +981,11 @@ function RegistryTab() {
                     {r.last_touchpoint_at ? new Date(r.last_touchpoint_at).toLocaleDateString() : "-"}
                   </Td>
                   <Td align="right">
-                    <StaleDaysBadge days={r.days_since_contact} status={r.enrollment_status} acuity={r.acuity_tier} />
+                    <StaleDaysBadge days={r.days_since_contact} status={r.enrollment_status} acuity={r.acuity_tier} programType={r.program_type} />
                   </Td>
                   <Td>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {r.enrollment_status === "Active" && !r.has_contact_this_month && new Date().getUTCDate() >= 20 && (
+                      {r.enrollment_status === "Active" && !r.has_contact_this_month && isPastBillingRiskDay() && isBillableProgram(r.program_type) && (
                         <Badge label="BILL RISK" variant="red" size="xs" />
                       )}
                       {r.hop_active && <Badge label="HOP" variant="blue" size="xs" />}
@@ -1009,42 +1012,14 @@ function AcuityBadge({ tier }) {
   return <Badge label={tier || "-"} variant={map[tier] || "neutral"} size="xs" />;
 }
 
-// Acuity-aware staleness band.
-//
-// Policy grounding:
-//   - TCM Provider Manual Section 4.2: "to submit a claim for payment for a
-//     member in a month, a Tailored Plan/LME/MCO, AMH+, or CMA must have at
-//     least one qualifying member-facing contact in that month."
-//   - TCM Provider Manual footnote 35 (rate assumption): engaged members
-//     receive on average three monthly contacts + one in-person quarterly.
-//   - Cadence is clinical judgment, not a fixed acuity-tier requirement.
-//     These thresholds are calibrated to warn BEFORE the billing floor slips
-//     and with tighter windows for High acuity members per the rate
-//     assumption of visible multi-contact engagement.
-//
-// Red band = overdue relative to billing floor. Amber = warning, act soon.
-// These defaults live here; v2 will make them practice-configurable via
-// practice_preferences.cm_cadence_thresholds JSONB.
-const CADENCE_THRESHOLDS = {
-  High:     { amberAt: 11, redAt: 21 },
-  Moderate: { amberAt: 15, redAt: 26 },
-  Low:      { amberAt: 31, redAt: 46 },
-};
-
-function stalenessBand(acuity, days) {
-  if (days === null || days === undefined) return "amber"; // "No contact" = amber band by default
-  const t = CADENCE_THRESHOLDS[acuity] || CADENCE_THRESHOLDS.Moderate;
-  if (days >= t.redAt)   return "red";
-  if (days >= t.amberAt) return "amber";
-  return "green";
-}
-
-// Sub-component: days-since badge with acuity-aware coloring.
-// Disenrolled rows do not show staleness (not applicable).
-function StaleDaysBadge({ days, status, acuity }) {
+// Sub-component: days-since badge with acuity-aware + program-aware coloring.
+// Staleness logic lives in src/lib/cmCadence.js - see that module for the
+// policy grounding (TCM Provider Manual Section 4.2 + footnote 35) and for
+// per-program threshold tables. Disenrolled rows do not show staleness.
+function StaleDaysBadge({ days, status, acuity, programType }) {
   if (status === "Disenrolled") return <span style={{ color: C.textTertiary }}>-</span>;
   if (days === null || days === undefined) return <Badge label="No contact" variant="amber" size="xs" />;
-  const band = stalenessBand(acuity, days);
+  const band = stalenessBand(acuity, days, programType);
   const variant = band === "red" ? "red" : band === "amber" ? "amber" : "green";
   return <Badge label={days + "d"} variant={variant} size="xs" />;
 }
