@@ -37,6 +37,7 @@ const SCREENER_SEVERITY_COLORS = {
 };
 
 const VALID_TABS = ["info", "appts", "notes", "trends", "meds", "screening", "clinical", "insurance"];
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PatientChartPage
@@ -67,9 +68,28 @@ export default function PatientChartPage() {
   const [showGrantAccess, setShowGrantAccess] = useState(false);
   const [showStartScreening, setShowStartScreening] = useState(false);
 
+  // Back navigation: prefer browser back (preserves PatientsView filters/scroll
+  // via history state). Fall back to a fresh navigation if there's no history
+  // (user deep-linked directly into the chart).
+  const handleBack = () => {
+    if (location.key !== "default") {
+      navigate(-1);
+    } else {
+      navigate("/patients");
+    }
+  };
+
   // Load the patient when the URL :id changes.
   useEffect(() => {
     if (!patientId || !practiceId) return;
+    // Short-circuit on malformed UUIDs to avoid raw Postgres "invalid input
+    // syntax" errors. Treated the same as not-found.
+    if (!UUID_RE.test(patientId)) {
+      setPatient(null);
+      setLoadError(null);
+      setLoadingPatient(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -124,7 +144,7 @@ export default function PatientChartPage() {
       <div style={{ padding: 24 }}>
         <ErrorBanner message={loadError} />
         <div style={{ marginTop: 16 }}>
-          <Btn variant="outline" onClick={() => navigate("/patients")}>← Back to patients</Btn>
+          <Btn variant="outline" onClick={handleBack}>← Back to patients</Btn>
         </div>
       </div>
     );
@@ -134,7 +154,7 @@ export default function PatientChartPage() {
       <div style={{ padding: 24 }}>
         <EmptyState icon="👤" title="Patient not found" sub="This record may have been removed or you don't have access." />
         <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
-          <Btn variant="outline" onClick={() => navigate("/patients")}>← Back to patients</Btn>
+          <Btn variant="outline" onClick={handleBack}>← Back to patients</Btn>
         </div>
       </div>
     );
@@ -148,7 +168,7 @@ export default function PatientChartPage() {
     <div style={{ padding: "20px 24px", maxWidth: 1280, margin: "0 auto", width: "100%" }}>
       {/* Back link - stays on grey page background */}
       <div style={{ marginBottom: 14 }}>
-        <Btn variant="ghost" size="sm" onClick={() => navigate("/patients")}>← Back to patients</Btn>
+        <Btn variant="ghost" size="sm" onClick={handleBack}>← Back to patients</Btn>
       </div>
 
       {/* White chart surface - gives inner borders + grey panels contrast against the grey page.
