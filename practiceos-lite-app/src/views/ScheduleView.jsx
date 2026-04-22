@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
@@ -29,6 +30,15 @@ const TIME_OPTIONS = (() => {
 
 export default function ScheduleView() {
   const { practiceId } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // Navigate to a patient chart with returnTo stamped so Back returns here.
+  const openChart = (patientId) => {
+    if (!patientId) return;
+    navigate(`/patients/${patientId}/info`, {
+      state: { returnTo: location.pathname + location.search }
+    });
+  };
   const [viewMode, setViewMode] = useState("day"); // 'day' | 'month'
   const [date, setDate] = useState(toISODate());
   const [loading, setLoading] = useState(true);
@@ -235,7 +245,8 @@ export default function ScheduleView() {
       {viewing && (
         <ApptViewModal appt={viewing} apptTypes={apptTypes} onClose={() => setViewing(null)}
           onEdit={() => { setEditing(viewing); setViewing(null); }}
-          onDelete={() => cancelAppt(viewing.id)} />
+          onDelete={() => cancelAppt(viewing.id)}
+          onOpenChart={() => { const pid = viewing.patient_id; setViewing(null); openChart(pid); }} />
       )}
       {editing && (
         <ApptFormModal initial={editing} providers={providers} apptTypes={apptTypes} practiceId={practiceId}
@@ -382,8 +393,9 @@ function MonthGrid({ date, appts, apptTypes, onDayClick, onApptClick }) {
 }
 
 // ─── View existing appointment ───────────────────────────────────────────────
-function ApptViewModal({ appt, apptTypes, onClose, onEdit, onDelete }) {
+function ApptViewModal({ appt, apptTypes, onClose, onEdit, onDelete, onOpenChart }) {
   const cfg = apptTypes.find((x) => x.name === appt.appt_type) || apptTypes[1];
+  const hasPatient = !!appt.patient_id;
   return (
     <Modal title="Appointment Details" onClose={onClose} maxWidth={480}>
       <div style={{ marginBottom: 14 }}>
@@ -403,9 +415,10 @@ function ApptViewModal({ appt, apptTypes, onClose, onEdit, onDelete }) {
       {appt.notes && (
         <div style={{ marginBottom: 12 }}><FL>Notes</FL><div style={{ fontSize: 13 }}>{appt.notes}</div></div>
       )}
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20, flexWrap: "wrap" }}>
         {onDelete && appt.status !== "Cancelled" && <Btn variant="danger" onClick={onDelete}>Cancel Appt</Btn>}
         <Btn variant="outline" onClick={onClose}>Close</Btn>
+        {hasPatient && onOpenChart && <Btn variant="outline" onClick={onOpenChart}>Open Chart</Btn>}
         <Btn onClick={onEdit}>Edit</Btn>
       </div>
     </Modal>
