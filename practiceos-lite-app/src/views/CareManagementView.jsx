@@ -1135,7 +1135,7 @@ function DetailField({ label, value, monospace }) {
 //
 // Shows all touchpoints logged for the practice, filterable by date range,
 // patient name, care manager, program, and success status. Role-aware:
-//   - CHW sees only their own touchpoints (logged_by_user_id = self)
+//   - CHW sees only their own touchpoints (delivered_by_user_id = self)
 //   - Care Managers / Supervisors see all practice touchpoints
 //
 // Append-only: v1 does not allow edit or delete. This matches TCM Provider
@@ -1143,12 +1143,32 @@ function DetailField({ label, value, monospace }) {
 // history would break the billing trail.
 // ---------------------------------------------------------------------------
 
+// Values must match the cm_contact_method Postgres enum exactly.
 const CONTACT_METHODS = [
-  "In-Person",
+  "In Person",
   "Telephonic",
   "Video",
-  "Text/Secure Message",
+  "Secure Message",
+  "Letter",
+  "Email",
   "Attempt - No Contact",
+];
+
+// Methods that count toward the TCM monthly billing floor when successful.
+// Per TCM Provider Manual Section 4.2: qualifying contacts are member-facing
+// interactions (in-person, telephonic, or two-way audio/video). Letter, email,
+// and secure message do not qualify; attempts with no contact never qualify.
+const TCM_QUALIFYING_METHODS = new Set(["In Person", "Telephonic", "Video"]);
+
+// HOP HRSN domains used across PracticeOS (matches hrsn_referral_drafts.domain
+// values). These are stored in cm_touchpoints.hrsn_domains_addressed as text[].
+const HOP_DOMAINS = [
+  { code: "food_insecurity",     label: "Food insecurity" },
+  { code: "housing_instability", label: "Housing instability" },
+  { code: "housing_quality",     label: "Housing quality" },
+  { code: "transportation",      label: "Transportation" },
+  { code: "utilities",           label: "Utilities" },
+  { code: "interpersonal_safety", label: "Interpersonal safety" },
 ];
 
 const DATE_RANGE_PRESETS = [
@@ -1199,16 +1219,16 @@ function TouchpointsTab() {
       // RLS issues on the users table cross-scope.
       let query = supabase
         .from("cm_touchpoints")
-        .select("id, touchpoint_at, contact_method, successful_contact, delivered_by_role, activity_category_code, notes, enrollment_id, patient_id, logged_by_user_id, cm_enrollments(program_type, acuity_tier), patients(first_name, last_name)")
+        .select("id, touchpoint_at, contact_method, successful_contact, delivered_by_role, activity_category_code, notes, enrollment_id, patient_id, delivered_by_user_id, hrsn_domains_addressed, counts_toward_tcm_contact, cm_enrollments(program_type, acuity_tier), patients(first_name, last_name)")
         .eq("practice_id", practiceId)
         .order("touchpoint_at", { ascending: false })
         .limit(200);
 
       if (cutoffIso)          query = query.gte("touchpoint_at", cutoffIso);
-      if (cmFilter !== "all") query = query.eq("logged_by_user_id", cmFilter);
+      if (cmFilter !== "all") query = query.eq("delivered_by_user_id", cmFilter);
       if (successfulOnly)     query = query.eq("successful_contact", true);
       // CHW can only see their own touchpoints
-      if (isCHW && profile?.id) query = query.eq("logged_by_user_id", profile.id);
+      if (isCHW && profile?.id) query = query.eq("delivered_by_user_id", profile.id);
 
       const { data, error: qErr } = await query;
       if (qErr) throw qErr;
@@ -1428,7 +1448,8 @@ function formatTouchpointTime(iso) {
 function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged }) {
   const [enrolledPatients, setEnrolledPatients] = useState([]);
   const [activityCodes, setActivityCodes]       = useState([]);
-  const [hrsnDomains, setHrsnDomains]           = useState([]);
+  // HRSN domains are hardcoded from HOP spec, not fetched (no reference_codes category for them).
+  const hrsnDomains = HOP_DOMAINS;
 
   const [patientId, setPatientId]           = useState("");
   const [enrollmentId, setEnrollmentId]     = useState("");
@@ -1477,19 +1498,6 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
       .order("sort_order", { ascending: true })
       .then(({ data, error }) => {
         if (!error && data) setActivityCodes(data);
-      });
-  }, []);
-
-  // Load HRSN domains
-  useEffect(() => {
-    supabase
-      .from("cm_reference_codes")
-      .select("code, label, sort_order")
-      .eq("category", "hrsn_domain")
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && data) setHrsnDomains(data);
       });
   }, []);
 
@@ -1560,33 +1568,45 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
     // Role mapping to cm_delivered_by_role enum. Best-effort; if user's role
     // does not map cleanly, we default to "Care Manager" since that is the
     // baseline for the cm_touchpoints.delivered_by_role scope trigger.
+    // Maps public.users.role to cm_delivery_role enum values.
+    // cm_delivery_role values: Care Manager, Supervising Care Manager, Extender,
+    // Provider, Pharmacist, Other, CHW.
     const roleMap = {
-      "Care Manager":                "Care Manager",
-      "Supervising Care Manager":    "Supervising Care Manager",
-      "Care Manager Supervisor":     "Care Manager",
-      "CHW":                         "CHW",
-      "Owner":                       "Care Manager",
-      "Manager":                     "Care Manager",
+      "Care Manager":             "Care Manager",
+      "Supervising Care Manager": "Supervising Care Manager",
+      "Care Manager Supervisor":  "Supervising Care Manager",
+      "CHW":                      "CHW",
+      "Owner":                    "Other",
+      "Manager":                  "Other",
+      "Provider":                 "Provider",
     };
-    const deliveredByRole = roleMap[userRole] || "Care Manager";
+    const deliveredByRole = roleMap[userRole] || "Other";
 
-    // Build insert payload. Omit hrsn_domains if none selected (avoids
-    // inserting empty array if the column does not exist yet).
+    // Compute derived billing flags.
+    // successful_contact: user-specified, forced false if Attempt.
+    // counts_toward_tcm_contact: must be a member-facing successful contact.
+    //   Per TCM Provider Manual, Secure Message / Letter / Email do NOT count.
+    const isSuccessful = contactMethod === "Attempt - No Contact" ? false : successful;
+    const countsTowardTcm = isSuccessful && TCM_QUALIFYING_METHODS.has(contactMethod);
+
+    // Build insert payload. All NOT NULL columns must be either provided or
+    // have DB defaults. hrsn_domains_addressed is NOT NULL with default '{}',
+    // but we always send the array to be explicit about the user's intent.
     const payload = {
-      practice_id:            practiceId,
-      enrollment_id:          enrollmentId,
-      patient_id:             patientId,
-      logged_by_user_id:      userId,
-      touchpoint_at:          when.toISOString(),
-      contact_method:         contactMethod,
-      successful_contact:     contactMethod === "Attempt - No Contact" ? false : successful,
-      delivered_by_role:      deliveredByRole,
-      activity_category_code: activityCode,
-      notes:                  notes.trim() || null,
+      practice_id:               practiceId,
+      enrollment_id:             enrollmentId,
+      patient_id:                patientId,
+      delivered_by_user_id:      userId,
+      touchpoint_at:             when.toISOString(),
+      contact_method:            contactMethod,
+      successful_contact:        isSuccessful,
+      counts_toward_tcm_contact: countsTowardTcm,
+      delivered_by_role:         deliveredByRole,
+      activity_category_code:    activityCode,
+      hrsn_domains_addressed:    selectedHrsn,
+      notes:                     notes.trim() || null,
+      source:                    "Manual",
     };
-    if (selectedHrsn.length > 0) {
-      payload.hrsn_domains = selectedHrsn;
-    }
 
     try {
       const { error: insErr } = await supabase.from("cm_touchpoints").insert(payload);
