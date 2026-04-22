@@ -30,6 +30,7 @@ const NAV_PATHS = {
   waitlist:          "/waitlist",
   insights:          "/insights",
   compliance:        "/compliance",
+  care_management:   "/care-management",
   insurance_updates: "/insurance-updates",
   portal:            "/portal",
   pro_chart_prep:    "/pro/chart-prep",
