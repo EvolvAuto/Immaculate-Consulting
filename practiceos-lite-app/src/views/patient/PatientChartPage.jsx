@@ -149,7 +149,7 @@ export default function PatientChartPage() {
       <div style={{ padding: 24 }}>
         <ErrorBanner message={loadError} />
         <div style={{ marginTop: 16 }}>
-          <Btn variant="outline" onClick={handleBack}>← Back to patients</Btn>
+          <Btn variant="outline" onClick={handleBack}>← Back</Btn>
         </div>
       </div>
     );
@@ -159,7 +159,7 @@ export default function PatientChartPage() {
       <div style={{ padding: 24 }}>
         <EmptyState icon="👤" title="Patient not found" sub="This record may have been removed or you don't have access." />
         <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
-          <Btn variant="outline" onClick={handleBack}>← Back to patients</Btn>
+          <Btn variant="outline" onClick={handleBack}>← Back</Btn>
         </div>
       </div>
     );
@@ -173,7 +173,7 @@ export default function PatientChartPage() {
     <div style={{ padding: "20px 24px", maxWidth: 1280, margin: "0 auto", width: "100%" }}>
       {/* Back link - stays on grey page background */}
       <div style={{ marginBottom: 14 }}>
-        <Btn variant="ghost" size="sm" onClick={handleBack}>← Back to patients</Btn>
+        <Btn variant="ghost" size="sm" onClick={handleBack}>← Back</Btn>
       </div>
 
       {/* White chart surface - gives inner borders + grey panels contrast against the grey page.
