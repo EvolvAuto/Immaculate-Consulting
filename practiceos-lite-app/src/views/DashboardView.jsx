@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { subscribeTable } from "../lib/db";
 import { useAuth } from "../auth/AuthProvider";
@@ -17,6 +18,16 @@ const INBOX_ROLES = ["Owner", "Manager", "Provider", "Medical Assistant", "Front
 
 export default function DashboardView({ onNav }) {
   const { practiceId, profile, role, tier } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  // Navigate to a patient chart, stamping returnTo so the chart's Back button
+  // returns here with dashboard state intact.
+  const openChart = (patientId) => {
+    if (!patientId) return;
+    navigate(`/patients/${patientId}/info`, {
+      state: { returnTo: location.pathname + location.search }
+    });
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({ appts: [], queue: [], tasks: [], insights: null });
@@ -36,10 +47,10 @@ export default function DashboardView({ onNav }) {
             .select("id, patient_id, provider_id, appt_type, status, appt_date, start_slot, duration_slots, chief_complaint, copay_amount, copay_collected, patients(first_name, last_name), providers(first_name, last_name, color)")
             .eq("appt_date", today).order("start_slot"),
           supabase.from("queue_entries")
-            .select("id, queue_status, chief_complaint, arrived_at, roomed_at, patients(first_name, last_name), providers(first_name, last_name), rooms(name)")
+            .select("id, queue_status, chief_complaint, arrived_at, roomed_at, patients(id, first_name, last_name), providers(first_name, last_name), rooms(name)")
             .neq("queue_status", "Checked Out").neq("queue_status", "Left Without Being Seen"),
           supabase.from("tasks")
-            .select("id, title, priority, category, status, due_date, patients(first_name, last_name)")
+            .select("id, title, priority, category, status, due_date, patients(id, first_name, last_name)")
             .neq("status", "Completed").neq("status", "Cancelled").order("priority", { ascending: false }).limit(25),
           supabase.from("ic_insights_daily")
             .select("*").eq("snapshot_date", today).maybeSingle(),
@@ -139,10 +150,14 @@ export default function DashboardView({ onNav }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {todayAppts.slice(0, 10).map((a) => (
-                <div key={a.id} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "8px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 8,
-                }}>
+                <div key={a.id} onClick={() => openChart(a.patient_id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "8px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 8,
+                    cursor: a.patient_id ? "pointer" : "default",
+                  }}
+                  onMouseEnter={(e) => { if (a.patient_id) e.currentTarget.style.background = C.bgSecondary; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, minWidth: 72 }}>{slotToTime(a.start_slot)}</div>
                   <ApptTypeDot type={a.appt_type} />
                   <div style={{ flex: 1 }}>
@@ -168,7 +183,14 @@ export default function DashboardView({ onNav }) {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {data.queue.slice(0, 8).map((q) => (
-                <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div key={q.id} onClick={() => openChart(q.patients?.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "4px 6px", borderRadius: 4,
+                    cursor: q.patients?.id ? "pointer" : "default",
+                  }}
+                  onMouseEnter={(e) => { if (q.patients?.id) e.currentTarget.style.background = C.bgSecondary; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
                   <Avatar initials={initialsOf(q.patients?.first_name, q.patients?.last_name)} size={26} color={C.tealMid} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -195,10 +217,14 @@ export default function DashboardView({ onNav }) {
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 8 }}>
               {data.tasks.slice(0, 9).map((t) => (
-                <div key={t.id} style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "8px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 8,
-                }}>
+                <div key={t.id} onClick={() => openChart(t.patients?.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "8px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 8,
+                    cursor: t.patients?.id ? "pointer" : "default",
+                  }}
+                  onMouseEnter={(e) => { if (t.patients?.id) e.currentTarget.style.background = C.bgSecondary; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
                   <Badge label={t.priority} variant={TASK_PRIORITY_VARIANT[t.priority] || "neutral"} size="xs" />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</div>
