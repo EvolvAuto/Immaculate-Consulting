@@ -12,7 +12,8 @@ import Layout         from "./Layout";
 // Views -----------------------------------------------------------------------
 import DashboardView        from "./views/DashboardView";
 import ScheduleView         from "./views/ScheduleView";
-import PatientsView         from "./views/PatientsView";
+import PatientsView     from "./views/PatientsView";
+import PatientChartPage from "./views/patient/PatientChartPage";
 import QueueView            from "./views/QueueView";
 import TasksView            from "./views/TasksView";
 import ClinicalView         from "./views/ClinicalView";
@@ -51,6 +52,17 @@ export default function App() {
           <Route path="/dashboard"         element={<DashboardView />} />
           <Route path="/schedule"          element={<ScheduleView />} />
           <Route path="/patients"          element={<PatientsView />} />
+          <Route path="/patients/:id"      element={<PatientChartPage />}>
+            <Route index                  element={null} />
+            <Route path="info"            element={null} />
+            <Route path="appts"           element={null} />
+            <Route path="notes"           element={null} />
+            <Route path="trends"          element={null} />
+            <Route path="meds"            element={null} />
+            <Route path="screening"       element={null} />
+            <Route path="clinical"        element={null} />
+            <Route path="insurance"       element={null} />
+          </Route>
           <Route path="/queue"             element={<QueueView />} />
           <Route path="/tasks"             element={<TasksView />} />
           <Route path="/clinical"          element={<ClinicalView />} />
