@@ -263,27 +263,60 @@ export default function PatientChartPage() {
       {tab === "clinical" && (
         <div>
           <SectionHead title="Allergies" />
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 6 }}>
             {(patient.allergies || []).length === 0 ? <div style={{ fontSize: 12, color: C.textTertiary }}>None on file</div>
-              : (patient.allergies || []).map((a, i) => <Badge key={i} label={typeof a === "string" ? a : a.substance || a.name} variant="red" />)}
+              : (patient.allergies || []).map((a, i) => {
+                  // Supports string entries, legacy {substance, name} shapes, and the
+                  // current {allergen, reaction, severity} shape. Render reaction/severity
+                  // inline so provider sees the clinically-relevant detail at a glance.
+                  const label = typeof a === "string"
+                    ? a
+                    : (a.allergen || a.substance || a.name || "Unknown allergen");
+                  const detail = typeof a === "object"
+                    ? [a.reaction, a.severity].filter(Boolean).join(" - ")
+                    : "";
+                  return (
+                    <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <Badge label={label} variant="red" />
+                      {detail && <span style={{ fontSize: 11, color: C.textSecondary }}>{detail}</span>}
+                    </span>
+                  );
+                })}
           </div>
           <SectionHead title="Active Medications" />
           <div style={{ marginBottom: 16 }}>
             {(patient.medications || []).length === 0 ? <div style={{ fontSize: 12, color: C.textTertiary }}>None on file</div>
-              : (patient.medications || []).map((m, i) => (
-                <div key={i} style={{ padding: "6px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 6, marginBottom: 4, fontSize: 12 }}>
-                  {typeof m === "string" ? m : `${m.name || m.drug} ${m.dose || ""} ${m.frequency || ""}`}
-                </div>
-              ))}
+              : (patient.medications || []).map((m, i) => {
+                  const name  = typeof m === "string" ? m : (m.name || m.drug || m.medication || "Unknown medication");
+                  const dose  = typeof m === "object" ? (m.dose || m.dosage || "") : "";
+                  const freq  = typeof m === "object" ? (m.frequency || m.freq || "") : "";
+                  const route = typeof m === "object" ? (m.route || "") : "";
+                  return (
+                    <div key={i} style={{ padding: "6px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 6, marginBottom: 4, fontSize: 12 }}>
+                      {[name, dose, route, freq].filter(Boolean).join(" ")}
+                    </div>
+                  );
+                })}
           </div>
           <SectionHead title="Problem List" />
           <div>
             {(patient.problem_list || []).length === 0 ? <div style={{ fontSize: 12, color: C.textTertiary }}>None on file</div>
-              : (patient.problem_list || []).map((pr, i) => (
-                <div key={i} style={{ padding: "6px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 6, marginBottom: 4, fontSize: 12 }}>
-                  {typeof pr === "string" ? pr : `${pr.code ? pr.code + " — " : ""}${pr.description || pr.name}`}
-                </div>
-              ))}
+              : (patient.problem_list || []).map((pr, i) => {
+                  if (typeof pr === "string") {
+                    return (
+                      <div key={i} style={{ padding: "6px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 6, marginBottom: 4, fontSize: 12 }}>
+                        {pr}
+                      </div>
+                    );
+                  }
+                  const code = pr.code || pr.icd10 || "";
+                  const desc = pr.description || pr.name || pr.condition || "Unknown condition";
+                  return (
+                    <div key={i} style={{ padding: "6px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 6, marginBottom: 4, fontSize: 12 }}>
+                      {code ? `${code} - ${desc}` : desc}
+                    </div>
+                  );
+                })}
           </div>
         </div>
       )}
