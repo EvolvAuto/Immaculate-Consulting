@@ -6,7 +6,7 @@ import {
   Badge, Btn, Card, Modal, Loader, EmptyState, ErrorBanner,
   SectionHead, FL, TabBar
 } from "../components/ui";
-import { stalenessBand, isBillableProgram, isPastBillingRiskDay } from "../lib/cmCadence";
+import { stalenessBand, isBillableByPlan, isPastBillingRiskDay, PLAN_PROGRAM_MATRIX, validatePlanProgramProvider } from "../lib/cmCadence";
 
 // ===============================================================================
 // CareManagementView - entry point for the Care Management Console (Command tier)
@@ -775,7 +775,7 @@ function RegistryTab() {
       // Fetch enrollments + patient names in one call via the embedded FK select.
       const { data: enrollments, error: e1 } = await supabase
         .from("cm_enrollments")
-        .select("id, patient_id, program_type, enrollment_status, acuity_tier, payer_name, plan_member_id, enrolled_at, assigned_at, disenrolled_at, disenrollment_reason_code, assigned_care_manager_id, hop_eligible, hop_active, patients(first_name, last_name, date_of_birth)")
+        .select("id, patient_id, program_type, enrollment_status, acuity_tier, health_plan_type, cm_provider_type, payer_name, plan_member_id, enrolled_at, assigned_at, disenrolled_at, disenrollment_reason_code, assigned_care_manager_id, hop_eligible, hop_active, patients(first_name, last_name, date_of_birth)")
         .eq("practice_id", practiceId)
         .order("enrollment_status", { ascending: true })
         .order("acuity_tier",        { ascending: true })
@@ -869,10 +869,10 @@ function RegistryTab() {
     const needsAttention = new Set();
 
     for (const r of active) {
-      const band = stalenessBand(r.acuity_tier, r.days_since_contact, r.program_type);
+      const band = stalenessBand(r.acuity_tier, r.days_since_contact, r.health_plan_type);
       if (band === "amber" || band === "red") needsAttention.add(r.id);
-      // BILL RISK only counts for programs with a monthly billing floor.
-      if (pastDay20 && !r.has_contact_this_month && isBillableProgram(r.program_type)) {
+      // BILL RISK only counts for Tailored Plan (monthly billing floor).
+      if (pastDay20 && !r.has_contact_this_month && isBillableByPlan(r.health_plan_type)) {
         needsAttention.add(r.id);
       }
     }
@@ -884,7 +884,7 @@ function RegistryTab() {
       if (tooOld && noSuccess) needsAttention.add(r.id);
     }
 
-    const billingAtRisk = active.filter(r => pastDay20 && !r.has_contact_this_month && isBillableProgram(r.program_type)).length;
+    const billingAtRisk = active.filter(r => pastDay20 && !r.has_contact_this_month && isBillableByPlan(r.health_plan_type)).length;
 
     return {
       total:           rows.length,
@@ -963,6 +963,7 @@ function RegistryTab() {
             <thead style={{ background: C.bgSecondary, borderBottom: "0.5px solid " + C.borderLight }}>
               <tr>
                 <Th>Patient</Th>
+                <Th>Plan</Th>
                 <Th>Program</Th>
                 <Th>Acuity</Th>
                 <Th>Status</Th>
@@ -983,7 +984,11 @@ function RegistryTab() {
                     <div style={{ fontWeight: 600 }}>{r.patients?.last_name || ""}, {r.patients?.first_name || ""}</div>
                     {r.plan_member_id && <div style={{ fontSize: 11, color: C.textTertiary, fontFamily: "monospace", marginTop: 2 }}>{r.plan_member_id}</div>}
                   </Td>
-                  <Td>{r.program_type}</Td>
+                  <Td><PlanTypeBadge planType={r.health_plan_type} /></Td>
+                  <Td>
+                    <div>{r.program_type}</div>
+                    {r.cm_provider_type && <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{r.cm_provider_type}</div>}
+                  </Td>
                   <Td><AcuityBadge tier={r.acuity_tier} /></Td>
                   <Td><StatusBadge status={r.enrollment_status} /></Td>
                   <Td style={{ fontSize: 12 }}>{r.payer_name}</Td>
@@ -991,11 +996,11 @@ function RegistryTab() {
                     {r.last_touchpoint_at ? new Date(r.last_touchpoint_at).toLocaleDateString() : "-"}
                   </Td>
                   <Td align="right">
-                    <StaleDaysBadge days={r.days_since_contact} status={r.enrollment_status} acuity={r.acuity_tier} programType={r.program_type} />
+                    <StaleDaysBadge days={r.days_since_contact} status={r.enrollment_status} acuity={r.acuity_tier} planType={r.health_plan_type} />
                   </Td>
                   <Td>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {r.enrollment_status === "Active" && !r.has_contact_this_month && isPastBillingRiskDay() && isBillableProgram(r.program_type) && (
+                      {r.enrollment_status === "Active" && !r.has_contact_this_month && isPastBillingRiskDay() && isBillableByPlan(r.health_plan_type) && (
                         <Badge label="BILL RISK" variant="red" size="xs" />
                       )}
                       {r.hop_active && <Badge label="HOP" variant="blue" size="xs" />}
@@ -1024,20 +1029,29 @@ function RegistryTab() {
   );
 }
 
-// Sub-component: acuity-tier color-coded badge
+// Sub-component: acuity-tier color-coded badge. Returns "-" if tier is null
+// (expected for Standard Plan enrollments where acuity tiering does not apply).
 function AcuityBadge({ tier }) {
   const map = { High: "red", Moderate: "amber", Low: "green" };
   return <Badge label={tier || "-"} variant={map[tier] || "neutral"} size="xs" />;
+}
+
+// Sub-component: health plan type badge. Tailored Plan, Standard Plan, Other.
+function PlanTypeBadge({ planType }) {
+  if (!planType) return <span style={{ color: C.textTertiary, fontSize: 12 }}>-</span>;
+  const map = { "Tailored Plan": "purple", "Standard Plan": "blue", "Other": "neutral" };
+  const shortLabel = { "Tailored Plan": "Tailored", "Standard Plan": "Standard", "Other": "Other" };
+  return <Badge label={shortLabel[planType] || planType} variant={map[planType] || "neutral"} size="xs" />;
 }
 
 // Sub-component: days-since badge with acuity-aware + program-aware coloring.
 // Staleness logic lives in src/lib/cmCadence.js - see that module for the
 // policy grounding (TCM Provider Manual Section 4.2 + footnote 35) and for
 // per-program threshold tables. Disenrolled rows do not show staleness.
-function StaleDaysBadge({ days, status, acuity, programType }) {
+function StaleDaysBadge({ days, status, acuity, planType }) {
   if (status === "Disenrolled") return <span style={{ color: C.textTertiary }}>-</span>;
   if (days === null || days === undefined) return <Badge label="No contact" variant="amber" size="xs" />;
-  const band = stalenessBand(acuity, days, programType);
+  const band = stalenessBand(acuity, days, planType);
   const variant = band === "red" ? "red" : band === "amber" ? "amber" : "green";
   return <Badge label={days + "d"} variant={variant} size="xs" />;
 }
@@ -1082,7 +1096,9 @@ function EnrollmentDetail({ enrollment, onClose }) {
     <Modal title={"Enrollment: " + title} onClose={onClose} width={760}>
       {/* Summary row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <DetailField label="Plan type"    value={<PlanTypeBadge planType={enrollment.health_plan_type} />} />
         <DetailField label="Program"      value={enrollment.program_type} />
+        <DetailField label="Provider"     value={enrollment.cm_provider_type || "-"} />
         <DetailField label="Acuity"       value={<AcuityBadge tier={enrollment.acuity_tier} />} />
         <DetailField label="Status"       value={<StatusBadge status={enrollment.enrollment_status} />} />
         <DetailField label="Enrolled"     value={enrollment.enrolled_at ? new Date(enrollment.enrolled_at).toLocaleDateString() : "-"} />
@@ -1846,31 +1862,55 @@ function CHWTab() {
 // ---------------------------------------------------------------------------
 // NewEnrollmentModal - create a new Care Management enrollment.
 //
-// Required fields: patient, program type. Everything else has a DB default
-// or is nullable. The partial-unique index idx_cm_enrollments_patient_program_active
-// prevents two Active enrollments for the same (patient, program) pair -
-// we surface this as a warning BEFORE save so the user sees it as UX, not
-// as a DB error.
+// Enrollment has three plan-related dimensions:
+//   1. health_plan_type - Tailored Plan / Standard Plan / Other (or null for informal)
+//   2. program_type     - TCM / AMH / General Engagement / Other
+//   3. cm_provider_type - AMH+ / AMH Tier 3 / CMA / CIN / Plan-based / Other
 //
-// Typical flow: practice identifies a candidate -> creates as Pending,
-// assigns a Care Manager to reach out, consents the patient, transitions
-// to Active once engaged. Default status is therefore Pending.
+// Valid combinations are enforced by PLAN_PROGRAM_MATRIX in cmCadence.js:
+//   Tailored Plan -> TCM, delivered by Plan-based / AMH+ / CMA / CIN
+//   Standard Plan -> AMH, delivered by AMH Tier 3 / CIN
+//   Other         -> General Engagement or Other, any provider
+//   (null plan)   -> informal, no constraint
 //
-// Audit fields (created_by, acuity_tier_set_by/at) are stamped here so we
-// do not lose the attribution when triggers fire.
+// The "Allow nonstandard combination" override exists for edge cases
+// (plan transitions, dual enrollment, etc.) that do not fit the matrix.
+//
+// Acuity tier only applies to Tailored Plan (TCM) enrollments.
+//
+// Partial-unique index on (patient_id, program_type) WHERE status='Active'
+// prevents duplicate active enrollments. Surfaced as UX warning before save.
 // ---------------------------------------------------------------------------
 
+const ALL_PROGRAM_TYPES = [
+  "TCM",
+  "AMH",
+  "General Engagement",
+  "Other",
+];
+
+const ALL_PROVIDER_TYPES = [
+  "Plan-based",
+  "AMH+",
+  "AMH Tier 3",
+  "CMA",
+  "CIN",
+  "Other",
+];
+
 function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
-  // Lookup data
   const [patients, setPatients]           = useState([]);
-  const [existing, setExisting]           = useState([]); // existing active enrollments, for dup check
+  const [existing, setExisting]           = useState([]);
   const [careManagers, setCareManagers]   = useState([]);
   const [loading, setLoading]             = useState(true);
 
   // Form state
   const [patientSearch, setPatientSearch] = useState("");
   const [patientId, setPatientId]         = useState("");
+  const [planType, setPlanType]           = useState("");
   const [programType, setProgramType]     = useState("");
+  const [providerType, setProviderType]   = useState("");
+  const [allowOverride, setAllowOverride] = useState(false);
   const [payerName, setPayerName]         = useState("");
   const [planMemberId, setPlanMemberId]   = useState("");
   const [acuityTier, setAcuityTier]       = useState("");
@@ -1883,7 +1923,7 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
   const [saving, setSaving]               = useState(false);
   const [error, setError]                 = useState(null);
 
-  // Load patients, existing active enrollments, and care managers in parallel
+  // Load lookup data in parallel
   useEffect(() => {
     if (!practiceId) return;
     let cancelled = false;
@@ -1916,36 +1956,79 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
     return () => { cancelled = true; };
   }, [practiceId]);
 
-  // Filter patient list by search term (name or MRN)
+  // Cascade: when plan type changes, auto-set program and reset provider
+  // if the current provider is no longer valid for the new plan.
+  useEffect(() => {
+    if (!planType) return;
+    const rule = PLAN_PROGRAM_MATRIX[planType];
+    if (!rule) return;
+    // Auto-set program_type when rule has a canonical program
+    if (rule.program) {
+      setProgramType(rule.program);
+    }
+    // Clear provider if not in the allowed set (unless override active)
+    if (rule.providers && providerType && !allowOverride && !rule.providers.includes(providerType)) {
+      setProviderType("");
+    }
+    // Clear acuity if moving to Standard or Other (acuity only meaningful for Tailored)
+    if (planType !== "Tailored Plan") {
+      setAcuityTier("");
+    }
+  }, [planType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Patient search filtering
   const patientMatches = useMemo(() => {
     if (!patientSearch.trim()) return patients.slice(0, 25);
     const q = patientSearch.trim().toLowerCase();
-    return patients
-      .filter(p => {
-        const name = ((p.first_name || "") + " " + (p.last_name || "")).toLowerCase();
-        const mrn  = (p.mrn || "").toLowerCase();
-        return name.includes(q) || mrn.includes(q);
-      })
-      .slice(0, 25);
+    return patients.filter(p => {
+      const name = ((p.first_name || "") + " " + (p.last_name || "")).toLowerCase();
+      const mrn  = (p.mrn || "").toLowerCase();
+      return name.includes(q) || mrn.includes(q);
+    }).slice(0, 25);
   }, [patients, patientSearch]);
 
-  // Selected patient object
   const selectedPatient = useMemo(
     () => patients.find(p => p.id === patientId) || null,
     [patients, patientId]
   );
 
-  // Duplicate-enrollment check: does this (patient, program) already have an Active?
+  // Duplicate check: does this (patient, program) already have an Active?
   const duplicateWarning = useMemo(() => {
     if (!patientId || !programType) return null;
     const dup = existing.find(e => e.patient_id === patientId && e.program_type === programType);
     return dup ? "This patient already has an Active enrollment in " + programType + ". Disenroll the existing enrollment first, or pick a different program." : null;
   }, [patientId, programType, existing]);
 
+  // Plan/program/provider validation
+  const combinationWarning = useMemo(() => {
+    if (allowOverride) return null;
+    return validatePlanProgramProvider(planType, programType, providerType);
+  }, [planType, programType, providerType, allowOverride]);
+
+  // Which program types are valid for the chosen plan?
+  const allowedPrograms = useMemo(() => {
+    if (!planType || allowOverride) return ALL_PROGRAM_TYPES;
+    const rule = PLAN_PROGRAM_MATRIX[planType];
+    if (!rule) return ALL_PROGRAM_TYPES;
+    if (rule.program) return [rule.program];
+    // Other plan type: General Engagement / Other only
+    return ["General Engagement", "Other"];
+  }, [planType, allowOverride]);
+
+  // Which provider types are valid for the chosen plan?
+  const allowedProviders = useMemo(() => {
+    if (!planType || allowOverride) return ALL_PROVIDER_TYPES;
+    const rule = PLAN_PROGRAM_MATRIX[planType];
+    return (rule && rule.providers) ? rule.providers : ALL_PROVIDER_TYPES;
+  }, [planType, allowOverride]);
+
+  const showAcuity = planType === "Tailored Plan" || (allowOverride && planType);
+
   const save = async () => {
-    if (!patientId)    { setError("Pick a patient"); return; }
-    if (!programType)  { setError("Pick a program type"); return; }
-    if (duplicateWarning) { setError(duplicateWarning); return; }
+    if (!patientId)     { setError("Pick a patient"); return; }
+    if (!programType)   { setError("Pick a program type"); return; }
+    if (duplicateWarning)   { setError(duplicateWarning); return; }
+    if (combinationWarning) { setError(combinationWarning + " (check the override box to proceed anyway)"); return; }
     if (status === "Active" && !enrolledAt) { setError("Enrolled date required for Active status"); return; }
 
     setSaving(true);
@@ -1959,9 +2042,11 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
       enrollment_status: status,
       created_by:        userId || null,
     };
-    if (payerName.trim())     payload.payer_name     = payerName.trim();
-    if (planMemberId.trim())  payload.plan_member_id = planMemberId.trim();
-    if (acuityTier) {
+    if (planType)         payload.health_plan_type = planType;
+    if (providerType)     payload.cm_provider_type = providerType;
+    if (payerName.trim())    payload.payer_name     = payerName.trim();
+    if (planMemberId.trim()) payload.plan_member_id = planMemberId.trim();
+    if (showAcuity && acuityTier) {
       payload.acuity_tier         = acuityTier;
       payload.acuity_tier_set_at  = nowIso;
       payload.acuity_tier_set_by  = userId || null;
@@ -1988,18 +2073,18 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
 
   if (loading) {
     return (
-      <Modal title="New enrollment" onClose={onClose} width={720}>
+      <Modal title="New enrollment" onClose={onClose} width={760}>
         <Loader label="Loading practice patients..." />
       </Modal>
     );
   }
 
   return (
-    <Modal title="New enrollment" onClose={onClose} width={720}>
+    <Modal title="New enrollment" onClose={onClose} width={760}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {/* Patient picker with inline search */}
+        {/* Patient picker */}
         <div style={{ gridColumn: "1 / -1" }}>
           <FL>Patient</FL>
           {selectedPatient ? (
@@ -2060,18 +2145,50 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
           )}
         </div>
 
+        {/* Plan type picker - drives program + provider cascades */}
+        <div>
+          <FL>Health plan type</FL>
+          <select value={planType} onChange={e => setPlanType(e.target.value)} style={selectStyle}>
+            <option value="">-- Select plan type --</option>
+            <option value="Tailored Plan">Tailored Plan (TCM universe)</option>
+            <option value="Standard Plan">Standard Plan (AMH universe)</option>
+            <option value="Other">Other / Not applicable</option>
+          </select>
+          {planType && PLAN_PROGRAM_MATRIX[planType] && PLAN_PROGRAM_MATRIX[planType].program && !allowOverride && (
+            <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
+              Program auto-set to {PLAN_PROGRAM_MATRIX[planType].program}
+            </div>
+          )}
+        </div>
+
         <div>
           <FL>Program type</FL>
           <select value={programType} onChange={e => setProgramType(e.target.value)} style={selectStyle}>
             <option value="">-- Select program --</option>
-            <option value="TCM">TCM (Tailored Care Management)</option>
-            <option value="AMH Plus">AMH Plus</option>
-            <option value="AMH Tier 3">AMH Tier 3</option>
-            <option value="CMA">CMA</option>
-            <option value="CIN CM">CIN Care Management</option>
-            <option value="General Engagement">General Engagement</option>
-            <option value="Other">Other</option>
+            {allowedPrograms.map(pt => (
+              <option key={pt} value={pt}>{pt}</option>
+            ))}
           </select>
+        </div>
+
+        <div>
+          <FL>CM provider type</FL>
+          <select value={providerType} onChange={e => setProviderType(e.target.value)} style={selectStyle}>
+            <option value="">-- Select provider --</option>
+            {allowedProviders.map(pt => (
+              <option key={pt} value={pt}>{pt}</option>
+            ))}
+          </select>
+          {planType === "Tailored Plan" && !allowOverride && (
+            <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
+              Tailored Plan: Plan-based, AMH+, CMA, or CIN
+            </div>
+          )}
+          {planType === "Standard Plan" && !allowOverride && (
+            <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
+              Standard Plan: AMH Tier 3 or CIN
+            </div>
+          )}
         </div>
 
         <div>
@@ -2081,6 +2198,19 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
             <option value="Active">Active (consented + engaged)</option>
             <option value="On Hold">On Hold</option>
           </select>
+        </div>
+
+        {/* Override checkbox - gates the plan/program/provider validation */}
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.textSecondary, cursor: "pointer", padding: "6px 10px", background: allowOverride ? C.amberBg : "transparent", border: "0.5px solid " + (allowOverride ? C.amberBorder : C.borderLight), borderRadius: 8 }}>
+            <input type="checkbox" checked={allowOverride} onChange={e => setAllowOverride(e.target.checked)} />
+            <div>
+              <strong>Allow nonstandard plan/program/provider combination</strong>
+              <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 1 }}>
+                Override the validation matrix. Use only for plan transitions, dual enrollment, or legacy data - document the reason in the notes field.
+              </div>
+            </div>
+          </label>
         </div>
 
         <div>
@@ -2105,15 +2235,17 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
           />
         </div>
 
-        <div>
-          <FL>Acuity tier (optional, set after assessment)</FL>
-          <select value={acuityTier} onChange={e => setAcuityTier(e.target.value)} style={selectStyle}>
-            <option value="">-- Not yet set --</option>
-            <option value="High">High</option>
-            <option value="Moderate">Moderate</option>
-            <option value="Low">Low</option>
-          </select>
-        </div>
+        {showAcuity && (
+          <div>
+            <FL>Acuity tier (Tailored Plan / TCM only)</FL>
+            <select value={acuityTier} onChange={e => setAcuityTier(e.target.value)} style={selectStyle}>
+              <option value="">-- Not yet set --</option>
+              <option value="High">High</option>
+              <option value="Moderate">Moderate</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+        )}
 
         <div>
           <FL>Assigned care manager (optional)</FL>
@@ -2169,9 +2301,15 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
         </div>
       )}
 
+      {combinationWarning && (
+        <div style={{ marginTop: 12, padding: 12, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 8, fontSize: 12, color: C.textPrimary }}>
+          <strong>Invalid combination:</strong> {combinationWarning}
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
-        <Btn variant="primary" disabled={saving || !!duplicateWarning} onClick={save}>
+        <Btn variant="primary" disabled={saving || !!duplicateWarning || !!combinationWarning} onClick={save}>
           {saving ? "Creating..." : "Create enrollment"}
         </Btn>
       </div>
