@@ -4,6 +4,7 @@
 // Renders HbA1c-style charts with goal/threshold bands and in-range shading.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import { useRef, useState } from "react";
 import { C } from "../lib/tokens";
 
 // ─── Sparkline: tiny inline SVG, 120x24 by default ───────────────────────────
@@ -41,8 +42,6 @@ export function Sparkline({ values, color = "#378ADD", goal = null, width = 120,
 // ─── Full trend chart with reference band, goal/threshold, axis labels ───────
 // Interactive: hovering the plot snaps to the nearest data point by X coordinate
 // and shows a tooltip with value, date, status, and source.
-import { useRef, useState } from "react";
-
 export function TrendChart({ data, unit = "", goalLow, goalHigh, thresholdLow, thresholdHigh, refLow, refHigh, height = 220, color = "#378ADD", higherIsBetter = false }) {
   // Hooks must run unconditionally - declare before any early returns.
   const svgRef = useRef(null);
