@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, useLocation, useNavigationType } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthProvider";
 import { C } from "../../lib/tokens";
@@ -53,7 +53,9 @@ export default function PatientChartPage() {
   // /patients/:id/screening -> 'screening'. Invalid segment falls back to 'info'.
   const urlTab = location.pathname.split("/")[3] || "info";
   const tab = VALID_TABS.includes(urlTab) ? urlTab : "info";
-  const setTab = (t) => navigate(`/patients/${patientId}/${t}`, { replace: false });
+  // Preserve location.state across tab changes so the Back button's returnTo
+  // survives when the user clicks through multiple tabs.
+  const setTab = (t) => navigate(`/patients/${patientId}/${t}`, { state: location.state });
 
   const [patient, setPatient] = useState(null);
   const [loadingPatient, setLoadingPatient] = useState(true);
@@ -68,17 +70,15 @@ export default function PatientChartPage() {
   const [showGrantAccess, setShowGrantAccess] = useState(false);
   const [showStartScreening, setShowStartScreening] = useState(false);
 
-  // Back navigation: prefer browser back when the user arrived via in-app link
-  // (preserves PatientsView filters via history). Fall back to a fresh navigation
-  // when deep-linked - otherwise navigate(-1) exits to the tab's previous page
-  // (often the new-tab default / Google). Capture navigationType at mount;
-  // subsequent in-chart navigations (tab changes) are PUSH but shouldn't change
-  // our assessment of how we originally arrived.
-  const navigationType = useNavigationType();
-  const [mountedViaPush] = useState(() => navigationType === "PUSH");
+  // Back navigation: use the explicit returnTo stamped on location.state by
+  // whichever view sent us here (PatientsView, DashboardView, ScheduleView,
+  // etc). Deep-link entries don't have state, so fall back to /patients.
+  // Reliable under auth redirects, unlike useNavigationType (which gets
+  // clobbered by post-login navigate() calls).
   const handleBack = () => {
-    if (mountedViaPush) {
-      navigate(-1);
+    const returnTo = location.state?.returnTo;
+    if (returnTo) {
+      navigate(returnTo);
     } else {
       navigate("/patients");
     }
