@@ -1130,13 +1130,648 @@ function DetailField({ label, value, monospace }) {
     </div>
   );
 }
+// ---------------------------------------------------------------------------
+// TouchpointsTab - contact log view for Care Managers and CHWs.
+//
+// Shows all touchpoints logged for the practice, filterable by date range,
+// patient name, care manager, program, and success status. Role-aware:
+//   - CHW sees only their own touchpoints (logged_by_user_id = self)
+//   - Care Managers / Supervisors see all practice touchpoints
+//
+// Append-only: v1 does not allow edit or delete. This matches TCM Provider
+// Manual audit expectations (records retention + HIPAA) - mutating touchpoint
+// history would break the billing trail.
+// ---------------------------------------------------------------------------
+
+const CONTACT_METHODS = [
+  "In-Person",
+  "Telephonic",
+  "Video",
+  "Text/Secure Message",
+  "Attempt - No Contact",
+];
+
+const DATE_RANGE_PRESETS = [
+  { key: "7d",    label: "Last 7 days",  days: 7 },
+  { key: "30d",   label: "Last 30 days", days: 30 },
+  { key: "month", label: "This month",   days: null },
+  { key: "all",   label: "All time",     days: null },
+];
+
 function TouchpointsTab() {
+  const { profile } = useAuth();
+  const practiceId = profile?.practice_id;
+  const role       = profile?.role;
+  const isCHW      = role === "CHW";
+
+  const [loading, setLoading]               = useState(true);
+  const [error, setError]                   = useState(null);
+  const [touchpoints, setTouchpoints]       = useState([]);
+  const [selectedTp, setSelectedTp]         = useState(null);
+  const [showLogModal, setShowLogModal]     = useState(false);
+  const [careManagers, setCareManagers]     = useState([]);
+
+  // Filter state
+  const [dateRange, setDateRange]           = useState("30d");
+  const [patientFilter, setPatientFilter]   = useState("");
+  const [cmFilter, setCmFilter]             = useState("all");
+  const [programFilter, setProgramFilter]   = useState("all");
+  const [successfulOnly, setSuccessfulOnly] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!practiceId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // Compute cutoff timestamp for date filter
+      let cutoffIso = null;
+      const now = new Date();
+      if (dateRange === "7d") {
+        cutoffIso = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      } else if (dateRange === "30d") {
+        cutoffIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      } else if (dateRange === "month") {
+        cutoffIso = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+      }
+
+      // Single query with embeds: cm_enrollments for program/acuity,
+      // patients for name. logged_by_user is pulled separately to avoid
+      // RLS issues on the users table cross-scope.
+      let query = supabase
+        .from("cm_touchpoints")
+        .select("id, touchpoint_at, contact_method, successful_contact, delivered_by_role, activity_category_code, notes, enrollment_id, patient_id, logged_by_user_id, cm_enrollments(program_type, acuity_tier), patients(first_name, last_name)")
+        .eq("practice_id", practiceId)
+        .order("touchpoint_at", { ascending: false })
+        .limit(200);
+
+      if (cutoffIso)          query = query.gte("touchpoint_at", cutoffIso);
+      if (cmFilter !== "all") query = query.eq("logged_by_user_id", cmFilter);
+      if (successfulOnly)     query = query.eq("successful_contact", true);
+      // CHW can only see their own touchpoints
+      if (isCHW && profile?.id) query = query.eq("logged_by_user_id", profile.id);
+
+      const { data, error: qErr } = await query;
+      if (qErr) throw qErr;
+
+      // Client-side filter for patient name (cannot filter on embedded field server-side cleanly)
+      let filtered = data || [];
+      if (patientFilter.trim()) {
+        const q = patientFilter.trim().toLowerCase();
+        filtered = filtered.filter(t => {
+          const name = ((t.patients?.first_name || "") + " " + (t.patients?.last_name || "")).toLowerCase();
+          return name.includes(q);
+        });
+      }
+      if (programFilter !== "all") {
+        filtered = filtered.filter(t => t.cm_enrollments?.program_type === programFilter);
+      }
+
+      setTouchpoints(filtered);
+    } catch (e) {
+      setError(e.message || "Failed to load touchpoints");
+    } finally {
+      setLoading(false);
+    }
+  }, [practiceId, isCHW, profile?.id, dateRange, cmFilter, successfulOnly, patientFilter, programFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Load care managers list for filter dropdown (hidden for CHW)
+  useEffect(() => {
+    if (!practiceId || isCHW) return;
+    supabase
+      .from("users")
+      .select("id, full_name, role")
+      .eq("practice_id", practiceId)
+      .in("role", ["Care Manager", "Supervising Care Manager", "Care Manager Supervisor", "CHW"])
+      .order("full_name", { ascending: true })
+      .then(({ data }) => setCareManagers(data || []));
+  }, [practiceId, isCHW]);
+
+  // KPIs computed over the currently loaded/filtered set
+  const kpis = useMemo(() => {
+    const successful = touchpoints.filter(t => t.successful_contact);
+    const uniquePatients = new Set(successful.map(t => t.patient_id));
+    return {
+      total:      touchpoints.length,
+      successful: successful.length,
+      attempts:   touchpoints.length - successful.length,
+      patients:   uniquePatients.size,
+    };
+  }, [touchpoints]);
+
+  if (loading && touchpoints.length === 0) return <Loader label="Loading touchpoints..." />;
+
   return (
-    <ComingSoonTab
-      title="Touchpoints - Coming next session"
-      description="Contact log with role-aware activity filtering. Separate views for Care Manager vs Extender vs CHW. Quick-entry modal with activity category validation."
-      schemaNote="Tables ready: cm_touchpoints (27 columns incl. in_person generated col, delivered_by_role scope trigger)"
-    />
+    <div>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      {/* KPI strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
+        <KpiCard label="Touchpoints shown" value={kpis.total}      hint="Matching current filters" />
+        <KpiCard label="Successful"        value={kpis.successful} hint="Qualifying contacts"    variant="blue" />
+        <KpiCard label="Attempts only"     value={kpis.attempts}   hint="No-contact attempts"    variant={kpis.attempts > 0 ? "amber" : "neutral"} />
+        <KpiCard label="Unique patients"   value={kpis.patients}   hint="Patients touched"       />
+      </div>
+
+      {/* Filter bar */}
+      <Card style={{ padding: 12, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary }}>Period</span>
+            {DATE_RANGE_PRESETS.map(p => (
+              <FilterPill key={p.key} active={dateRange === p.key} onClick={() => setDateRange(p.key)}>{p.label}</FilterPill>
+            ))}
+          </div>
+          <Btn variant="primary" size="md" onClick={() => setShowLogModal(true)} style={{ marginLeft: "auto" }}>
+            + Log touchpoint
+          </Btn>
+        </div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 220px", minWidth: 220 }}>
+            <input
+              type="text"
+              value={patientFilter}
+              onChange={e => setPatientFilter(e.target.value)}
+              placeholder="Search by patient name..."
+              style={{ ...inputStyle, width: "100%" }}
+            />
+          </div>
+          {!isCHW && (
+            <select value={cmFilter} onChange={e => setCmFilter(e.target.value)} style={{ ...selectStyle, width: "auto", minWidth: 180 }}>
+              <option value="all">All team members</option>
+              {careManagers.map(cm => (
+                <option key={cm.id} value={cm.id}>{cm.full_name} ({cm.role})</option>
+              ))}
+            </select>
+          )}
+          <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} style={{ ...selectStyle, width: "auto", minWidth: 150 }}>
+            <option value="all">All programs</option>
+            <option value="TCM">TCM</option>
+            <option value="AMH Plus">AMH Plus</option>
+            <option value="AMH Tier 3">AMH Tier 3</option>
+            <option value="CMA">CMA</option>
+            <option value="CIN CM">CIN CM</option>
+            <option value="General Engagement">General Engagement</option>
+          </select>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textSecondary, cursor: "pointer" }}>
+            <input type="checkbox" checked={successfulOnly} onChange={e => setSuccessfulOnly(e.target.checked)} />
+            Successful only
+          </label>
+          <Btn variant="outline" size="sm" onClick={load}>Refresh</Btn>
+        </div>
+      </Card>
+
+      {/* Touchpoints table */}
+      {touchpoints.length === 0 ? (
+        <EmptyState
+          title="No touchpoints found"
+          message={isCHW
+            ? "You have not logged any touchpoints in this period yet. Use + Log touchpoint to record your first contact."
+            : "No touchpoints match the current filters. Try a wider date range, or relax the filters above."}
+        />
+      ) : (
+        <Card style={{ padding: 0, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead style={{ background: C.bgSecondary, borderBottom: "0.5px solid " + C.borderLight }}>
+              <tr>
+                <Th>Date/Time</Th>
+                <Th>Patient</Th>
+                <Th>Program</Th>
+                <Th>Method</Th>
+                <Th>Activity</Th>
+                <Th>Role</Th>
+                <Th>Outcome</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {touchpoints.map((tp, idx) => (
+                <tr
+                  key={tp.id}
+                  onClick={() => setSelectedTp(tp)}
+                  style={{
+                    borderBottom: idx < touchpoints.length - 1 ? "0.5px solid " + C.borderLight : "none",
+                    cursor: "pointer",
+                    background: selectedTp?.id === tp.id ? C.tealBg : "transparent",
+                  }}
+                >
+                  <Td style={{ fontSize: 12 }}>{formatTouchpointTime(tp.touchpoint_at)}</Td>
+                  <Td>
+                    <div style={{ fontWeight: 600 }}>
+                      {(tp.patients?.last_name || "") + ", " + (tp.patients?.first_name || "")}
+                    </div>
+                  </Td>
+                  <Td style={{ fontSize: 12 }}>{tp.cm_enrollments?.program_type || "-"}</Td>
+                  <Td><Badge label={tp.contact_method} variant="teal" size="xs" /></Td>
+                  <Td style={{ fontSize: 12, color: C.textSecondary }}>
+                    {tp.activity_category_code || "-"}
+                  </Td>
+                  <Td><Badge label={tp.delivered_by_role || "-"} variant="purple" size="xs" /></Td>
+                  <Td>
+                    {tp.successful_contact
+                      ? <Badge label="Successful" variant="green" size="xs" />
+                      : <Badge label="Attempt" variant="amber" size="xs" />}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {selectedTp && (
+        <TouchpointDetailModal touchpoint={selectedTp} onClose={() => setSelectedTp(null)} />
+      )}
+      {showLogModal && (
+        <LogTouchpointModal
+          practiceId={practiceId}
+          userId={profile?.id}
+          userRole={role}
+          onClose={() => setShowLogModal(false)}
+          onLogged={() => { setShowLogModal(false); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Formatting helper: if touchpoint is today, show time only; else show date.
+function formatTouchpointTime(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) {
+    return "Today " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+  return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+// ---------------------------------------------------------------------------
+// LogTouchpointModal - the "Log touchpoint" form.
+//
+// Field-by-field policy rationale:
+//   - Patient picker: filters to patients with at least one Active or
+//     Pending enrollment in this practice. Scopes enrollment automatically
+//     if patient has one active enrollment; prompts if multiple.
+//   - Contact Method: from cm_contact_method enum (hardcoded list here).
+//     "Attempt - No Contact" forces successful=false and disables toggle.
+//   - Activity Category: fetched live from cm_reference_codes where
+//     category='activity_category'. Enforced by DB FK trigger so this
+//     cannot be bypassed client-side anyway.
+//   - HRSN Domains: optional multi-select. Shown always - lets CM tag
+//     proactive HRSN discussions even outside a formal referral.
+//   - Notes: 500 char max. Stored in cm_touchpoints.notes.
+//   - Delivered By Role: auto-filled from user's role. No UI field.
+// ---------------------------------------------------------------------------
+
+function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged }) {
+  const [enrolledPatients, setEnrolledPatients] = useState([]);
+  const [activityCodes, setActivityCodes]       = useState([]);
+  const [hrsnDomains, setHrsnDomains]           = useState([]);
+
+  const [patientId, setPatientId]           = useState("");
+  const [enrollmentId, setEnrollmentId]     = useState("");
+  const [availableEnrollments, setAvailableEnrollments] = useState([]);
+  const [touchpointAt, setTouchpointAt]     = useState(() => {
+    // Default to now, formatted for datetime-local input (YYYY-MM-DDTHH:MM)
+    const d = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  });
+  const [contactMethod, setContactMethod]   = useState("Telephonic");
+  const [activityCode, setActivityCode]     = useState("");
+  const [selectedHrsn, setSelectedHrsn]     = useState([]);
+  const [notes, setNotes]                   = useState("");
+  const [successful, setSuccessful]         = useState(true);
+
+  const [saving, setSaving]                 = useState(false);
+  const [error, setError]                   = useState(null);
+
+  // Derive: if Attempt - No Contact, force successful=false
+  useEffect(() => {
+    if (contactMethod === "Attempt - No Contact") {
+      setSuccessful(false);
+    }
+  }, [contactMethod]);
+
+  // Load enrolled patients (Active + Pending enrollments in practice)
+  useEffect(() => {
+    if (!practiceId) return;
+    supabase
+      .from("cm_enrollments")
+      .select("id, patient_id, program_type, acuity_tier, enrollment_status, patients(first_name, last_name, date_of_birth)")
+      .eq("practice_id", practiceId)
+      .in("enrollment_status", ["Active", "Pending"])
+      .order("enrollment_status", { ascending: true })
+      .then(({ data }) => setEnrolledPatients(data || []));
+  }, [practiceId]);
+
+  // Load activity codes
+  useEffect(() => {
+    supabase
+      .from("cm_reference_codes")
+      .select("code, label, metadata, sort_order")
+      .eq("category", "activity_category")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) setActivityCodes(data);
+      });
+  }, []);
+
+  // Load HRSN domains
+  useEffect(() => {
+    supabase
+      .from("cm_reference_codes")
+      .select("code, label, sort_order")
+      .eq("category", "hrsn_domain")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) setHrsnDomains(data);
+      });
+  }, []);
+
+  // When patient changes, compute available enrollments for that patient
+  useEffect(() => {
+    if (!patientId) {
+      setAvailableEnrollments([]);
+      setEnrollmentId("");
+      return;
+    }
+    const matching = enrolledPatients.filter(e => e.patient_id === patientId);
+    setAvailableEnrollments(matching);
+    if (matching.length === 1) {
+      setEnrollmentId(matching[0].id);
+    } else {
+      setEnrollmentId("");
+    }
+  }, [patientId, enrolledPatients]);
+
+  // Deduplicated patient list for the picker
+  const patientOptions = useMemo(() => {
+    const seen = new Map();
+    for (const e of enrolledPatients) {
+      if (!seen.has(e.patient_id)) {
+        seen.set(e.patient_id, {
+          id: e.patient_id,
+          first_name: e.patients?.first_name || "",
+          last_name:  e.patients?.last_name || "",
+        });
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => (a.last_name + a.first_name).localeCompare(b.last_name + b.first_name));
+  }, [enrolledPatients]);
+
+  // Group activity codes by metadata.group if present; otherwise flat.
+  const groupedActivities = useMemo(() => {
+    const groups = {};
+    let hasGrouping = false;
+    for (const c of activityCodes) {
+      const g = (c.metadata && c.metadata.group) || null;
+      if (g) hasGrouping = true;
+      const key = g || "All activities";
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(c);
+    }
+    return { groups, hasGrouping };
+  }, [activityCodes]);
+
+  const toggleHrsn = (code) => {
+    setSelectedHrsn(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
+  };
+
+  const save = async () => {
+    if (!patientId)       { setError("Select a patient"); return; }
+    if (!enrollmentId)    { setError("Select an enrollment (patient has multiple)"); return; }
+    if (!touchpointAt)    { setError("Set the contact date/time"); return; }
+    if (!contactMethod)   { setError("Select a contact method"); return; }
+    if (!activityCode)    { setError("Select an activity category"); return; }
+    if (notes.length > 500) { setError("Notes must be 500 characters or fewer"); return; }
+
+    // No future-dated touchpoints
+    const when = new Date(touchpointAt);
+    if (when.getTime() > Date.now()) { setError("Touchpoints cannot be dated in the future"); return; }
+
+    setSaving(true);
+    setError(null);
+
+    // Role mapping to cm_delivered_by_role enum. Best-effort; if user's role
+    // does not map cleanly, we default to "Care Manager" since that is the
+    // baseline for the cm_touchpoints.delivered_by_role scope trigger.
+    const roleMap = {
+      "Care Manager":                "Care Manager",
+      "Supervising Care Manager":    "Supervising Care Manager",
+      "Care Manager Supervisor":     "Care Manager",
+      "CHW":                         "CHW",
+      "Owner":                       "Care Manager",
+      "Manager":                     "Care Manager",
+    };
+    const deliveredByRole = roleMap[userRole] || "Care Manager";
+
+    // Build insert payload. Omit hrsn_domains if none selected (avoids
+    // inserting empty array if the column does not exist yet).
+    const payload = {
+      practice_id:            practiceId,
+      enrollment_id:          enrollmentId,
+      patient_id:             patientId,
+      logged_by_user_id:      userId,
+      touchpoint_at:          when.toISOString(),
+      contact_method:         contactMethod,
+      successful_contact:     contactMethod === "Attempt - No Contact" ? false : successful,
+      delivered_by_role:      deliveredByRole,
+      activity_category_code: activityCode,
+      notes:                  notes.trim() || null,
+    };
+    if (selectedHrsn.length > 0) {
+      payload.hrsn_domains = selectedHrsn;
+    }
+
+    try {
+      const { error: insErr } = await supabase.from("cm_touchpoints").insert(payload);
+      if (insErr) throw insErr;
+      onLogged();
+    } catch (e) {
+      setError(e.message || "Failed to log touchpoint");
+      setSaving(false);
+    }
+  };
+
+  const mustPickEnrollment = availableEnrollments.length > 1 && !enrollmentId;
+
+  return (
+    <Modal title="Log touchpoint" onClose={onClose} width={720}>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Patient</FL>
+          <select value={patientId} onChange={e => setPatientId(e.target.value)} style={selectStyle}>
+            <option value="">-- Select patient --</option>
+            {patientOptions.map(p => (
+              <option key={p.id} value={p.id}>{p.last_name}, {p.first_name}</option>
+            ))}
+          </select>
+          {enrolledPatients.length === 0 && (
+            <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
+              No Active or Pending enrollments in this practice yet. Seed enrollments first.
+            </div>
+          )}
+        </div>
+
+        {mustPickEnrollment && (
+          <div style={{ gridColumn: "1 / -1" }}>
+            <FL>Which enrollment? (This patient has multiple)</FL>
+            <select value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} style={selectStyle}>
+              <option value="">-- Select enrollment --</option>
+              {availableEnrollments.map(e => (
+                <option key={e.id} value={e.id}>
+                  {e.program_type} ({e.acuity_tier}) - {e.enrollment_status}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div>
+          <FL>Contact date/time</FL>
+          <input type="datetime-local" value={touchpointAt} onChange={e => setTouchpointAt(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <FL>Contact method</FL>
+          <select value={contactMethod} onChange={e => setContactMethod(e.target.value)} style={selectStyle}>
+            {CONTACT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Activity category</FL>
+          <select value={activityCode} onChange={e => setActivityCode(e.target.value)} style={selectStyle}>
+            <option value="">-- Select activity --</option>
+            {groupedActivities.hasGrouping
+              ? Object.entries(groupedActivities.groups).map(([groupName, codes]) => (
+                  <optgroup key={groupName} label={groupName}>
+                    {codes.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                  </optgroup>
+                ))
+              : activityCodes.map(c => <option key={c.code} value={c.code}>{c.label}</option>)
+            }
+          </select>
+          {activityCodes.length === 0 && (
+            <div style={{ fontSize: 11, color: C.amber, marginTop: 4 }}>
+              Warning: no activity codes loaded. Check that cm_reference_codes has category='activity_category' rows.
+            </div>
+          )}
+        </div>
+
+        {hrsnDomains.length > 0 && (
+          <div style={{ gridColumn: "1 / -1" }}>
+            <FL>HRSN domains (optional)</FL>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {hrsnDomains.map(d => (
+                <button
+                  key={d.code}
+                  type="button"
+                  onClick={() => toggleHrsn(d.code)}
+                  style={{
+                    padding: "5px 12px",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    border: "0.5px solid " + (selectedHrsn.includes(d.code) ? C.teal : C.borderLight),
+                    background: selectedHrsn.includes(d.code) ? C.tealBg : C.bgPrimary,
+                    color: selectedHrsn.includes(d.code) ? C.teal : C.textSecondary,
+                    borderRadius: 16,
+                    cursor: "pointer",
+                  }}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Notes ({notes.length}/500)</FL>
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value.slice(0, 500))}
+            rows={4}
+            placeholder="Clinical observations, topics discussed, follow-up needed..."
+            style={{ ...inputStyle, resize: "vertical" }}
+          />
+        </div>
+
+        <div style={{ gridColumn: "1 / -1", padding: 12, background: contactMethod === "Attempt - No Contact" ? C.amberBg : C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: contactMethod === "Attempt - No Contact" ? "not-allowed" : "pointer" }}>
+            <input
+              type="checkbox"
+              checked={successful}
+              disabled={contactMethod === "Attempt - No Contact"}
+              onChange={e => setSuccessful(e.target.checked)}
+            />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>
+                Successful contact (counts toward billing + cadence)
+              </div>
+              <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
+                {contactMethod === "Attempt - No Contact"
+                  ? "Locked OFF - an attempt with no contact is never billable."
+                  : "Turn OFF if you reached voicemail or left a message without engaging the member."}
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="primary" disabled={saving} onClick={save}>
+          {saving ? "Saving..." : "Log touchpoint"}
+        </Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TouchpointDetailModal - read-only view of a single touchpoint.
+// Kept minimal for v1. If future needs require editable touchpoints
+// (e.g. addendum/correction workflows), build as a separate modal with a
+// clear audit trail rather than mutating in place.
+// ---------------------------------------------------------------------------
+
+function TouchpointDetailModal({ touchpoint, onClose }) {
+  const tp = touchpoint;
+  const patientName = (tp.patients?.first_name || "") + " " + (tp.patients?.last_name || "");
+
+  return (
+    <Modal title={"Touchpoint: " + patientName} onClose={onClose} width={600}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginBottom: 16 }}>
+        <DetailField label="When"     value={new Date(tp.touchpoint_at).toLocaleString()} />
+        <DetailField label="Outcome"  value={tp.successful_contact ? "Successful contact" : "Attempt only"} />
+        <DetailField label="Method"   value={<Badge label={tp.contact_method} variant="teal" size="xs" />} />
+        <DetailField label="Role"     value={<Badge label={tp.delivered_by_role} variant="purple" size="xs" />} />
+        <DetailField label="Program"  value={tp.cm_enrollments?.program_type || "-"} />
+        <DetailField label="Acuity"   value={<AcuityBadge tier={tp.cm_enrollments?.acuity_tier} />} />
+        <DetailField label="Activity" value={tp.activity_category_code || "-"} />
+      </div>
+
+      {tp.notes && (
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary, marginBottom: 6 }}>Notes</div>
+          <div style={{ padding: 12, background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8, fontSize: 13, color: C.textPrimary, whiteSpace: "pre-wrap" }}>
+            {tp.notes}
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 16, fontSize: 11, color: C.textTertiary, fontStyle: "italic" }}>
+        Touchpoints are append-only. To correct this record, log a new touchpoint referencing this one in notes.
+      </div>
+    </Modal>
   );
 }
 function PlansTab() {
