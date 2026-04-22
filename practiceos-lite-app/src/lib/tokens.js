@@ -68,18 +68,30 @@ export const ROLE_STYLES = {
   "Front Desk":        { label: "Front Desk",        color: C.blue,     bg: C.blueBg,   border: C.blueBorder   },
   "Billing":           { label: "Billing",           color: C.amber,    bg: C.amberBg,  border: C.amberBorder  },
   "Patient":           { label: "Patient",           color: C.textSecondary, bg: C.bgSecondary, border: C.borderLight },
+
+  // Care Management roles (Stage 2c - Command tier)
+  "Care Manager":              { label: "Care Manager",            color: C.teal,     bg: C.tealBg,    border: C.tealBorder    },
+  "Supervising Care Manager":  { label: "Supervising CM",          color: C.tealDark, bg: C.tealBg,    border: C.tealBorder    },
+  "Care Manager Supervisor":   { label: "CM Supervisor",           color: C.purple,   bg: C.purpleBg,  border: C.purpleBorder  },
+  "CHW":                       { label: "Community Health Worker", color: C.amber,    bg: C.amberBg,   border: C.amberBorder   },
 };
 
 // Which nav tabs each role can see. Matches the schema's role-based RLS.
 // 'kiosk' and 'compliance' and 'insights' are the new modules.
 export const NAV_BY_ROLE = {
-  "Owner":             ["dashboard","schedule","patients","queue","tasks","clinical","inbox","staff","eligibility","insurance_updates","waitlist","insights","compliance","reports","settings"],
-  "Manager":           ["dashboard","schedule","patients","queue","tasks","inbox","staff","eligibility","insurance_updates","waitlist","insights","compliance","reports","settings"],
+  "Owner":             ["dashboard","schedule","patients","queue","tasks","clinical","inbox","staff","eligibility","insurance_updates","waitlist","insights","compliance","care_management","reports","settings"],
+  "Manager":           ["dashboard","schedule","patients","queue","tasks","inbox","staff","eligibility","insurance_updates","waitlist","insights","compliance","care_management","reports","settings"],
   "Provider":          ["dashboard","schedule","patients","clinical","inbox","insights"],
   "Medical Assistant": ["dashboard","schedule","patients","queue","tasks","inbox"],
   "Front Desk":        ["dashboard","schedule","patients","queue","tasks","waitlist","eligibility","insurance_updates"],
   "Billing":           ["dashboard","eligibility","insurance_updates","reports","compliance"],
   "Patient":           ["portal"],
+
+  // Care Management roles (Stage 2c - Command tier)
+  "Care Manager":              ["dashboard","care_management","inbox","tasks"],
+  "Supervising Care Manager":  ["dashboard","care_management","inbox","tasks","reports"],
+  "Care Manager Supervisor":   ["dashboard","care_management","inbox","tasks","reports","insights"],
+  "CHW":                       ["dashboard","care_management","tasks"],
 };
 
 export const NAV_META = {
@@ -96,6 +108,7 @@ export const NAV_META = {
   waitlist:          { icon: "⌛", label: "Waitlist"           },
   insights:    { icon: "📊", label: "IC Insights" },
   compliance:  { icon: "🛡", label: "Compliance"  },
+  care_management: { icon: "🫶", label: "Care Management" },
   reports:     { icon: "📈", label: "Reports"     },
   settings:    { icon: "⚙",  label: "Settings"    },
   portal:      { icon: "☰",  label: "My Health"   },
