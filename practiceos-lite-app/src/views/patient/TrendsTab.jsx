@@ -294,8 +294,10 @@ function PanelView({ panel, metrics, history, onAddValue, measurements }) {
       </div>
 
       {/* Full measurement history table */}
-      <SectionHead title="Measurement history" sub={`${measurements.length} values across ${metrics.length} metrics`}
-        action={<Btn size="sm" variant="outline" onClick={() => onAddValue(primary)}>+ Add measurement</Btn>} />
+      <div style={{ marginTop: 24 }}>
+        <SectionHead title="Measurement history" sub={`${measurements.length} values across ${metrics.length} metrics`}
+          action={<Btn size="sm" variant="outline" onClick={() => onAddValue(primary)}>+ Add measurement</Btn>} />
+      </div>
       {measurements.length === 0 ? (
         <EmptyState title="No measurements yet" />
       ) : (
