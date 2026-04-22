@@ -769,7 +769,7 @@ function RegistryTab() {
       // Fetch enrollments + patient names in one call via the embedded FK select.
       const { data: enrollments, error: e1 } = await supabase
         .from("cm_enrollments")
-        .select("id, patient_id, program_type, enrollment_status, acuity_tier, payer_name, plan_member_id, enrolled_at, assigned_at, disenrolled_at, disenrollment_reason_code, assigned_care_manager_id, hop_eligible, hop_active, patients(first_name, last_name, date_of_birth)")
+        .select("id, patient_id, program_type, enrollment_status, acuity_tier, payer_name, plan_member_id, enrolled_at, assigned_at, disenrolled_at, disenrollment_reason_code, assigned_care_manager_id, hop_eligible, hop_active, patients(first_name, last_name, dob)")
         .eq("practice_id", practiceId)
         .order("enrollment_status", { ascending: true })
         .order("acuity_tier",        { ascending: true })
@@ -789,26 +789,44 @@ function RegistryTab() {
         if (e2) throw e2;
         // Group manually - pick latest successful per enrollment, fall back to
         // latest attempt if no successful exists.
+        // Compute first day of current calendar month (for billing-floor tracking)
+        const now0 = new Date();
+        const monthStart = new Date(Date.UTC(now0.getUTCFullYear(), now0.getUTCMonth(), 1));
+
         for (const tp of tps || []) {
           const cur = lastTpMap[tp.enrollment_id];
           if (!cur) {
-            lastTpMap[tp.enrollment_id] = { last_at: tp.touchpoint_at, last_successful_at: tp.successful_contact ? tp.touchpoint_at : null };
-          } else if (tp.successful_contact && !cur.last_successful_at) {
-            lastTpMap[tp.enrollment_id].last_successful_at = tp.touchpoint_at;
+            lastTpMap[tp.enrollment_id] = {
+              last_at: tp.touchpoint_at,
+              last_successful_at: tp.successful_contact ? tp.touchpoint_at : null,
+              successful_this_month: tp.successful_contact && new Date(tp.touchpoint_at) >= monthStart,
+            };
+          } else {
+            if (tp.successful_contact && !cur.last_successful_at) {
+              cur.last_successful_at = tp.touchpoint_at;
+            }
+            if (tp.successful_contact && new Date(tp.touchpoint_at) >= monthStart) {
+              cur.successful_this_month = true;
+            }
           }
         }
       }
 
-      // Merge and compute days-since
+      // Merge and compute days-since + enrollment-age (for Pending staleness rule)
       const now = new Date();
       const merged = (enrollments || []).map(e => {
         const tp = lastTpMap[e.id] || {};
         const lastAt = tp.last_successful_at || tp.last_at || null;
         const days = lastAt ? Math.floor((now - new Date(lastAt)) / (1000 * 60 * 60 * 24)) : null;
+        // Days since enrollment was created - used for Pending staleness.
+        const enrolledAt = e.enrolled_at ? new Date(e.enrolled_at) : null;
+        const daysSinceEnrolled = enrolledAt ? Math.floor((now - enrolledAt) / (1000 * 60 * 60 * 24)) : null;
         return {
           ...e,
           last_touchpoint_at: lastAt,
           days_since_contact: days,
+          days_since_enrolled: daysSinceEnrolled,
+          has_contact_this_month: !!tp.successful_this_month,
         };
       });
       setRows(merged);
@@ -832,16 +850,44 @@ function RegistryTab() {
   }, [rows, statusFilter, acuityFilter, programFilter]);
 
   const kpis = useMemo(() => {
-    const active = rows.filter(r => r.enrollment_status === "Active");
+    const active  = rows.filter(r => r.enrollment_status === "Active");
+    const pending = rows.filter(r => r.enrollment_status === "Pending");
+
+    // needsAttention = Active rows in Amber or Red band per acuity-aware thresholds
+    //                  UNION Pending rows 14+ days old with no successful contact (Rule B)
+    //                  UNION Active rows with 0 successful contacts this calendar month
+    //                        once we are past day 20 of the month (billing at risk).
+    // See stalenessBand() for threshold rationale. These numbers are calibrated against
+    // the TCM Provider Manual (monthly billing floor + 3-contacts/month rate assumption).
+    const today = new Date();
+    const pastDay20 = today.getUTCDate() >= 20;
+    const needsAttention = new Set();
+
+    for (const r of active) {
+      const band = stalenessBand(r.acuity_tier, r.days_since_contact);
+      if (band === "amber" || band === "red") needsAttention.add(r.id);
+      if (pastDay20 && !r.has_contact_this_month) needsAttention.add(r.id);
+    }
+    for (const r of pending) {
+      const tooOld = r.days_since_enrolled !== null && r.days_since_enrolled >= 14;
+      const noSuccess = !r.last_touchpoint_at || r.days_since_contact === null;
+      // If pending 14+ days AND no last contact at all, flag as outreach overdue.
+      // (If they have any contact, even an attempt, we respect that and do not flag yet.)
+      if (tooOld && noSuccess) needsAttention.add(r.id);
+    }
+
+    const billingAtRisk = active.filter(r => pastDay20 && !r.has_contact_this_month).length;
+
     return {
-      total:       rows.length,
-      active:      active.length,
-      high:        active.filter(r => r.acuity_tier === "High").length,
-      moderate:    active.filter(r => r.acuity_tier === "Moderate").length,
-      low:         active.filter(r => r.acuity_tier === "Low").length,
-      pending:     rows.filter(r => r.enrollment_status === "Pending").length,
-      stale:       active.filter(r => r.days_since_contact === null || r.days_since_contact > 30).length,
-      hop:         active.filter(r => r.hop_active).length,
+      total:           rows.length,
+      active:          active.length,
+      high:            active.filter(r => r.acuity_tier === "High").length,
+      moderate:        active.filter(r => r.acuity_tier === "Moderate").length,
+      low:             active.filter(r => r.acuity_tier === "Low").length,
+      pending:         pending.length,
+      stale:           needsAttention.size,
+      billing_at_risk: billingAtRisk,
+      hop:             active.filter(r => r.hop_active).length,
     };
   }, [rows]);
 
@@ -855,7 +901,7 @@ function RegistryTab() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
         <KpiCard label="Active caseload"  value={kpis.active}   hint={kpis.pending + " pending enrollment"} />
         <KpiCard label="High acuity"      value={kpis.high}     hint="Active enrollments"  variant="amber" />
-        <KpiCard label="Needs attention"  value={kpis.stale}    hint="No contact in 30+ days" variant={kpis.stale > 0 ? "amber" : "neutral"} />
+        <KpiCard label="Needs attention"  value={kpis.stale}    hint={kpis.billing_at_risk > 0 ? (kpis.billing_at_risk + " at billing risk this month") : "Overdue vs acuity-tier cadence"} variant={kpis.stale > 0 ? "amber" : "neutral"} />
         <KpiCard label="HOP active"       value={kpis.hop}      hint="HRSN interventions"  variant="blue" />
       </div>
 
@@ -932,10 +978,13 @@ function RegistryTab() {
                     {r.last_touchpoint_at ? new Date(r.last_touchpoint_at).toLocaleDateString() : "-"}
                   </Td>
                   <Td align="right">
-                    <StaleDaysBadge days={r.days_since_contact} status={r.enrollment_status} />
+                    <StaleDaysBadge days={r.days_since_contact} status={r.enrollment_status} acuity={r.acuity_tier} />
                   </Td>
                   <Td>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {r.enrollment_status === "Active" && !r.has_contact_this_month && new Date().getUTCDate() >= 20 && (
+                        <Badge label="BILL RISK" variant="red" size="xs" />
+                      )}
                       {r.hop_active && <Badge label="HOP" variant="blue" size="xs" />}
                       {r.hop_eligible && !r.hop_active && <Badge label="HOP eligible" variant="neutral" size="xs" />}
                     </div>
@@ -960,12 +1009,43 @@ function AcuityBadge({ tier }) {
   return <Badge label={tier || "-"} variant={map[tier] || "neutral"} size="xs" />;
 }
 
-// Sub-component: days-since badge with staleness coloring.
+// Acuity-aware staleness band.
+//
+// Policy grounding:
+//   - TCM Provider Manual Section 4.2: "to submit a claim for payment for a
+//     member in a month, a Tailored Plan/LME/MCO, AMH+, or CMA must have at
+//     least one qualifying member-facing contact in that month."
+//   - TCM Provider Manual footnote 35 (rate assumption): engaged members
+//     receive on average three monthly contacts + one in-person quarterly.
+//   - Cadence is clinical judgment, not a fixed acuity-tier requirement.
+//     These thresholds are calibrated to warn BEFORE the billing floor slips
+//     and with tighter windows for High acuity members per the rate
+//     assumption of visible multi-contact engagement.
+//
+// Red band = overdue relative to billing floor. Amber = warning, act soon.
+// These defaults live here; v2 will make them practice-configurable via
+// practice_preferences.cm_cadence_thresholds JSONB.
+const CADENCE_THRESHOLDS = {
+  High:     { amberAt: 11, redAt: 21 },
+  Moderate: { amberAt: 15, redAt: 26 },
+  Low:      { amberAt: 31, redAt: 46 },
+};
+
+function stalenessBand(acuity, days) {
+  if (days === null || days === undefined) return "amber"; // "No contact" = amber band by default
+  const t = CADENCE_THRESHOLDS[acuity] || CADENCE_THRESHOLDS.Moderate;
+  if (days >= t.redAt)   return "red";
+  if (days >= t.amberAt) return "amber";
+  return "green";
+}
+
+// Sub-component: days-since badge with acuity-aware coloring.
 // Disenrolled rows do not show staleness (not applicable).
-function StaleDaysBadge({ days, status }) {
+function StaleDaysBadge({ days, status, acuity }) {
   if (status === "Disenrolled") return <span style={{ color: C.textTertiary }}>-</span>;
   if (days === null || days === undefined) return <Badge label="No contact" variant="amber" size="xs" />;
-  const variant = days > 60 ? "red" : days > 30 ? "amber" : "green";
+  const band = stalenessBand(acuity, days);
+  const variant = band === "red" ? "red" : band === "amber" ? "amber" : "green";
   return <Badge label={days + "d"} variant={variant} size="xs" />;
 }
 
