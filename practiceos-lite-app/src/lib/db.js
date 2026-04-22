@@ -15,7 +15,7 @@ export const logAudit = async ({ action, entityType, entityId, patientId = null,
       p_patient_id: patientId,
       p_details: details,
       p_success: success,
-      p_error_message: errorMessage,
+      p_error: errorMessage,             // DB function param is p_error (was p_error_message - caused schema-cache 404)
     });
     if (error) console.warn("[audit]", error.message);
   } catch (e) {
