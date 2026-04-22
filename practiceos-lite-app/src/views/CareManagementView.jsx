@@ -742,13 +742,337 @@ function ComingSoonTab({ title, description, schemaNote }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// RegistryTab - caseload view for Care Managers
+// Shows active enrollments with acuity tier, program, assigned CM, last
+// touchpoint date, HOP flag, and a "days since last contact" computed column
+// that flags stale engagement. Filterable by acuity, program, and status.
+// ---------------------------------------------------------------------------
+
 function RegistryTab() {
+  const { profile } = useAuth();
+  const practiceId = profile?.practice_id;
+
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
+  const [rows, setRows]         = useState([]);
+  const [acuityFilter, setAcuityFilter]   = useState("all");
+  const [programFilter, setProgramFilter] = useState("all");
+  const [statusFilter, setStatusFilter]   = useState("Active");
+  const [selected, setSelected]           = useState(null);
+
+  const load = useCallback(async () => {
+    if (!practiceId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch enrollments + patient names in one call via the embedded FK select.
+      const { data: enrollments, error: e1 } = await supabase
+        .from("cm_enrollments")
+        .select("id, patient_id, program_type, enrollment_status, acuity_tier, payer_name, plan_member_id, enrolled_at, assigned_at, disenrolled_at, disenrollment_reason_code, assigned_care_manager_id, hop_eligible, hop_active, patients(first_name, last_name, dob)")
+        .eq("practice_id", practiceId)
+        .order("enrollment_status", { ascending: true })
+        .order("acuity_tier",        { ascending: true })
+        .order("enrolled_at",        { ascending: false });
+      if (e1) throw e1;
+
+      // For each enrollment, pull the max touchpoint_at. Single aggregate query
+      // rather than per-row fetches - cheap and keeps the UI snappy.
+      const enrIds = (enrollments || []).map(e => e.id);
+      let lastTpMap = {};
+      if (enrIds.length > 0) {
+        const { data: tps, error: e2 } = await supabase
+          .from("cm_touchpoints")
+          .select("enrollment_id, touchpoint_at, successful_contact")
+          .in("enrollment_id", enrIds)
+          .order("touchpoint_at", { ascending: false });
+        if (e2) throw e2;
+        // Group manually - pick latest successful per enrollment, fall back to
+        // latest attempt if no successful exists.
+        for (const tp of tps || []) {
+          const cur = lastTpMap[tp.enrollment_id];
+          if (!cur) {
+            lastTpMap[tp.enrollment_id] = { last_at: tp.touchpoint_at, last_successful_at: tp.successful_contact ? tp.touchpoint_at : null };
+          } else if (tp.successful_contact && !cur.last_successful_at) {
+            lastTpMap[tp.enrollment_id].last_successful_at = tp.touchpoint_at;
+          }
+        }
+      }
+
+      // Merge and compute days-since
+      const now = new Date();
+      const merged = (enrollments || []).map(e => {
+        const tp = lastTpMap[e.id] || {};
+        const lastAt = tp.last_successful_at || tp.last_at || null;
+        const days = lastAt ? Math.floor((now - new Date(lastAt)) / (1000 * 60 * 60 * 24)) : null;
+        return {
+          ...e,
+          last_touchpoint_at: lastAt,
+          days_since_contact: days,
+        };
+      });
+      setRows(merged);
+    } catch (err) {
+      setError(err.message || "Failed to load registry");
+    } finally {
+      setLoading(false);
+    }
+  }, [practiceId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Compute filter + KPI values against the loaded rows
+  const filtered = useMemo(() => {
+    return rows.filter(r => {
+      if (statusFilter  !== "all" && r.enrollment_status !== statusFilter)  return false;
+      if (acuityFilter  !== "all" && r.acuity_tier       !== acuityFilter)  return false;
+      if (programFilter !== "all" && r.program_type      !== programFilter) return false;
+      return true;
+    });
+  }, [rows, statusFilter, acuityFilter, programFilter]);
+
+  const kpis = useMemo(() => {
+    const active = rows.filter(r => r.enrollment_status === "Active");
+    return {
+      total:       rows.length,
+      active:      active.length,
+      high:        active.filter(r => r.acuity_tier === "High").length,
+      moderate:    active.filter(r => r.acuity_tier === "Moderate").length,
+      low:         active.filter(r => r.acuity_tier === "Low").length,
+      pending:     rows.filter(r => r.enrollment_status === "Pending").length,
+      stale:       active.filter(r => r.days_since_contact === null || r.days_since_contact > 30).length,
+      hop:         active.filter(r => r.hop_active).length,
+    };
+  }, [rows]);
+
+  if (loading) return <Loader label="Loading caseload..." />;
+
   return (
-    <ComingSoonTab
-      title="Registry - Coming next session"
-      description="Filterable enrollments list: acuity tier distribution, program type breakdown, recent additions, disenrollment queue, CHW acceptance status per enrollment."
-      schemaNote="Tables ready: cm_enrollments (33 columns), cm_risk_tier_history (append-only ledger)"
-    />
+    <div>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      {/* KPI strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
+        <KpiCard label="Active caseload"  value={kpis.active}   hint={kpis.pending + " pending enrollment"} />
+        <KpiCard label="High acuity"      value={kpis.high}     hint="Active enrollments"  variant="amber" />
+        <KpiCard label="Needs attention"  value={kpis.stale}    hint="No contact in 30+ days" variant={kpis.stale > 0 ? "amber" : "neutral"} />
+        <KpiCard label="HOP active"       value={kpis.hop}      hint="HRSN interventions"  variant="blue" />
+      </div>
+
+      {/* Filter bar */}
+      <Card style={{ padding: 12, marginBottom: 16, display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary }}>Status</span>
+          <FilterPill active={statusFilter === "Active"}      onClick={() => setStatusFilter("Active")}>Active</FilterPill>
+          <FilterPill active={statusFilter === "Pending"}     onClick={() => setStatusFilter("Pending")}>Pending</FilterPill>
+          <FilterPill active={statusFilter === "Disenrolled"} onClick={() => setStatusFilter("Disenrolled")}>Disenrolled</FilterPill>
+          <FilterPill active={statusFilter === "all"}         onClick={() => setStatusFilter("all")}>All</FilterPill>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary }}>Acuity</span>
+          <FilterPill active={acuityFilter === "all"}      onClick={() => setAcuityFilter("all")}>All</FilterPill>
+          <FilterPill active={acuityFilter === "High"}     onClick={() => setAcuityFilter("High")}>High</FilterPill>
+          <FilterPill active={acuityFilter === "Moderate"} onClick={() => setAcuityFilter("Moderate")}>Moderate</FilterPill>
+          <FilterPill active={acuityFilter === "Low"}      onClick={() => setAcuityFilter("Low")}>Low</FilterPill>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary }}>Program</span>
+          <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} style={{ ...selectStyle, width: "auto", minWidth: 150 }}>
+            <option value="all">All programs</option>
+            <option value="TCM">TCM</option>
+            <option value="AMH Plus">AMH Plus</option>
+            <option value="AMH Tier 3">AMH Tier 3</option>
+            <option value="CMA">CMA</option>
+            <option value="CIN CM">CIN CM</option>
+            <option value="General Engagement">General Engagement</option>
+          </select>
+        </div>
+        <Btn variant="outline" size="sm" onClick={load} style={{ marginLeft: "auto" }}>Refresh</Btn>
+      </Card>
+
+      {/* Registry table */}
+      {filtered.length === 0 ? (
+        <EmptyState
+          title={rows.length === 0 ? "No enrollments yet" : "No matching enrollments"}
+          message={rows.length === 0
+            ? "Create your first Care Management enrollment to build the caseload. Enrollment creation UI is on the roadmap - for now, enrollments are seeded via database or PRL import."
+            : "Try relaxing the filters above. You can also view Disenrolled records for historical context."}
+        />
+      ) : (
+        <Card style={{ padding: 0, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead style={{ background: C.bgSecondary, borderBottom: "0.5px solid " + C.borderLight }}>
+              <tr>
+                <Th>Patient</Th>
+                <Th>Program</Th>
+                <Th>Acuity</Th>
+                <Th>Status</Th>
+                <Th>Payer</Th>
+                <Th align="right">Last contact</Th>
+                <Th align="right">Days</Th>
+                <Th>Flags</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r, idx) => (
+                <tr key={r.id} onClick={() => setSelected(r)} style={{
+                  borderBottom: idx < filtered.length - 1 ? "0.5px solid " + C.borderLight : "none",
+                  cursor: "pointer",
+                  background: selected?.id === r.id ? C.tealBg : "transparent",
+                }}>
+                  <Td>
+                    <div style={{ fontWeight: 600 }}>{r.patients?.last_name || ""}, {r.patients?.first_name || ""}</div>
+                    {r.plan_member_id && <div style={{ fontSize: 11, color: C.textTertiary, fontFamily: "monospace", marginTop: 2 }}>{r.plan_member_id}</div>}
+                  </Td>
+                  <Td>{r.program_type}</Td>
+                  <Td><AcuityBadge tier={r.acuity_tier} /></Td>
+                  <Td><StatusBadge status={r.enrollment_status} /></Td>
+                  <Td style={{ fontSize: 12 }}>{r.payer_name}</Td>
+                  <Td align="right" style={{ fontSize: 12, color: C.textSecondary }}>
+                    {r.last_touchpoint_at ? new Date(r.last_touchpoint_at).toLocaleDateString() : "-"}
+                  </Td>
+                  <Td align="right">
+                    <StaleDaysBadge days={r.days_since_contact} status={r.enrollment_status} />
+                  </Td>
+                  <Td>
+                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {r.hop_active && <Badge label="HOP" variant="blue" size="xs" />}
+                      {r.hop_eligible && !r.hop_active && <Badge label="HOP eligible" variant="neutral" size="xs" />}
+                    </div>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {selected && (
+        <EnrollmentDetail enrollment={selected} onClose={() => setSelected(null)} />
+      )}
+    </div>
+  );
+}
+
+// Sub-component: acuity-tier color-coded badge
+function AcuityBadge({ tier }) {
+  const map = { High: "red", Moderate: "amber", Low: "green" };
+  return <Badge label={tier || "-"} variant={map[tier] || "neutral"} size="xs" />;
+}
+
+// Sub-component: days-since badge with staleness coloring.
+// Disenrolled rows do not show staleness (not applicable).
+function StaleDaysBadge({ days, status }) {
+  if (status === "Disenrolled") return <span style={{ color: C.textTertiary }}>-</span>;
+  if (days === null || days === undefined) return <Badge label="No contact" variant="amber" size="xs" />;
+  const variant = days > 60 ? "red" : days > 30 ? "amber" : "green";
+  return <Badge label={days + "d"} variant={variant} size="xs" />;
+}
+
+// Sub-component: filter pill button
+function FilterPill({ active, children, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "5px 12px",
+      fontSize: 12,
+      fontWeight: 600,
+      fontFamily: "inherit",
+      border: "0.5px solid " + (active ? C.teal : C.borderLight),
+      background: active ? C.tealBg : C.bgPrimary,
+      color: active ? C.teal : C.textSecondary,
+      borderRadius: 16,
+      cursor: "pointer",
+      transition: "all 0.15s",
+    }}>{children}</button>
+  );
+}
+
+// Sub-component: enrollment detail modal. Read-only for now - edit flows
+// (update acuity, disenroll, reassign CM) come in the next session.
+function EnrollmentDetail({ enrollment, onClose }) {
+  const [touchpoints, setTouchpoints] = useState([]);
+  const [loading, setLoading]         = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from("cm_touchpoints")
+      .select("id, touchpoint_at, contact_method, successful_contact, delivered_by_role, activity_category_code, notes")
+      .eq("enrollment_id", enrollment.id)
+      .order("touchpoint_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => { setTouchpoints(data || []); setLoading(false); });
+  }, [enrollment.id]);
+
+  const title = (enrollment.patients?.first_name || "") + " " + (enrollment.patients?.last_name || "");
+
+  return (
+    <Modal title={"Enrollment: " + title} onClose={onClose} width={760}>
+      {/* Summary row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <DetailField label="Program"      value={enrollment.program_type} />
+        <DetailField label="Acuity"       value={<AcuityBadge tier={enrollment.acuity_tier} />} />
+        <DetailField label="Status"       value={<StatusBadge status={enrollment.enrollment_status} />} />
+        <DetailField label="Enrolled"     value={enrollment.enrolled_at ? new Date(enrollment.enrolled_at).toLocaleDateString() : "-"} />
+        <DetailField label="Payer"        value={enrollment.payer_name} />
+        <DetailField label="Plan member #" value={enrollment.plan_member_id || "-"} monospace />
+        <DetailField label="Assigned CM"  value={enrollment.assigned_care_manager_id ? "Set" : "Unassigned"} />
+        <DetailField label="HOP"          value={enrollment.hop_active ? "Active" : (enrollment.hop_eligible ? "Eligible" : "No")} />
+      </div>
+
+      {enrollment.enrollment_status === "Disenrolled" && (
+        <div style={{ padding: 12, marginBottom: 16, background: C.redBg, border: "0.5px solid " + C.redBorder, borderRadius: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.red, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>Disenrolled</div>
+          <div style={{ fontSize: 13, color: C.textPrimary }}>
+            {enrollment.disenrollment_reason_code || "reason unspecified"}
+            {enrollment.disenrolled_at && <span style={{ color: C.textSecondary }}> on {new Date(enrollment.disenrolled_at).toLocaleDateString()}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Touchpoint history */}
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+          Touchpoint history ({touchpoints.length})
+        </div>
+        {loading ? (
+          <Loader label="Loading touchpoints..." />
+        ) : touchpoints.length === 0 ? (
+          <EmptyState title="No touchpoints yet" message="Log the first contact with this patient from the Touchpoints tab." />
+        ) : (
+          <div style={{ border: "0.5px solid " + C.borderLight, borderRadius: 8, maxHeight: 320, overflow: "auto" }}>
+            {touchpoints.map((tp, i) => (
+              <div key={tp.id} style={{
+                padding: "10px 12px",
+                borderBottom: i < touchpoints.length - 1 ? "0.5px solid " + C.borderLight : "none",
+                background: tp.successful_contact ? "transparent" : C.amberBg,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>
+                    {new Date(tp.touchpoint_at).toLocaleString()}
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Badge label={tp.contact_method} variant="teal" size="xs" />
+                    <Badge label={tp.delivered_by_role} variant="purple" size="xs" />
+                    {!tp.successful_contact && <Badge label="Attempt" variant="amber" size="xs" />}
+                  </div>
+                </div>
+                {tp.notes && <div style={{ fontSize: 12, color: C.textSecondary }}>{tp.notes}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// Sub-component: labeled detail field for the enrollment modal
+function DetailField({ label, value, monospace }) {
+  return (
+    <div>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary, marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 13, color: C.textPrimary, fontFamily: monospace ? "monospace" : "inherit" }}>{value || "-"}</div>
+    </div>
   );
 }
 function TouchpointsTab() {
