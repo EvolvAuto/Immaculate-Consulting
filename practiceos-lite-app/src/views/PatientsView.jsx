@@ -1,20 +1,18 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// PatientsView — searchable list + detail modal
-// Stage 1b: chart body extracted to PatientChartPage.jsx. This file now owns
-// the list, filters, sort, pagination, and the new-patient modal. The detail
-// modal is a thin wrapper that renders PatientChartPage inside a Modal, so
-// user-visible behavior is identical to pre-1b. Stage 1c will remove the modal
-// wrapper and route directly to PatientChartPage.
+// PatientsView — searchable list.
+// Stage 1c: chart is now a route. Clicking a row navigates to /patients/:id
+// instead of opening a modal. logRead moved to PatientChartPage since that's
+// the component that actually opens the chart.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
-import { insertRow, logRead } from "../lib/db";
+import { insertRow } from "../lib/db";
 import { ageFromDOB, formatPhone, initialsOf } from "../components/constants";
 import { Badge, Btn, Card, Modal, Input, Select, TopBar, Avatar, Loader, ErrorBanner, EmptyState } from "../components/ui";
-import PatientChartPage from "./patient/PatientChartPage";
 
 const GENDERS = ["Male", "Female", "Non-Binary", "Other", "Unknown"];
 const STATUSES = ["Active", "Inactive", "Deceased", "Merged"];
@@ -22,7 +20,8 @@ const PAYER_CATEGORIES = ["NC Medicaid - Standard", "NC Medicaid - Tailored", "N
 const PAGE = 25;
 
 export default function PatientsView() {
-  const { practiceId, tier } = useAuth();
+  const navigate = useNavigate();
+  const { practiceId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [patients, setPatients] = useState([]);
@@ -34,7 +33,6 @@ export default function PatientsView() {
   const [pcpFilter, setPcpFilter] = useState("all");
   const [sortBy, setSortBy] = useState("last_name");
   const [providers, setProviders] = useState([]);
-  const [viewing, setViewing] = useState(null);
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
@@ -82,7 +80,7 @@ export default function PatientsView() {
     return () => clearTimeout(t);
   }, [q]);
 
-  const openDetail = async (p) => { await logRead("patients", p.id, p.id); setViewing(p); };
+  const openDetail = (p) => { navigate(`/patients/${p.id}/info`); };
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -163,31 +161,12 @@ export default function PatientsView() {
         )}
       </div>
 
-      {viewing && <PatientDetailModal patient={viewing} practiceId={practiceId} tier={tier}
-        onClose={() => setViewing(null)}
-        onUpdate={(u) => { setPatients((prev) => prev.map((p) => p.id === u.id ? { ...p, ...u } : p)); setViewing({ ...viewing, ...u }); load(); }} />}
-      {adding && <NewPatientModal onClose={() => setAdding(false)} practiceId={practiceId} onAdd={(p) => { load(); setAdding(false); }} />}
+      {adding && <NewPatientModal onClose={() => setAdding(false)} practiceId={practiceId} onAdd={() => { load(); setAdding(false); }} />}
     </div>
   );
 }
 
-// ─── Thin wrapper that renders the chart inside a Modal. ──────────────────────
-// This exists for Stage 1b only. Stage 1c replaces this with a route that
-// renders PatientChartPage directly as a full page.
-function PatientDetailModal({ patient, practiceId, tier, onClose, onUpdate }) {
-  return (
-    <Modal title={`${patient.first_name} ${patient.last_name}`} onClose={onClose} maxWidth={820}>
-      <PatientChartPage
-        patient={patient}
-        practiceId={practiceId}
-        tier={tier}
-        onUpdate={onUpdate}
-      />
-    </Modal>
-  );
-}
-
-// ─── New-patient modal (list-level, stays here) ──────────────────────────────
+// ─── New-patient modal (list-level) ──────────────────────────────────────────
 function NewPatientModal({ onClose, onAdd, practiceId }) {
   const [f, setF] = useState({ first_name: "", last_name: "", date_of_birth: "", gender: "Unknown", phone_mobile: "", email: "", mrn: "" });
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
