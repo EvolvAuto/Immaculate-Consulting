@@ -6,7 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation, useNavigationType } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthProvider";
 import { C } from "../../lib/tokens";
@@ -68,11 +68,16 @@ export default function PatientChartPage() {
   const [showGrantAccess, setShowGrantAccess] = useState(false);
   const [showStartScreening, setShowStartScreening] = useState(false);
 
-  // Back navigation: prefer browser back (preserves PatientsView filters/scroll
-  // via history state). Fall back to a fresh navigation if there's no history
-  // (user deep-linked directly into the chart).
+  // Back navigation: prefer browser back when the user arrived via in-app link
+  // (preserves PatientsView filters via history). Fall back to a fresh navigation
+  // when deep-linked - otherwise navigate(-1) exits to the tab's previous page
+  // (often the new-tab default / Google). Capture navigationType at mount;
+  // subsequent in-chart navigations (tab changes) are PUSH but shouldn't change
+  // our assessment of how we originally arrived.
+  const navigationType = useNavigationType();
+  const [mountedViaPush] = useState(() => navigationType === "PUSH");
   const handleBack = () => {
-    if (location.key !== "default") {
+    if (mountedViaPush) {
       navigate(-1);
     } else {
       navigate("/patients");
