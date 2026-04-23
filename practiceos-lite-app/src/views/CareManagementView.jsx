@@ -102,7 +102,7 @@ export default function CareManagementView() {
       <div style={{ flex: 1, overflow: "auto", padding: 24, background: C.bgTertiary }}>
         {tab === "registry"    && <RegistryTab />}
         {tab === "touchpoints" && <TouchpointsTab />}
-        {tab === "plans"       && <PlansTab />}
+        {tab === "plans"       && <PlansTab practiceId={practiceId} profile={profile} />}
         {tab === "billing"     && <BillingTab />}
         {tab === "chw"         && <CHWTab />}
         {tab === "prl"         && <PRLTab />}
@@ -1015,7 +1015,7 @@ function RegistryTab() {
       )}
 
       {selected && (
-        <EnrollmentDetail enrollment={selected} onClose={() => setSelected(null)} />
+        <EnrollmentDetail enrollment={selected} onClose={() => setSelected(null)} onUpdated={() => { setSelected(null); load(); }} />
       )}
       {showNewEnroll && (
         <NewEnrollmentModal
@@ -1076,9 +1076,11 @@ function FilterPill({ active, children, onClick }) {
 
 // Sub-component: enrollment detail modal. Read-only for now - edit flows
 // (update acuity, disenroll, reassign CM) come in the next session.
-function EnrollmentDetail({ enrollment, onClose }) {
+function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
   const [touchpoints, setTouchpoints] = useState([]);
   const [loading, setLoading]         = useState(true);
+  // Sub-mode: view (default) | edit | disenroll | activate
+  const [mode, setMode] = useState("view");
 
   useEffect(() => {
     supabase
@@ -1091,9 +1093,66 @@ function EnrollmentDetail({ enrollment, onClose }) {
   }, [enrollment.id]);
 
   const title = (enrollment.patients?.first_name || "") + " " + (enrollment.patients?.last_name || "");
+  const canActivate   = enrollment.enrollment_status === "Pending" || enrollment.enrollment_status === "On Hold";
+  const canDisenroll  = enrollment.enrollment_status !== "Disenrolled";
+  const canEdit       = enrollment.enrollment_status !== "Deceased" && enrollment.enrollment_status !== "Transferred";
+
+  // Inline mode: show the relevant form in place of the read-only view.
+  if (mode === "edit") {
+    return (
+      <Modal title={"Edit enrollment: " + title} onClose={onClose} width={760}>
+        <EditEnrollmentForm
+          enrollment={enrollment}
+          onCancel={() => setMode("view")}
+          onSaved={() => { if (onUpdated) onUpdated(); }}
+        />
+      </Modal>
+    );
+  }
+  if (mode === "disenroll") {
+    return (
+      <Modal title={"Disenroll: " + title} onClose={onClose} width={640}>
+        <DisenrollForm
+          enrollment={enrollment}
+          onCancel={() => setMode("view")}
+          onSaved={() => { if (onUpdated) onUpdated(); }}
+        />
+      </Modal>
+    );
+  }
+  if (mode === "activate") {
+    return (
+      <Modal title={"Activate: " + title} onClose={onClose} width={560}>
+        <ActivateForm
+          enrollment={enrollment}
+          onCancel={() => setMode("view")}
+          onSaved={() => { if (onUpdated) onUpdated(); }}
+        />
+      </Modal>
+    );
+  }
 
   return (
     <Modal title={"Enrollment: " + title} onClose={onClose} width={760}>
+      {/* Action buttons row */}
+      {(canActivate || canEdit || canDisenroll) && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight }}>
+          {canActivate && (
+            <Btn variant="primary" size="sm" onClick={() => setMode("activate")}>
+              {enrollment.enrollment_status === "On Hold" ? "Resume enrollment" : "Activate"}
+            </Btn>
+          )}
+          {canEdit && (
+            <Btn variant="outline" size="sm" onClick={() => setMode("edit")}>Edit</Btn>
+          )}
+          {canDisenroll && (
+            <Btn variant="outline" size="sm" onClick={() => setMode("disenroll")} style={{ color: C.red, borderColor: C.redBorder }}>
+              Disenroll
+            </Btn>
+          )}
+        </div>
+      )}
+
       {/* Summary row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
         <DetailField label="Plan type"    value={<PlanTypeBadge planType={enrollment.health_plan_type} />} />
@@ -1831,15 +1890,474 @@ function TouchpointDetailModal({ touchpoint, onClose }) {
     </Modal>
   );
 }
-function PlansTab() {
+// ===============================================================================
+// Plans tab
+// ===============================================================================
+//
+// Manages cm_care_plans - formal care plans linked to enrollments. Five plan
+// types per cm_plan_type enum:
+//   - Care Plan (generic TCM)
+//   - Individual Support Plan (IDD populations)
+//   - AMH Tier 3 Care Plan (Standard Plan)
+//   - Comprehensive Assessment (intake-era)
+//   - 90-Day Transition Plan (institutional discharge)
+//
+// Plans have status (Draft/Active/Archived/Superseded) and track review cadence
+// via next_review_due. "Overdue review" = status='Active' AND next_review_due is
+// in the past.
+//
+// v1 scope: list + create + detail. NOT in v1:
+//   - Structured goals editor (goals kept as free-text JSONB array)
+//   - Member acknowledgment workflow
+//   - Document generation (PDF export)
+//   - AI draft assistance (schema-level AI review gate is ready but UI is not)
+//   - Automated review reminders
+// ===============================================================================
+
+function PlansTab({ practiceId, profile }) {
+  const [plans, setPlans]                 = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState(null);
+  const [statusFilter, setStatusFilter]   = useState("all");
+  const [planTypeFilter, setPlanTypeFilter] = useState("all");
+  const [selected, setSelected]           = useState(null);
+  const [showNewPlan, setShowNewPlan]     = useState(false);
+
+  const role = profile?.role;
+  const canCreate = role && role !== "CHW";
+
+  const load = () => {
+    if (!practiceId) return;
+    setLoading(true);
+    supabase
+      .from("cm_care_plans")
+      .select("id, patient_id, enrollment_id, plan_type, plan_status, version, assessment_date, last_reviewed_at, next_review_due, effective_date, expires_at, goals, medications_reviewed, ai_drafted, human_reviewed_at, member_ack_at, created_at, patients(first_name, last_name, mrn), cm_enrollments(program_type, health_plan_type, cm_provider_type)")
+      .eq("practice_id", practiceId)
+      .order("created_at", { ascending: false })
+      .then(({ data, error: e }) => {
+        if (e) setError(e.message);
+        else setPlans(data || []);
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => { load(); }, [practiceId]);
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const kpis = useMemo(() => {
+    const active = plans.filter(p => p.plan_status === "Active");
+    const drafts = plans.filter(p => p.plan_status === "Draft");
+    const overdueReview = active.filter(p => p.next_review_due && p.next_review_due < today);
+    return {
+      total:         plans.length,
+      active:        active.length,
+      drafts:        drafts.length,
+      overdueReview: overdueReview.length,
+    };
+  }, [plans, today]);
+
+  const filtered = useMemo(() => {
+    return plans.filter(p => {
+      if (statusFilter !== "all" && p.plan_status !== statusFilter) return false;
+      if (planTypeFilter !== "all" && p.plan_type !== planTypeFilter) return false;
+      return true;
+    });
+  }, [plans, statusFilter, planTypeFilter]);
+
   return (
-    <ComingSoonTab
-      title="Plans - Coming next session"
-      description="Versioned care plans with AI-draft review gate. Plans drafted by Claude cannot be Active until a human has reviewed. Active-only unique constraint per enrollment + plan_type."
-      schemaNote="Tables ready: cm_care_plans (cm_care_plans_ai_review_gate CHECK enforced)"
-    />
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+        <Card><KpiBlock label="Total plans"   value={kpis.total} /></Card>
+        <Card><KpiBlock label="Active"        value={kpis.active} /></Card>
+        <Card><KpiBlock label="Drafts"        value={kpis.drafts} tone="amber" /></Card>
+        <Card><KpiBlock label="Review overdue" value={kpis.overdueReview} tone="red" /></Card>
+      </div>
+
+      <Card style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: 12 }}>
+        <div style={{ display: "flex", gap: 6 }}>
+          {["all", "Draft", "Active", "Archived", "Superseded"].map(s => (
+            <Btn key={s} size="sm" variant={statusFilter === s ? "primary" : "ghost"} onClick={() => setStatusFilter(s)}>
+              {s === "all" ? "All statuses" : s}
+            </Btn>
+          ))}
+        </div>
+        <select value={planTypeFilter} onChange={e => setPlanTypeFilter(e.target.value)} style={{ ...selectStyle, width: 240 }}>
+          <option value="all">All plan types</option>
+          <option value="Care Plan">Care Plan</option>
+          <option value="Individual Support Plan">Individual Support Plan</option>
+          <option value="AMH Tier 3 Care Plan">AMH Tier 3 Care Plan</option>
+          <option value="Comprehensive Assessment">Comprehensive Assessment</option>
+          <option value="90-Day Transition Plan">90-Day Transition Plan</option>
+        </select>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {canCreate && (
+            <Btn variant="primary" size="sm" onClick={() => setShowNewPlan(true)}>+ New plan</Btn>
+          )}
+          <Btn variant="outline" size="sm" onClick={load}>Refresh</Btn>
+        </div>
+      </Card>
+
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      <Card>
+        {loading ? (
+          <Loader label="Loading care plans..." />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title="No care plans yet"
+            message={plans.length === 0 ? "Create the first care plan from an active enrollment." : "No plans match the current filters."}
+          />
+        ) : (
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <Th>Patient</Th>
+                <Th>Plan type</Th>
+                <Th>Status</Th>
+                <Th align="right">Version</Th>
+                <Th align="right">Assessment</Th>
+                <Th align="right">Last reviewed</Th>
+                <Th align="right">Next review</Th>
+                <Th align="right">Goals</Th>
+                <Th>Flags</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(plan => {
+                const overdueReview = plan.plan_status === "Active" && plan.next_review_due && plan.next_review_due < today;
+                const goalsCount = Array.isArray(plan.goals) ? plan.goals.length : 0;
+                return (
+                  <tr key={plan.id} onClick={() => setSelected(plan)} style={{ cursor: "pointer" }}>
+                    <Td>
+                      <div style={{ fontWeight: 600 }}>
+                        {plan.patients?.last_name || ""}, {plan.patients?.first_name || ""}
+                      </div>
+                      {plan.patients?.mrn && (
+                        <div style={{ fontSize: 11, color: C.textTertiary, fontFamily: "monospace", marginTop: 2 }}>{plan.patients.mrn}</div>
+                      )}
+                    </Td>
+                    <Td>{plan.plan_type}</Td>
+                    <Td><PlanStatusBadge status={plan.plan_status} /></Td>
+                    <Td align="right" style={{ color: C.textSecondary }}>v{plan.version}</Td>
+                    <Td align="right" style={{ color: C.textSecondary }}>
+                      {plan.assessment_date ? new Date(plan.assessment_date).toLocaleDateString() : "-"}
+                    </Td>
+                    <Td align="right" style={{ color: C.textSecondary }}>
+                      {plan.last_reviewed_at ? new Date(plan.last_reviewed_at).toLocaleDateString() : "-"}
+                    </Td>
+                    <Td align="right" style={{ color: overdueReview ? C.red : C.textSecondary, fontWeight: overdueReview ? 700 : 400 }}>
+                      {plan.next_review_due ? new Date(plan.next_review_due).toLocaleDateString() : "-"}
+                    </Td>
+                    <Td align="right">{goalsCount}</Td>
+                    <Td>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {overdueReview && <Badge label="REVIEW DUE" variant="red" size="xs" />}
+                        {plan.ai_drafted && !plan.human_reviewed_at && <Badge label="AI DRAFT" variant="amber" size="xs" />}
+                        {plan.member_ack_at && <Badge label="MEMBER ACK" variant="green" size="xs" />}
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {selected && (
+        <PlanDetailModal plan={selected} onClose={() => setSelected(null)} onUpdated={() => { setSelected(null); load(); }} />
+      )}
+      {showNewPlan && (
+        <NewPlanModal
+          practiceId={practiceId}
+          userId={profile?.id}
+          onClose={() => setShowNewPlan(false)}
+          onCreated={() => { setShowNewPlan(false); load(); }}
+        />
+      )}
+    </div>
   );
 }
+
+function PlanStatusBadge({ status }) {
+  const map = { Draft: "amber", Active: "green", Archived: "neutral", Superseded: "neutral" };
+  return <Badge label={status} variant={map[status] || "neutral"} size="xs" />;
+}
+
+// ---------------------------------------------------------------------------
+// PlanDetailModal - read-only view of a care plan with all JSONB collections
+// rendered as plain lists. Quick-action buttons for status transitions.
+// ---------------------------------------------------------------------------
+
+function PlanDetailModal({ plan, onClose, onUpdated }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState(null);
+
+  const title = (plan.patients?.first_name || "") + " " + (plan.patients?.last_name || "") + " - " + plan.plan_type;
+
+  const transitionStatus = async (newStatus) => {
+    setSaving(true); setError(null);
+    const nowIso = new Date().toISOString();
+    const patch = { plan_status: newStatus, updated_at: nowIso };
+    if (newStatus === "Active" && !plan.effective_date) {
+      patch.effective_date = new Date().toISOString().split("T")[0];
+    }
+    try {
+      const { error: updErr } = await supabase
+        .from("cm_care_plans")
+        .update(patch)
+        .eq("id", plan.id);
+      if (updErr) throw updErr;
+      onUpdated();
+    } catch (e) { setError(e.message); setSaving(false); }
+  };
+
+  const goals         = Array.isArray(plan.goals)         ? plan.goals         : [];
+  const interventions = Array.isArray(plan.interventions) ? plan.interventions : [];
+  const unmetNeeds    = Array.isArray(plan.unmet_needs)   ? plan.unmet_needs   : [];
+  const riskFactors   = Array.isArray(plan.risk_factors)  ? plan.risk_factors  : [];
+  const strengths     = Array.isArray(plan.strengths)     ? plan.strengths     : [];
+  const supports      = Array.isArray(plan.supports)      ? plan.supports      : [];
+
+  return (
+    <Modal title={title} onClose={onClose} width={820}>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight }}>
+        {plan.plan_status === "Draft" && (
+          <Btn variant="primary" size="sm" disabled={saving} onClick={() => transitionStatus("Active")}>
+            {saving ? "Activating..." : "Activate plan"}
+          </Btn>
+        )}
+        {plan.plan_status === "Active" && (
+          <Btn variant="outline" size="sm" disabled={saving} onClick={() => transitionStatus("Archived")}>
+            {saving ? "Archiving..." : "Archive plan"}
+          </Btn>
+        )}
+        {plan.plan_status === "Archived" && (
+          <Btn variant="outline" size="sm" disabled={saving} onClick={() => transitionStatus("Active")}>
+            Re-activate
+          </Btn>
+        )}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <DetailField label="Status"      value={<PlanStatusBadge status={plan.plan_status} />} />
+        <DetailField label="Version"     value={"v" + plan.version} />
+        <DetailField label="Assessment"  value={plan.assessment_date ? new Date(plan.assessment_date).toLocaleDateString() : "-"} />
+        <DetailField label="Effective"   value={plan.effective_date ? new Date(plan.effective_date).toLocaleDateString() : "-"} />
+        <DetailField label="Last reviewed" value={plan.last_reviewed_at ? new Date(plan.last_reviewed_at).toLocaleDateString() : "-"} />
+        <DetailField label="Next review" value={plan.next_review_due ? new Date(plan.next_review_due).toLocaleDateString() : "-"} />
+        <DetailField label="Meds reviewed" value={plan.medications_reviewed ? "Yes" : "No"} />
+        <DetailField label="Member ack"  value={plan.member_ack_at ? new Date(plan.member_ack_at).toLocaleDateString() : "No"} />
+      </div>
+
+      <PlanSection title="Goals"         items={goals}         emptyMsg="No goals recorded" />
+      <PlanSection title="Interventions" items={interventions} emptyMsg="No interventions recorded" />
+      <PlanSection title="Unmet needs"   items={unmetNeeds}    emptyMsg="No unmet needs recorded" />
+      <PlanSection title="Risk factors"  items={riskFactors}   emptyMsg="No risk factors recorded" />
+      <PlanSection title="Strengths"     items={strengths}     emptyMsg="No strengths recorded" />
+      <PlanSection title="Supports"      items={supports}      emptyMsg="No supports recorded" />
+    </Modal>
+  );
+}
+
+function PlanSection({ title, items, emptyMsg }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+        {title} ({items.length})
+      </div>
+      {items.length === 0 ? (
+        <div style={{ fontSize: 12, color: C.textTertiary, fontStyle: "italic", padding: "6px 0" }}>{emptyMsg}</div>
+      ) : (
+        <div style={{ border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
+          {items.map((item, i) => {
+            const text = typeof item === "string" ? item : (item.text || item.description || JSON.stringify(item));
+            return (
+              <div key={i} style={{ padding: "8px 12px", borderBottom: i < items.length - 1 ? "0.5px solid " + C.borderLight : "none", fontSize: 13 }}>
+                {text}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NewPlanModal - create a new care plan linked to an active enrollment.
+//
+// Plan type defaults based on enrollment health_plan_type:
+//   Tailored Plan -> "Care Plan"
+//   Standard Plan -> "AMH Tier 3 Care Plan"
+//   Other/null    -> "Care Plan" as generic default
+//
+// v1 goals entry: simple multi-line textarea, one goal per line. Saves as
+// a JSONB array of strings.
+// ---------------------------------------------------------------------------
+
+function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
+  const [enrollments, setEnrollments] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState(null);
+
+  const [enrollmentId, setEnrollmentId]   = useState("");
+  const [planType, setPlanType]           = useState("");
+  const [assessmentDate, setAssessmentDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [nextReviewDue, setNextReviewDue]   = useState("");
+  const [goalsText, setGoalsText]           = useState("");
+  const [medsReviewed, setMedsReviewed]     = useState(false);
+  const [notes, setNotes]                   = useState("");
+
+  useEffect(() => {
+    if (!practiceId) return;
+    supabase
+      .from("cm_enrollments")
+      .select("id, patient_id, program_type, enrollment_status, health_plan_type, patients(first_name, last_name, mrn)")
+      .eq("practice_id", practiceId)
+      .in("enrollment_status", ["Active", "Pending"])
+      .order("enrollment_status", { ascending: true })
+      .then(({ data }) => { setEnrollments(data || []); setLoading(false); });
+  }, [practiceId]);
+
+  const selectedEnrollment = useMemo(
+    () => enrollments.find(e => e.id === enrollmentId) || null,
+    [enrollments, enrollmentId]
+  );
+
+  useEffect(() => {
+    if (!selectedEnrollment || planType) return;
+    if (selectedEnrollment.health_plan_type === "Standard Plan") setPlanType("AMH Tier 3 Care Plan");
+    else setPlanType("Care Plan");
+  }, [selectedEnrollment]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!assessmentDate || nextReviewDue) return;
+    const d = new Date(assessmentDate + "T12:00:00Z");
+    d.setUTCFullYear(d.getUTCFullYear() + 1);
+    setNextReviewDue(d.toISOString().split("T")[0]);
+  }, [assessmentDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async () => {
+    if (!enrollmentId) { setError("Pick an enrollment"); return; }
+    if (!planType)     { setError("Pick a plan type"); return; }
+
+    setSaving(true); setError(null);
+
+    const goals = goalsText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+
+    const nowIso = new Date().toISOString();
+    const payload = {
+      practice_id:   practiceId,
+      patient_id:    selectedEnrollment.patient_id,
+      enrollment_id: enrollmentId,
+      plan_type:     planType,
+      plan_status:   "Draft",
+      assessment_date: assessmentDate || null,
+      next_review_due: nextReviewDue || null,
+      goals:         goals,
+      medications_reviewed: medsReviewed,
+      medications_reviewed_at: medsReviewed ? nowIso : null,
+      medications_reviewed_by: medsReviewed ? (userId || null) : null,
+      notes:         notes.trim() || null,
+      created_by:    userId || null,
+    };
+
+    try {
+      const { error: insErr } = await supabase.from("cm_care_plans").insert(payload);
+      if (insErr) throw insErr;
+      onCreated();
+    } catch (e) { setError(e.message || "Failed to create plan"); setSaving(false); }
+  };
+
+  if (loading) {
+    return (
+      <Modal title="New care plan" onClose={onClose} width={760}>
+        <Loader label="Loading enrollments..." />
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal title="New care plan" onClose={onClose} width={760}>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Enrollment</FL>
+          <select value={enrollmentId} onChange={e => setEnrollmentId(e.target.value)} style={selectStyle}>
+            <option value="">-- Pick an enrollment --</option>
+            {enrollments.map(e => (
+              <option key={e.id} value={e.id}>
+                {e.patients?.last_name || ""}, {e.patients?.first_name || ""}
+                {e.patients?.mrn ? " (" + e.patients.mrn + ")" : ""} - {e.program_type}{e.health_plan_type ? " / " + e.health_plan_type : ""} [{e.enrollment_status}]
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <FL>Plan type</FL>
+          <select value={planType} onChange={e => setPlanType(e.target.value)} style={selectStyle}>
+            <option value="">-- Select plan type --</option>
+            <option value="Care Plan">Care Plan (TCM)</option>
+            <option value="Individual Support Plan">Individual Support Plan</option>
+            <option value="AMH Tier 3 Care Plan">AMH Tier 3 Care Plan (Standard Plan)</option>
+            <option value="Comprehensive Assessment">Comprehensive Assessment</option>
+            <option value="90-Day Transition Plan">90-Day Transition Plan</option>
+          </select>
+        </div>
+
+        <div>
+          <FL>Assessment date</FL>
+          <input type="date" value={assessmentDate} onChange={e => setAssessmentDate(e.target.value)} style={inputStyle} />
+        </div>
+
+        <div>
+          <FL>Next review due</FL>
+          <input type="date" value={nextReviewDue} onChange={e => setNextReviewDue(e.target.value)} style={inputStyle} />
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>Default: 1 year after assessment</div>
+        </div>
+
+        <div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginTop: 28 }}>
+            <input type="checkbox" checked={medsReviewed} onChange={e => setMedsReviewed(e.target.checked)} />
+            <span style={{ fontSize: 13 }}>Medications reviewed</span>
+          </label>
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Goals (one per line)</FL>
+          <textarea
+            value={goalsText}
+            onChange={e => setGoalsText(e.target.value)}
+            rows={5}
+            placeholder="Reduce A1C to under 7.0 by next review&#10;Attend all scheduled primary care visits&#10;Fill prescriptions within 48 hours of PCP refill"
+            style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+          />
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>Each non-blank line becomes a goal. Interventions and other sections can be added after the plan is created (via MCP for now).</div>
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Notes (optional)</FL>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="primary" disabled={saving || !enrollmentId || !planType} onClick={save}>
+          {saving ? "Creating..." : "Create as Draft"}
+        </Btn>
+      </div>
+    </Modal>
+  );
+}
+
 function BillingTab() {
   return (
     <ComingSoonTab
@@ -2357,6 +2875,353 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
         </Btn>
       </div>
     </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditEnrollmentForm - edit an existing enrollment.
+//
+// Editable: acuity_tier (with stamp), assigned_care_manager_id, health_plan_type,
+// cm_provider_type, payer_name, plan_member_id, hop_eligible, hop_active, notes.
+//
+// NOT editable: patient_id, program_type, enrollment_status
+//   (use Disenroll/Activate for status transitions; use Disenroll + new
+//   enrollment for program changes so the audit trail is clean).
+//
+// If acuity_tier changes, stamp acuity_tier_set_at + acuity_tier_set_by.
+// If assigned_care_manager_id changes, stamp assigned_at.
+// ---------------------------------------------------------------------------
+
+function EditEnrollmentForm({ enrollment, onCancel, onSaved }) {
+  const [careManagers, setCareManagers] = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [saving, setSaving]             = useState(false);
+  const [error, setError]               = useState(null);
+
+  const [planType, setPlanType]         = useState(enrollment.health_plan_type || "");
+  const [providerType, setProviderType] = useState(enrollment.cm_provider_type || "");
+  const [acuityTier, setAcuityTier]     = useState(enrollment.acuity_tier || "");
+  const [assignedCM, setAssignedCM]     = useState(enrollment.assigned_care_manager_id || "");
+  const [payerName, setPayerName]       = useState(enrollment.payer_name || "");
+  const [planMemberId, setPlanMemberId] = useState(enrollment.plan_member_id || "");
+  const [hopEligible, setHopEligible]   = useState(!!enrollment.hop_eligible);
+  const [hopActive, setHopActive]       = useState(!!enrollment.hop_active);
+  const [notes, setNotes]               = useState(enrollment.notes || "");
+
+  useEffect(() => {
+    supabase
+      .from("users")
+      .select("id, full_name, role")
+      .eq("practice_id", enrollment.practice_id)
+      .in("role", ["Care Manager", "Supervising Care Manager", "Care Manager Supervisor"])
+      .order("full_name", { ascending: true })
+      .then(({ data }) => { setCareManagers(data || []); setLoading(false); });
+  }, [enrollment.practice_id]);
+
+  const showAcuity = planType === "Tailored Plan";
+
+  const acuityChanged   = acuityTier   !== (enrollment.acuity_tier || "");
+  const assignedChanged = assignedCM   !== (enrollment.assigned_care_manager_id || "");
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+
+    const nowIso = new Date().toISOString();
+    const patch = {
+      health_plan_type: planType || null,
+      cm_provider_type: providerType || null,
+      acuity_tier:      (showAcuity && acuityTier) ? acuityTier : null,
+      assigned_care_manager_id: assignedCM || null,
+      payer_name:       payerName.trim() || null,
+      plan_member_id:   planMemberId.trim() || null,
+      hop_eligible:     hopEligible,
+      hop_active:       hopActive,
+      notes:            notes.trim() || null,
+      updated_at:       nowIso,
+    };
+
+    if (acuityChanged && acuityTier) {
+      patch.acuity_tier_set_at = nowIso;
+      patch.acuity_tier_set_by = null;
+    }
+    if (assignedChanged && assignedCM) {
+      patch.assigned_at = nowIso;
+    }
+
+    try {
+      const { error: updErr } = await supabase
+        .from("cm_enrollments")
+        .update(patch)
+        .eq("id", enrollment.id);
+      if (updErr) throw updErr;
+      onSaved();
+    } catch (e) {
+      setError(e.message || "Failed to save changes");
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <Loader label="Loading..." />;
+
+  return (
+    <div>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      <div style={{ padding: "10px 12px", marginBottom: 16, background: C.bgSecondary, borderRadius: 8, fontSize: 12, color: C.textSecondary }}>
+        Patient, program, and status cannot be changed here.
+        To move a patient to a different program, disenroll and create a new enrollment.
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <FL>Health plan type</FL>
+          <select value={planType} onChange={e => setPlanType(e.target.value)} style={selectStyle}>
+            <option value="">-- Not set --</option>
+            <option value="Tailored Plan">Tailored Plan</option>
+            <option value="Standard Plan">Standard Plan</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <FL>CM provider type</FL>
+          <select value={providerType} onChange={e => setProviderType(e.target.value)} style={selectStyle}>
+            <option value="">-- Not set --</option>
+            {ALL_PROVIDER_TYPES.map(pt => (
+              <option key={pt} value={pt}>{pt}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <FL>Payer name</FL>
+          <input type="text" value={payerName} onChange={e => setPayerName(e.target.value)} style={inputStyle} />
+        </div>
+
+        <div>
+          <FL>Plan member ID / CNDS</FL>
+          <input type="text" value={planMemberId} onChange={e => setPlanMemberId(e.target.value)} style={{ ...inputStyle, fontFamily: "monospace" }} />
+        </div>
+
+        {showAcuity && (
+          <div>
+            <FL>Acuity tier</FL>
+            <select value={acuityTier} onChange={e => setAcuityTier(e.target.value)} style={selectStyle}>
+              <option value="">-- Not set --</option>
+              <option value="High">High</option>
+              <option value="Moderate">Moderate</option>
+              <option value="Low">Low</option>
+            </select>
+            {acuityChanged && <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>Will stamp new set_at timestamp</div>}
+          </div>
+        )}
+
+        <div>
+          <FL>Assigned care manager</FL>
+          <select value={assignedCM} onChange={e => setAssignedCM(e.target.value)} style={selectStyle}>
+            <option value="">-- Unassigned --</option>
+            {careManagers.map(cm => (
+              <option key={cm.id} value={cm.id}>{cm.full_name} ({cm.role})</option>
+            ))}
+          </select>
+          {assignedChanged && assignedCM && <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>Will stamp new assigned_at timestamp</div>}
+        </div>
+
+        <div style={{ gridColumn: "1 / -1", display: "flex", gap: 24 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input type="checkbox" checked={hopEligible} onChange={e => setHopEligible(e.target.checked)} />
+            <span style={{ fontSize: 13 }}>HOP eligible</span>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input type="checkbox" checked={hopActive} onChange={e => setHopActive(e.target.checked)} />
+            <span style={{ fontSize: 13 }}>HOP active</span>
+          </label>
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Notes</FL>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+        <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
+        <Btn variant="primary" disabled={saving} onClick={save}>
+          {saving ? "Saving..." : "Save changes"}
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DisenrollForm - disenroll an active or pending enrollment.
+//
+// Required: disenrollment_reason_code (from cm_reference_codes category
+// 'disenrollment_reason'). Optional: notes, disenrolled_at (defaults today).
+//
+// Side-effects: enrollment_status -> 'Disenrolled', disenrolled_at set.
+// ---------------------------------------------------------------------------
+
+function DisenrollForm({ enrollment, onCancel, onSaved }) {
+  const [reasonCodes, setReasonCodes] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]           = useState(false);
+  const [error, setError]             = useState(null);
+
+  const [reasonCode, setReasonCode]       = useState("");
+  const [disenrolledAt, setDisenrolledAt] = useState(() => new Date().toISOString().split("T")[0]);
+  const [notes, setNotes]                 = useState("");
+
+  useEffect(() => {
+    supabase
+      .from("cm_reference_codes")
+      .select("code, label, sort_order")
+      .eq("category", "disenrollment_reason")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .then(({ data }) => { setReasonCodes(data || []); setLoading(false); });
+  }, []);
+
+  const save = async () => {
+    if (!reasonCode) { setError("Pick a disenrollment reason"); return; }
+    if (!disenrolledAt) { setError("Disenrollment date required"); return; }
+
+    setSaving(true);
+    setError(null);
+
+    const patch = {
+      enrollment_status:           "Disenrolled",
+      disenrollment_reason_code:   reasonCode,
+      disenrolled_at:              new Date(disenrolledAt + "T12:00:00Z").toISOString(),
+      disenrollment_notes:         notes.trim() || null,
+      updated_at:                  new Date().toISOString(),
+    };
+
+    try {
+      const { error: updErr } = await supabase
+        .from("cm_enrollments")
+        .update(patch)
+        .eq("id", enrollment.id);
+      if (updErr) throw updErr;
+      onSaved();
+    } catch (e) {
+      setError(e.message || "Failed to disenroll");
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <Loader label="Loading reason codes..." />;
+
+  return (
+    <div>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      <div style={{ padding: "10px 12px", marginBottom: 16, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 8, fontSize: 12, color: C.textPrimary }}>
+        <strong>Disenrolling ends this care management engagement.</strong>
+        The patient touchpoint history is preserved. A new enrollment can be created later if the patient re-engages.
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Reason for disenrollment</FL>
+          <select value={reasonCode} onChange={e => setReasonCode(e.target.value)} style={selectStyle}>
+            <option value="">-- Select reason --</option>
+            {reasonCodes.map(rc => (
+              <option key={rc.code} value={rc.code}>{rc.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <FL>Disenrollment date</FL>
+          <input type="date" value={disenrolledAt} onChange={e => setDisenrolledAt(e.target.value)} style={inputStyle} />
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>Notes (optional)</FL>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Additional context, follow-up actions..." style={{ ...inputStyle, resize: "vertical" }} />
+        </div>
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+        <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
+        <Btn variant="primary" disabled={saving || !reasonCode} onClick={save} style={{ background: C.red, borderColor: C.red }}>
+          {saving ? "Disenrolling..." : "Confirm disenrollment"}
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ActivateForm - transition Pending or On Hold enrollments to Active.
+//
+// Sets enrollment_status='Active' and enrolled_at (if not already set).
+// If moving from On Hold, does not overwrite existing enrolled_at.
+// ---------------------------------------------------------------------------
+
+function ActivateForm({ enrollment, onCancel, onSaved }) {
+  const [enrolledAt, setEnrolledAt] = useState(() => {
+    if (enrollment.enrolled_at) return enrollment.enrolled_at.split("T")[0];
+    return new Date().toISOString().split("T")[0];
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState(null);
+
+  const isResume = enrollment.enrollment_status === "On Hold";
+
+  const save = async () => {
+    if (!enrolledAt) { setError("Enrolled date required"); return; }
+    setSaving(true);
+    setError(null);
+
+    const patch = {
+      enrollment_status: "Active",
+      updated_at:        new Date().toISOString(),
+    };
+    if (!enrollment.enrolled_at) {
+      patch.enrolled_at = new Date(enrolledAt + "T12:00:00Z").toISOString();
+    }
+
+    try {
+      const { error: updErr } = await supabase
+        .from("cm_enrollments")
+        .update(patch)
+        .eq("id", enrollment.id);
+      if (updErr) throw updErr;
+      onSaved();
+    } catch (e) {
+      setError(e.message || "Failed to activate");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      <div style={{ padding: "10px 12px", marginBottom: 16, background: C.bgSecondary, borderRadius: 8, fontSize: 12, color: C.textSecondary }}>
+        {isResume
+          ? "Resuming this enrollment moves it back to Active. Original enrolled date is preserved."
+          : "Activating moves this enrollment from Pending to Active, indicating the member has consented and engagement has begun."}
+      </div>
+
+      {!enrollment.enrolled_at && (
+        <div>
+          <FL>Enrolled date</FL>
+          <input type="date" value={enrolledAt} onChange={e => setEnrolledAt(e.target.value)} style={inputStyle} />
+        </div>
+      )}
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 20 }}>
+        <Btn variant="ghost" onClick={onCancel}>Cancel</Btn>
+        <Btn variant="primary" disabled={saving} onClick={save}>
+          {saving ? "Activating..." : (isResume ? "Resume enrollment" : "Activate enrollment")}
+        </Btn>
+      </div>
+    </div>
   );
 }
 
