@@ -1967,11 +1967,11 @@ function PlansTab({ practiceId, profile }) {
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
-        <Card><KpiBlock label="Total plans"   value={kpis.total} /></Card>
-        <Card><KpiBlock label="Active"        value={kpis.active} /></Card>
-        <Card><KpiBlock label="Drafts"        value={kpis.drafts} tone="amber" /></Card>
-        <Card><KpiBlock label="Review overdue" value={kpis.overdueReview} tone="red" /></Card>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 20 }}>
+        <KpiCard label="Total plans"    value={kpis.total} />
+        <KpiCard label="Active"         value={kpis.active}        hint="Active care plans" />
+        <KpiCard label="Drafts"         value={kpis.drafts}        hint="Not yet activated" variant={kpis.drafts > 0 ? "amber" : "neutral"} />
+        <KpiCard label="Review overdue" value={kpis.overdueReview} hint="Active plans past next_review_due" variant={kpis.overdueReview > 0 ? "amber" : "neutral"} />
       </div>
 
       <Card style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: 12 }}>
@@ -2009,7 +2009,7 @@ function PlansTab({ practiceId, profile }) {
             message={plans.length === 0 ? "Create the first care plan from an active enrollment." : "No plans match the current filters."}
           />
         ) : (
-          <table style={tableStyle}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr>
                 <Th>Patient</Th>
