@@ -68,7 +68,7 @@ export default function CHWTab({ practiceId, profile }) {
     Promise.all([
       supabase
         .from("cm_chw_assignments")
-        .select("id, chw_user_id, care_manager_user_id, status, started_at, ended_at, end_reason, fte_fraction, conflict_org_name, conflict_org_tin, conflict_check_performed_at, conflict_check_result, conflict_override_rationale, conflict_override_by, notes, chw_user:users!cm_chw_assignments_chw_user_id_fkey(id, full_name, chw_cert_type, chw_employer_org), care_manager_user:users!cm_chw_assignments_care_manager_user_id_fkey(id, full_name, role)")
+        .select("id, chw_user_id, care_manager_user_id, status, started_at, ended_at, end_reason, fte_fraction, conflict_org_name, conflict_org_tin, conflict_check_performed_at, conflict_check_result, conflict_override_rationale, conflict_override_by, notes, chw_user:users!chw_user_id(id, full_name, chw_cert_type, chw_employer_org), care_manager_user:users!care_manager_user_id(id, full_name, role)")
         .eq("practice_id", practiceId)
         .order("started_at", { ascending: false }),
       supabase
@@ -186,9 +186,12 @@ export default function CHWTab({ practiceId, profile }) {
             <EmptyState title="No CHWs on staff" message="Add Community Health Workers via Team admin. Each CHW needs role='CHW' and the credentialing fields populated." />
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12, padding: 4 }}>
-              {chws.map(chw => (
-                <CHWDirectoryCard key={chw.id} chw={chw} onClick={() => setSelectedChw(chw)} />
-              ))}
+              {chws.map(chw => {
+                const chwAsgs = assignments.filter(a => a.chw_user_id === chw.id && a.status === "Active");
+                return (
+                  <CHWDirectoryCard key={chw.id} chw={chw} assignmentCount={chwAsgs.length} hasActiveCoi={chwAsgs.some(a => a.conflict_org_name)} onClick={() => setSelectedChw(chw)} />
+                );
+              })}
             </div>
           )}
         </Card>
@@ -204,7 +207,11 @@ export default function CHWTab({ practiceId, profile }) {
         />
       )}
       {selectedChw && (
-        <CHWDetailModal chw={selectedChw} onClose={() => setSelectedChw(null)} />
+        <CHWDetailModal
+          chw={selectedChw}
+          assignments={assignments.filter(a => a.chw_user_id === selectedChw.id)}
+          onClose={() => setSelectedChw(null)}
+        />
       )}
       {showNewAsg && (
         <NewAssignmentModal
@@ -304,7 +311,7 @@ function AssignmentRow({ assignment, onClickAssignment, onClickChw }) {
 // CHWDirectoryCard - one CHW in the directory view
 // ---------------------------------------------------------------------------
 
-function CHWDirectoryCard({ chw, onClick }) {
+function CHWDirectoryCard({ chw, assignmentCount, hasActiveCoi, onClick }) {
   const external = chw.chw_employer_org && chw.chw_employer_tin && chw.chw_employer_tin !== "12-3456789";
   const certDaysLeft = chw.chw_cert_expires_at
     ? Math.ceil((new Date(chw.chw_cert_expires_at) - Date.now()) / (1000 * 60 * 60 * 24))
@@ -334,8 +341,12 @@ function CHWDirectoryCard({ chw, onClick }) {
           <strong>County:</strong> {chw.chw_residence_county}
         </div>
       )}
+      <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 4 }}>
+        <strong>Active assignments:</strong> {assignmentCount != null ? assignmentCount : "-"}
+      </div>
       <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
         {external && <Badge label="EXTERNAL EMPLOYER" variant="amber" size="xs" />}
+        {hasActiveCoi && <Badge label="COI OVERRIDE" variant="amber" size="xs" />}
         {certExpiringSoon && <Badge label={"CERT IN " + certDaysLeft + "D"} variant="red" size="xs" />}
         {chw.chw_field_time_majority && <Badge label="FIELD TIME >50%" variant="green" size="xs" />}
       </div>
@@ -451,11 +462,13 @@ function AssignmentDetailModal({ assignment, userId, canEnd, onClose, onUpdated 
 // CHWDetailModal - full credentialing view for a single CHW
 // ---------------------------------------------------------------------------
 
-function CHWDetailModal({ chw, onClose }) {
+function CHWDetailModal({ chw, assignments, onClose }) {
   const training = chw.chw_training_completed || {};
   const trainingKeys = Object.keys(training);
   const completed = trainingKeys.filter(k => training[k] === true);
   const pending = trainingKeys.filter(k => training[k] === false);
+
+  const activeAsgs = (assignments || []).filter(a => a.status === "Active");
 
   return (
     <Modal title={"CHW: " + chw.full_name} onClose={onClose} width={760}>
@@ -470,6 +483,55 @@ function CHWDetailModal({ chw, onClose }) {
         <DF label="Residence county">{chw.chw_residence_county || "-"}</DF>
         <DF label="Field time >50%">{chw.chw_field_time_majority ? "Yes" : "No"}</DF>
         <DF label="Email" monospace wide>{chw.email}</DF>
+      </div>
+
+      {/* Current assignments section */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+          Current assignments ({activeAsgs.length})
+        </div>
+        {activeAsgs.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textTertiary, fontStyle: "italic", padding: "8px 12px", background: C.bgSecondary, borderRadius: 8 }}>
+            No active CHW assignments for this CHW. Create one from the By Care Manager view.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {activeAsgs.map(a => (
+              <div key={a.id} style={{
+                padding: 12, borderRadius: 8,
+                background: a.conflict_org_name ? C.amberBg : C.bgSecondary,
+                border: "0.5px solid " + (a.conflict_org_name ? C.amberBorder : C.borderLight),
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>
+                    Directed by {a.care_manager_user?.full_name || "(unknown)"}
+                  </div>
+                  <div style={{ fontSize: 12, fontFamily: "monospace", color: C.textSecondary }}>
+                    {Number(a.fte_fraction).toFixed(2)} FTE
+                  </div>
+                </div>
+                <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: a.conflict_org_name ? 8 : 0 }}>
+                  {a.care_manager_user?.role || "-"} &middot; since {new Date(a.started_at).toLocaleDateString()}
+                </div>
+                {a.conflict_org_name && (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: "0.5px solid " + C.amberBorder }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 4 }}>
+                      Conflict of interest override
+                    </div>
+                    <div style={{ fontSize: 12, color: C.textPrimary, marginBottom: 4 }}>
+                      <strong>External employer:</strong> {a.conflict_org_name}{a.conflict_org_tin ? " (TIN " + a.conflict_org_tin + ")" : ""}
+                    </div>
+                    {a.conflict_override_rationale && (
+                      <div style={{ fontSize: 12, color: C.textPrimary, lineHeight: 1.5 }}>
+                        <strong>Rationale:</strong> {a.conflict_override_rationale}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Training completion */}
