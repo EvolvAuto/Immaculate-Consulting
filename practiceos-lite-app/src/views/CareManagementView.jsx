@@ -2542,12 +2542,35 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
 
   const title = (plan.patients?.first_name || "") + " " + (plan.patients?.last_name || "") + " - " + plan.plan_type;
 
-  const transitionStatus = async (newStatus) => {
+  // Map the in-app user role to the cm_delivery_role enum used in the
+  // human_reviewer_role column. Falls back to "Other" for roles that don't
+  // have a clean clinical equivalent (e.g. Owner, Billing).
+  const roleToDeliveryRole = (r) => {
+    if (r === "Supervising Care Manager" || r === "Supervising CM") return "Supervising Care Manager";
+    if (r === "Care Manager") return "Care Manager";
+    if (r === "CHW" || r === "Extender") return "CHW";
+    if (r === "Provider") return "Provider";
+    return "Other";
+  };
+
+  const transitionStatus = async (newStatus, opts = {}) => {
     setSaving(true); setError(null);
     const nowIso = new Date().toISOString();
     const patch = { plan_status: newStatus, updated_at: nowIso };
     if (newStatus === "Active" && !plan.effective_date) {
       patch.effective_date = new Date().toISOString().split("T")[0];
+    }
+    // When activating an AI-drafted plan, we must also record the human
+    // reviewer to satisfy cm_care_plans_ai_review_gate. Gate definition:
+    //   NOT (ai_drafted=true AND plan_status='Active' AND human_reviewed_by IS NULL)
+    // The reviewer is the current user clicking Activate. This is a single-
+    // click attestation - the person hitting "Mark reviewed + activate" is
+    // the human whose review we're recording.
+    if (newStatus === "Active" && opts.markReviewed) {
+      patch.human_reviewed_by    = profile?.id || null;
+      patch.human_reviewed_at    = nowIso;
+      patch.human_reviewer_role  = roleToDeliveryRole(profile?.role);
+      patch.updated_by           = profile?.id || null;
     }
     try {
       const { error: updErr } = await supabase
@@ -2587,7 +2610,22 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight, flexWrap: "wrap" }}>
-        {plan.plan_status === "Draft" && (
+        {plan.plan_status === "Draft" && plan.ai_drafted && !plan.human_reviewed_by && (
+          // AI-drafted Draft - activation requires human review attestation
+          // per the cm_care_plans_ai_review_gate check constraint. CHW can't
+          // attest clinical plans, so only non-CHW roles get the button.
+          role && role !== "CHW" ? (
+            <Btn variant="primary" size="sm" disabled={saving} onClick={() => transitionStatus("Active", { markReviewed: true })}>
+              {saving ? "Activating..." : "Mark reviewed + activate"}
+            </Btn>
+          ) : (
+            <div style={{ fontSize: 12, color: C.textTertiary, fontStyle: "italic", padding: "6px 0" }}>
+              Awaiting review by Care Manager or Supervisor before activation
+            </div>
+          )
+        )}
+        {plan.plan_status === "Draft" && (!plan.ai_drafted || plan.human_reviewed_by) && (
+          // Human-drafted plan OR AI-drafted plan that already has reviewer on file
           <Btn variant="primary" size="sm" disabled={saving} onClick={() => transitionStatus("Active")}>
             {saving ? "Activating..." : "Activate plan"}
           </Btn>
@@ -2614,6 +2652,9 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             <PlanStatusBadge status={plan.plan_status} />
             {plan.ai_drafted && <Badge label="AI DRAFTED" variant="blue" size="xs" />}
+            {plan.ai_drafted && plan.human_reviewed_by && (
+              <Badge label="REVIEWED" variant="green" size="xs" />
+            )}
           </div>
         } />
         <DetailField label="Version"     value={"v" + plan.version} />
