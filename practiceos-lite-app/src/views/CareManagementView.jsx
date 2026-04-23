@@ -1062,7 +1062,12 @@ function RegistryTab() {
       )}
 
       {selected && (
-        <EnrollmentDetail enrollment={selected} onClose={() => setSelected(null)} onUpdated={() => { setSelected(null); load(); }} />
+        <EnrollmentDetail
+          enrollment={selected}
+          onClose={() => setSelected(null)}
+          onUpdated={() => { setSelected(null); load(); }}
+          onRiskChanged={load}
+        />
       )}
       {showNewEnroll && (
         <NewEnrollmentModal
@@ -1155,7 +1160,7 @@ function FilterPill({ active, children, onClick }) {
 
 // Sub-component: enrollment detail modal. Read-only for now - edit flows
 // (update acuity, disenroll, reassign CM) come in the next session.
-function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
+function EnrollmentDetail({ enrollment, onClose, onUpdated, onRiskChanged }) {
   const { profile } = useAuth();
   const [touchpoints, setTouchpoints] = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -1165,6 +1170,7 @@ function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
   // AI risk state - latest active assessment for this enrollment, plus the
   // action-handler flags for Re-assess / Acknowledge / Dismiss.
   const [risk, setRisk] = useState(null);
+  const [riskHistory, setRiskHistory] = useState([]);
   const [riskLoading, setRiskLoading] = useState(true);
   const [riskBusy, setRiskBusy]       = useState(false);
   const [riskError, setRiskError]     = useState(null);
@@ -1174,13 +1180,19 @@ function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
   const loadRisk = useCallback(async () => {
     setRiskLoading(true);
     try {
+      // Single query: all assessments for this enrollment. The one with
+      // superseded_at IS NULL is the currently-active assessment; the rest
+      // are history (sorted newest-first for the timeline view).
       const { data } = await supabase
         .from("cm_enrollment_risk_assessments")
-        .select("id, risk_level, risk_score, headline, narrative, risk_factors, protective_factors, recommended_interventions, suggested_next_contact_by, confidence, assessed_at, acknowledged_at, acknowledged_by, dismissed_at, dismissed_by, dismissed_reason, trigger_reason, model")
+        .select("id, risk_level, risk_score, headline, narrative, risk_factors, protective_factors, recommended_interventions, suggested_next_contact_by, confidence, assessed_at, acknowledged_at, acknowledged_by, dismissed_at, dismissed_by, dismissed_reason, trigger_reason, model, superseded_at, superseded_by_id")
         .eq("enrollment_id", enrollment.id)
-        .is("superseded_at", null)
-        .maybeSingle();
-      setRisk(data || null);
+        .order("assessed_at", { ascending: false });
+      const rows = data || [];
+      const active  = rows.find(r => !r.superseded_at) || null;
+      const history = rows.filter(r => r.superseded_at);
+      setRisk(active);
+      setRiskHistory(history);
     } catch (e) {
       setRiskError(e.message || "Could not load risk assessment");
     } finally {
@@ -1220,6 +1232,11 @@ function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
       const body = await res.json();
       if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
       await loadRisk();
+      // Await the parent's reload so rows is fresh before the user can close
+      // the modal. Previously this was fire-and-forget, which produced a race:
+      // if the user closed the modal quickly, the Registry would still show
+      // stale risk data until they hit Refresh.
+      if (onRiskChanged) await onRiskChanged();
     } catch (e) {
       setRiskError(e.message || "Re-assess failed");
     } finally {
@@ -1242,6 +1259,7 @@ function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
         .eq("id", risk.id);
       if (e1) throw e1;
       await loadRisk();
+      if (onRiskChanged) await onRiskChanged();
     } catch (e) {
       setRiskError(e.message || "Acknowledge failed");
     } finally {
@@ -1268,6 +1286,7 @@ function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
       setShowDismiss(false);
       setDismissReason("");
       await loadRisk();
+      if (onRiskChanged) await onRiskChanged();
     } catch (e) {
       setRiskError(e.message || "Dismiss failed");
     } finally {
@@ -1369,6 +1388,7 @@ function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
       {/* AI clinical risk panel */}
       <RiskPanel
         risk={risk}
+        history={riskHistory}
         loading={riskLoading}
         busy={riskBusy}
         error={riskError}
@@ -4782,13 +4802,17 @@ function AnalysisSection({ title, tone, children }) {
 // Actions: Re-assess (any role), Acknowledge + Dismiss (non-CHW only).
 // ---------------------------------------------------------------------------
 function RiskPanel({
-  risk, loading, busy, error,
+  risk, history, loading, busy, error,
   canReassess, canAckDismiss,
   onReassess, onAcknowledge,
   showDismiss, setShowDismiss,
   dismissReason, setDismissReason,
   onDismiss,
 }) {
+  // Collapsible history section - null means not expanded, id means expanded
+  const [expandedHistoryId, setExpandedHistoryId] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const safeHistory = Array.isArray(history) ? history : [];
   if (loading) {
     return (
       <div style={{ marginBottom: 20, padding: 12, background: C.bgSecondary, borderRadius: 8, fontSize: 12, color: C.textTertiary }}>
@@ -4991,6 +5015,144 @@ function RiskPanel({
         <span>Assessed {risk.assessed_at ? new Date(risk.assessed_at).toLocaleString() : ""}</span>
         <span>Trigger: {risk.trigger_reason}{risk.model ? " / " + risk.model : ""}</span>
       </div>
+
+      {/* History: previous (superseded) assessments. Each is expandable to
+          show the full narrative + factors + interventions that were active
+          at that point in time. Disposition badge indicates how the entry
+          ended: Acknowledged, Dismissed, or neither (superseded without
+          being actioned). */}
+      {safeHistory.length > 0 && (
+        <div style={{ marginTop: 10, borderTop: "0.5px solid " + C.borderLight, paddingTop: 8 }}>
+          <button
+            onClick={() => setHistoryOpen(!historyOpen)}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: "4px 0",
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              color: C.textSecondary,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span>{historyOpen ? "-" : "+"}</span>
+            <span>Assessment history ({safeHistory.length})</span>
+          </button>
+          {historyOpen && (
+            <div style={{ marginTop: 8 }}>
+              {safeHistory.map((h, i) => {
+                const isExpanded = expandedHistoryId === h.id;
+                const levelMap = { critical: "red", high: "red", medium: "amber", low: "green" };
+                const hFactors = Array.isArray(h.risk_factors) ? h.risk_factors : [];
+                const hInterventions = Array.isArray(h.recommended_interventions) ? h.recommended_interventions : [];
+                // Disposition: what happened to this assessment before it was
+                // superseded? Dismissed takes precedence over Acknowledged in display.
+                let disposition = "Superseded";
+                let dispVariant = "neutral";
+                if (h.dismissed_at) { disposition = "Dismissed"; dispVariant = "neutral"; }
+                else if (h.acknowledged_at) { disposition = "Acknowledged"; dispVariant = "blue"; }
+                return (
+                  <div key={h.id} style={{
+                    padding: "8px 10px",
+                    background: C.bgPrimary,
+                    border: "0.5px solid " + C.borderLight,
+                    borderRadius: 6,
+                    marginBottom: i < safeHistory.length - 1 ? 6 : 0,
+                  }}>
+                    <button
+                      onClick={() => setExpandedHistoryId(isExpanded ? null : h.id)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        textAlign: "left",
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                          <Badge label={String(h.risk_level || "").toUpperCase()} variant={levelMap[h.risk_level] || "neutral"} size="xs" />
+                          <Badge label={disposition.toUpperCase()} variant={dispVariant} size="xs" />
+                          <span style={{ fontSize: 11, color: C.textTertiary }}>
+                            {h.assessed_at ? new Date(h.assessed_at).toLocaleDateString() : ""}
+                          </span>
+                        </div>
+                        {h.headline && (
+                          <div style={{ fontSize: 12, color: C.textPrimary, lineHeight: 1.4 }}>
+                            {h.headline}
+                          </div>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 11, color: C.textTertiary, marginLeft: 8 }}>
+                        {isExpanded ? "Hide" : "View"}
+                      </span>
+                    </button>
+                    {isExpanded && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "0.5px solid " + C.borderLight }}>
+                        {h.narrative && (
+                          <div style={{ fontSize: 12, color: C.textPrimary, lineHeight: 1.5, marginBottom: 10 }}>
+                            {h.narrative}
+                          </div>
+                        )}
+                        {hFactors.length > 0 && (
+                          <div style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 4 }}>
+                              Risk factors at the time
+                            </div>
+                            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: C.textPrimary, lineHeight: 1.5 }}>
+                              {hFactors.map((f, j) => (
+                                <li key={j}>
+                                  <strong>{f.factor}</strong>
+                                  {f.evidence && <span style={{ color: C.textTertiary }}> - {f.evidence}</span>}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {hInterventions.length > 0 && (
+                          <div style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 4 }}>
+                              Recommended interventions at the time
+                            </div>
+                            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: C.textPrimary, lineHeight: 1.5 }}>
+                              {hInterventions.map((iv, j) => (
+                                <li key={j}>{iv.action}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {h.dismissed_reason && (
+                          <div style={{ fontSize: 11, color: C.textTertiary, fontStyle: "italic", marginBottom: 4 }}>
+                            Dismiss reason: {h.dismissed_reason}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10, color: C.textTertiary, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          <span>Trigger: {h.trigger_reason || "-"}</span>
+                          {h.model && <span>{h.model}</span>}
+                          {h.acknowledged_at && <span>Acknowledged {new Date(h.acknowledged_at).toLocaleDateString()}</span>}
+                          {h.dismissed_at && <span>Dismissed {new Date(h.dismissed_at).toLocaleDateString()}</span>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
