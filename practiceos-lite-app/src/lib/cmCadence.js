@@ -169,7 +169,7 @@ export function isPastBillingRiskDay(date) {
 export const PLAN_PROGRAM_MATRIX = {
   "Tailored Plan": {
     program: "TCM",
-    providers: ["Plan-based", "AMH+", "CMA", "CIN"],
+    providers: ["AMH+", "CMA", "CIN"],
   },
   "Standard Plan": {
     program: "AMH",
