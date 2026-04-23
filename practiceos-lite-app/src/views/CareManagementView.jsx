@@ -7,6 +7,7 @@ import {
   SectionHead, FL, TabBar
 } from "../components/ui";
 import { stalenessBand, isBillableByPlan, isPastBillingRiskDay, PLAN_PROGRAM_MATRIX, validatePlanProgramProvider } from "../lib/cmCadence";
+import CHWTab from "./CHWTab";
 
 // ===============================================================================
 // CareManagementView - entry point for the Care Management Console (Command tier)
@@ -104,7 +105,7 @@ export default function CareManagementView() {
         {tab === "touchpoints" && <TouchpointsTab />}
         {tab === "plans"       && <PlansTab practiceId={profile?.practice_id} profile={profile} />}
         {tab === "billing"     && <BillingTab practiceId={profile?.practice_id} profile={profile} />}
-        {tab === "chw"         && <CHWTab />}
+        {tab === "chw"         && <CHWTab practiceId={profile?.practice_id} profile={profile} />}
         {tab === "prl"         && <PRLTab />}
       </div>
     </div>
@@ -2895,16 +2896,6 @@ function BillingPeriodDetailModal({ period, userId, canSubmitClaim, onClose, onU
         </div>
       )}
     </Modal>
-  );
-}
-
-function CHWTab() {
-  return (
-    <ComingSoonTab
-      title="CHW Coordination - Coming next session"
-      description="CHW to Care Manager direction relationships with FTE gauge (2.0 FTE cap enforced by DB trigger per NC Medicaid TCM April 2022 guidance). Conflict-of-interest override workflow with required rationale."
-      schemaNote="Tables ready: cm_chw_assignments, users.chw_* columns (13 credentialing fields)"
-    />
   );
 }
 
