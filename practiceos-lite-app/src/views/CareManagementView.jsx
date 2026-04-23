@@ -2230,10 +2230,10 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
   );
 
   useEffect(() => {
-    if (!selectedEnrollment || planType) return;
+    if (!selectedEnrollment) return;
     if (selectedEnrollment.health_plan_type === "Standard Plan") setPlanType("AMH Tier 3 Care Plan");
     else setPlanType("Care Plan");
-  }, [selectedEnrollment]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedEnrollment?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!assessmentDate || nextReviewDue) return;
