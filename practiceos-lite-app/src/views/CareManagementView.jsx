@@ -1313,7 +1313,7 @@ function TouchpointsTab() {
       // RLS issues on the users table cross-scope.
       let query = supabase
         .from("cm_touchpoints")
-        .select("id, touchpoint_at, contact_method, successful_contact, delivered_by_role, activity_category_code, notes, enrollment_id, patient_id, delivered_by_user_id, hrsn_domains_addressed, counts_toward_tcm_contact, cm_enrollments(program_type, acuity_tier), patients(first_name, last_name)")
+        .select("id, touchpoint_at, contact_method, successful_contact, delivered_by_role, activity_category_code, notes, enrollment_id, patient_id, delivered_by_user_id, hrsn_domains_addressed, counts_toward_tcm_contact, ai_scribe_model, cm_enrollments(program_type, acuity_tier), patients(first_name, last_name)")
         .eq("practice_id", practiceId)
         .order("touchpoint_at", { ascending: false })
         .limit(200);
@@ -1563,6 +1563,21 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
   const [saving, setSaving]                 = useState(false);
   const [error, setError]                   = useState(null);
 
+  // AI polish state. `aiResult` holds the normalized response from the
+  // cmp-summarize-touchpoint edge function; when present we render a preview
+  // strip showing action items, detected concerns, and the TCM-countability
+  // rationale. `aiMeta` captures model/version for the DB audit fields so we
+  // can mark the touchpoint as AI-polished on save. `notesBaseline` captures
+  // what polished_notes looked like right after the AI populated the textarea
+  // so we can detect user edits - if the user diverged, we still write their
+  // text but leave ai_scribe_summary NULL to avoid claiming AI content they
+  // didn't actually keep.
+  const [aiPolishing, setAiPolishing]   = useState(false);
+  const [aiError, setAiError]           = useState(null);
+  const [aiResult, setAiResult]         = useState(null);
+  const [aiMeta, setAiMeta]             = useState(null);
+  const [notesBaseline, setNotesBaseline] = useState("");
+
   // Derive: if Attempt - No Contact, force successful=false
   useEffect(() => {
     if (contactMethod === "Attempt - No Contact") {
@@ -1645,6 +1660,72 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
     setSelectedHrsn(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
   };
 
+  // -------------------------------------------------------------------------
+  // AI polish handler - invokes cmp-summarize-touchpoint with the CM's raw
+  // notes and auto-populates form fields with suggestions. Never overwrites
+  // fields the user has already set meaningfully.
+  // -------------------------------------------------------------------------
+  const handleAiPolish = async () => {
+    if (!notes.trim())    { setAiError("Type some raw notes first, then polish"); return; }
+    if (!enrollmentId)    { setAiError("Pick a patient/enrollment first"); return; }
+    if (!contactMethod)   { setAiError("Pick a contact method first"); return; }
+
+    setAiPolishing(true);
+    setAiError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-summarize-touchpoint";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({
+          raw_notes: notes,
+          contact_method: contactMethod,
+          enrollment_id: enrollmentId,
+          current_activity_category_code: activityCode || null,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+
+      // Replace notes textarea with polished version, record baseline so we
+      // can detect later edits. Suggest activity code only if user hadn't
+      // already picked one. Merge suggested HRSN domains with any the user
+      // manually toggled.
+      const polished = body.polished_notes || notes;
+      setNotes(polished);
+      setNotesBaseline(polished);
+
+      if (!activityCode && body.suggested_activity_category_code) {
+        setActivityCode(body.suggested_activity_category_code);
+      }
+      if (Array.isArray(body.suggested_hrsn_domains) && body.suggested_hrsn_domains.length > 0) {
+        setSelectedHrsn(prev => {
+          const merged = new Set(prev);
+          for (const d of body.suggested_hrsn_domains) merged.add(d);
+          return Array.from(merged);
+        });
+      }
+
+      setAiResult(body);
+      setAiMeta({
+        model_used:     body.model_used,
+        prompt_version: body.prompt_version,
+        generated_at:   body.generated_at,
+      });
+    } catch (e) {
+      setAiError(e.message || "AI polish failed");
+    } finally {
+      setAiPolishing(false);
+    }
+  };
+
   const save = async () => {
     if (!patientId)       { setError("Select a patient"); return; }
     if (!enrollmentId)    { setError("Select an enrollment (patient has multiple)"); return; }
@@ -1702,6 +1783,16 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
       notes:                     notes.trim() || null,
       source:                    "Manual",
     };
+
+    // AI audit trail: only mark ai_scribe_summary / ai_scribe_model when the
+    // user actually kept the AI-polished text (baseline match). If they
+    // edited the polished version, write just their text and leave the AI
+    // columns null - we don't want to claim AI content the user rewrote.
+    if (aiResult && notes === notesBaseline) {
+      payload.ai_scribe_summary = notes.trim();
+      payload.ai_scribe_model   = aiMeta?.model_used || null;
+      payload.source            = "Manual-AI-Polished";
+    }
 
     try {
       const { error: insErr } = await supabase.from("cm_touchpoints").insert(payload);
@@ -1811,7 +1902,20 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
         )}
 
         <div style={{ gridColumn: "1 / -1" }}>
-          <FL>Notes ({notes.length}/500)</FL>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <FL>Notes ({notes.length}/500)</FL>
+            {enrollmentId && contactMethod && notes.trim().length >= 5 && (
+              <Btn
+                variant={aiResult ? "outline" : "primary"}
+                size="sm"
+                disabled={aiPolishing}
+                onClick={handleAiPolish}
+                style={{ marginBottom: 4 }}
+              >
+                {aiPolishing ? "Polishing..." : (aiResult ? "Re-polish" : "Polish with AI")}
+              </Btn>
+            )}
+          </div>
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value.slice(0, 500))}
@@ -1819,6 +1923,14 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
             placeholder="Clinical observations, topics discussed, follow-up needed..."
             style={{ ...inputStyle, resize: "vertical" }}
           />
+          {aiError && (
+            <div style={{ marginTop: 6, fontSize: 12, color: C.red, background: C.redBg, padding: "6px 10px", borderRadius: 6, border: "0.5px solid " + C.redBorder }}>
+              {aiError}
+            </div>
+          )}
+          {aiResult && (
+            <TouchpointAiPreview aiResult={aiResult} notesEdited={notes !== notesBaseline} />
+          )}
         </div>
 
         <div style={{ gridColumn: "1 / -1", padding: 12, background: contactMethod === "Attempt - No Contact" ? C.amberBg : C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
@@ -1850,6 +1962,100 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
         </Btn>
       </div>
     </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TouchpointAiPreview - preview strip shown inside LogTouchpointModal after
+// the CM clicks "Polish with AI". Surfaces the AI's suggestions that don't
+// map cleanly to form fields (action items, detected safety concerns, TCM
+// countability rationale) so the CM sees everything the AI picked up on.
+// v1: read-only. Action items displayed but not auto-converted to tasks;
+// that's a future enhancement.
+// ---------------------------------------------------------------------------
+function TouchpointAiPreview({ aiResult, notesEdited }) {
+  const actions    = Array.isArray(aiResult.action_items)     ? aiResult.action_items     : [];
+  const concerns   = Array.isArray(aiResult.detected_concerns) ? aiResult.detected_concerns : [];
+  const hrsnCount  = Array.isArray(aiResult.suggested_hrsn_domains) ? aiResult.suggested_hrsn_domains.length : 0;
+
+  const dueLabel = (v) => {
+    if (v === "today")      return "Today";
+    if (v === "tomorrow")   return "Tomorrow";
+    if (v === "this_week")  return "This week";
+    if (v === "next_week")  return "Next week";
+    return null;
+  };
+
+  return (
+    <div style={{ marginTop: 10, padding: 12, background: "#fafafa", border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, gap: 8, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary }}>
+          AI polish applied
+        </div>
+        {notesEdited && (
+          <Badge label="NOTES EDITED AFTER POLISH" variant="amber" size="xs" />
+        )}
+      </div>
+
+      {/* Critical concerns block first - highest attention */}
+      {concerns.length > 0 && (
+        <div style={{ marginBottom: 10, padding: 10, background: C.redBg, border: "0.5px solid " + C.redBorder, borderRadius: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.red, marginBottom: 6 }}>
+            Detected concerns - review before saving
+          </div>
+          {concerns.map((c, i) => (
+            <div key={i} style={{ fontSize: 13, color: C.textPrimary, marginBottom: i < concerns.length - 1 ? 6 : 0 }}>
+              <Badge label={String(c.type || "concern").replace(/_/g, " ").toUpperCase()} variant={c.severity === "critical" ? "red" : c.severity === "high" ? "red" : "amber"} size="xs" />
+              <span style={{ marginLeft: 6 }}>{c.description}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* TCM countability rationale */}
+      {aiResult.counts_reasoning && (
+        <div style={{ marginBottom: 10, fontSize: 12, color: C.textSecondary }}>
+          <strong style={{ color: C.textPrimary }}>TCM count:</strong> {aiResult.suggested_counts_toward_tcm_contact ? "Yes" : "No"} - {aiResult.counts_reasoning}
+        </div>
+      )}
+
+      {/* Activity category suggestion rationale */}
+      {aiResult.activity_category_rationale && aiResult.suggested_activity_category_code && (
+        <div style={{ marginBottom: 10, fontSize: 12, color: C.textSecondary }}>
+          <strong style={{ color: C.textPrimary }}>Category rationale:</strong> {aiResult.activity_category_rationale}
+        </div>
+      )}
+
+      {/* HRSN domains addressed */}
+      {hrsnCount > 0 && (
+        <div style={{ marginBottom: 10, fontSize: 12, color: C.textSecondary }}>
+          <strong style={{ color: C.textPrimary }}>HRSN domains detected:</strong> {aiResult.suggested_hrsn_domains.join(", ")}
+        </div>
+      )}
+
+      {/* Action items */}
+      {actions.length > 0 && (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 6 }}>
+            Extracted action items ({actions.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {actions.map((a, i) => (
+              <div key={i} style={{ fontSize: 12, padding: "6px 10px", background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6 }}>
+                <div style={{ color: C.textPrimary }}>{a.description}</div>
+                <div style={{ fontSize: 10, color: C.textTertiary, marginTop: 2, display: "flex", gap: 8 }}>
+                  {dueLabel(a.suggested_due) && <span>Due: {dueLabel(a.suggested_due)}</span>}
+                  {a.suggested_owner && <span>Owner: {String(a.suggested_owner).replace(/_/g, " ")}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: C.textTertiary, marginTop: 6, fontStyle: "italic" }}>
+            Action items shown for reference. Auto-converting to tasks is a future enhancement.
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
