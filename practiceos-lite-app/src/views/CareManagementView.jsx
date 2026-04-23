@@ -2498,7 +2498,7 @@ function PlansTab({ practiceId, profile }) {
       </Card>
 
       {selected && (
-        <PlanDetailModal plan={selected} onClose={() => setSelected(null)} onUpdated={() => { setSelected(null); load(); }} />
+        <PlanDetailModal plan={selected} profile={profile} onClose={() => setSelected(null)} onUpdated={() => { setSelected(null); load(); }} />
       )}
       {showNewPlan && (
         <NewPlanModal
@@ -2522,9 +2522,23 @@ function PlanStatusBadge({ status }) {
 // rendered as plain lists. Quick-action buttons for status transitions.
 // ---------------------------------------------------------------------------
 
-function PlanDetailModal({ plan, onClose, onUpdated }) {
+function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
+  // Sub-mode: "view" (default, read-only) | "draftReview" (AI annual review).
+  // Keeping the sub-mode inside PlanDetailModal instead of opening a nested
+  // modal avoids double-Modal stacking and lets the reviewer flip back to the
+  // prior-plan view without closing the whole thing.
+  const [mode, setMode] = useState("view");
+
+  // Role gate for the Annual Review AI button. Tier gating is enforced
+  // server-side in cmp-draft-annual-review; a 403 surfaces in the error
+  // banner if the practice isn't on Command tier.
+  const role = profile?.role;
+  const canDraftReview =
+    plan.plan_status === "Active"
+    && role
+    && role !== "CHW";
 
   const title = (plan.patients?.first_name || "") + " " + (plan.patients?.last_name || "") + " - " + plan.plan_type;
 
@@ -2552,11 +2566,27 @@ function PlanDetailModal({ plan, onClose, onUpdated }) {
   const strengths     = Array.isArray(plan.strengths)     ? plan.strengths     : [];
   const supports      = Array.isArray(plan.supports)      ? plan.supports      : [];
 
+  // Annual review drafting mode: swap the whole body for the draft flow.
+  // Same Modal wrapper; different title and content. Accept here means a new
+  // plan version was inserted - we propagate onUpdated() to refresh the list.
+  if (mode === "draftReview") {
+    return (
+      <Modal title={"Annual review: " + title} onClose={onClose} width={900}>
+        <AnnualReviewDrafter
+          priorPlan={plan}
+          userId={profile?.id}
+          onCancel={() => setMode("view")}
+          onSaved={() => { if (onUpdated) onUpdated(); }}
+        />
+      </Modal>
+    );
+  }
+
   return (
     <Modal title={title} onClose={onClose} width={820}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight, flexWrap: "wrap" }}>
         {plan.plan_status === "Draft" && (
           <Btn variant="primary" size="sm" disabled={saving} onClick={() => transitionStatus("Active")}>
             {saving ? "Activating..." : "Activate plan"}
@@ -2570,6 +2600,11 @@ function PlanDetailModal({ plan, onClose, onUpdated }) {
         {plan.plan_status === "Archived" && (
           <Btn variant="outline" size="sm" disabled={saving} onClick={() => transitionStatus("Active")}>
             Re-activate
+          </Btn>
+        )}
+        {canDraftReview && (
+          <Btn variant="primary" size="sm" onClick={() => setMode("draftReview")}>
+            Draft annual review with AI
           </Btn>
         )}
       </div>
@@ -2596,6 +2631,12 @@ function PlanDetailModal({ plan, onClose, onUpdated }) {
       <PlanSection title="Risk factors"  items={riskFactors}   emptyMsg="No risk factors recorded" />
       <PlanSection title="Strengths"     items={strengths}     emptyMsg="No strengths recorded" />
       <PlanSection title="Supports"      items={supports}      emptyMsg="No supports recorded" />
+
+      {/* Review summary - rendered when this plan is the output of an
+          annual/interim review. Shows what changed vs. the prior version. */}
+      {plan.review_summary && (
+        <ReviewSummaryPanel summary={plan.review_summary} priorPlanId={plan.prior_plan_id} />
+      )}
     </Modal>
   );
 }
@@ -4941,6 +4982,11 @@ function RiskPanel({
         </div>
       )}
 
+      {/* Risk trajectory sparkline - only renders when there are 2+ total
+          assessments (active + at least 1 historical). Gives at-a-glance
+          context on whether risk is improving, stable, or escalating. */}
+      <RiskTrajectorySparkline history={safeHistory} current={risk} />
+
       {/* Narrative */}
       {risk.narrative && (
         <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.55, marginBottom: 12 }}>
@@ -5153,6 +5199,531 @@ function RiskPanel({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AnnualReviewDrafter - calls cmp-draft-annual-review, presents the draft
+// for human review (edit/accept/reject), and on accept inserts a new
+// cm_care_plans row with prior_plan_id set. The DB trigger auto-supersedes
+// the prior plan. This keeps the workflow fully auditable: every review
+// produces a new plan version, and the review_summary jsonb captures the
+// AI's analysis of what changed, which the reviewer can edit before saving.
+// ---------------------------------------------------------------------------
+function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSaved }) {
+  const [drafting, setDrafting]   = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState(null);
+  const [draft, setDraft]         = useState(null);
+  const [context, setContext]     = useState(null);
+  const [modelMeta, setModelMeta] = useState(null);
+
+  // Editable overrides. The AI's draft goes into these on generation; the
+  // reviewer can then edit before saving. On save we combine the edited
+  // review_summary/refreshed_plan with the AI metadata.
+  const [overallAssessment, setOverallAssessment] = useState("");
+  const [reviewerNotes, setReviewerNotes]         = useState("");
+  const [nextReviewDue, setNextReviewDue]         = useState("");
+
+  const handleDraft = async () => {
+    setDrafting(true);
+    setError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-draft-annual-review";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({ prior_plan_id: priorPlan.id }),
+      });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+
+      setDraft(body.draft || null);
+      setContext(body.context || null);
+      setModelMeta({
+        model: body.model_used,
+        prompt_version: body.prompt_version,
+        generated_at: body.generated_at,
+      });
+      // Seed editable fields from AI output
+      setOverallAssessment(body.draft?.review_summary?.overall_assessment || "");
+      setNextReviewDue(body.draft?.refreshed_plan?.suggested_next_review_due || "");
+      setReviewerNotes("");
+    } catch (e) {
+      setError(e.message || "Draft failed");
+    } finally {
+      setDrafting(false);
+    }
+  };
+
+  // Accept + save: insert a new cm_care_plans row as a new version.
+  // The DB trigger flips the prior plan to Superseded automatically.
+  const handleAccept = async () => {
+    if (!draft) { setError("No draft to save"); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      // Compose the review_summary jsonb: mostly AI output, but with any
+      // reviewer overrides applied on top.
+      const finalSummary = {
+        ...draft.review_summary,
+        overall_assessment: overallAssessment || draft.review_summary?.overall_assessment || "",
+        reviewer_notes:     reviewerNotes.trim() || null,
+        ai_generated:       true,
+        ai_model:           modelMeta?.model,
+        ai_prompt_version:  modelMeta?.prompt_version,
+        ai_generated_at:    modelMeta?.generated_at,
+      };
+
+      const refreshed = draft.refreshed_plan || {};
+      const assessmentDate = new Date().toISOString().split("T")[0];
+      // Default 365d out if reviewer didn't override
+      let nextDue = nextReviewDue || null;
+      if (!nextDue && refreshed.suggested_next_review_due) nextDue = refreshed.suggested_next_review_due;
+      if (!nextDue) {
+        const d = new Date();
+        d.setUTCFullYear(d.getUTCFullYear() + 1);
+        nextDue = d.toISOString().split("T")[0];
+      }
+
+      const { data: inserted, error: insErr } = await supabase
+        .from("cm_care_plans")
+        .insert({
+          practice_id:         priorPlan.practice_id,
+          patient_id:          priorPlan.patient_id,
+          enrollment_id:       priorPlan.enrollment_id,
+          plan_type:           priorPlan.plan_type,
+          plan_status:         "Draft",
+          version:             (priorPlan.version || 1) + 1,
+          assessment_date:     assessmentDate,
+          next_review_due:     nextDue,
+          effective_date:      null,
+          goals:               Array.isArray(refreshed.goals)         ? refreshed.goals         : [],
+          interventions:       Array.isArray(refreshed.interventions) ? refreshed.interventions : [],
+          unmet_needs:         Array.isArray(refreshed.unmet_needs)   ? refreshed.unmet_needs   : [],
+          risk_factors:        Array.isArray(refreshed.risk_factors)  ? refreshed.risk_factors  : [],
+          strengths:           Array.isArray(refreshed.strengths)     ? refreshed.strengths     : [],
+          supports:            Array.isArray(refreshed.supports)      ? refreshed.supports      : [],
+          emergency_plan:      refreshed.emergency_plan || {},
+          medications_reviewed: false,
+          prior_plan_id:       priorPlan.id,
+          review_summary:      finalSummary,
+          ai_drafted:          true,
+          ai_draft_model:      modelMeta?.model || null,
+          ai_draft_at:         modelMeta?.generated_at || new Date().toISOString(),
+          ai_draft_prompt_version: modelMeta?.prompt_version || null,
+          notes:               reviewerNotes.trim() || null,
+          created_by:          userId || null,
+          updated_by:          userId || null,
+        })
+        .select("id")
+        .single();
+
+      if (insErr) throw insErr;
+      if (onSaved) onSaved();
+    } catch (e) {
+      setError(e.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Initial state: no draft yet. Show kickoff CTA + prior plan summary.
+  if (!draft) {
+    const priorGoalCount = Array.isArray(priorPlan.goals) ? priorPlan.goals.length : 0;
+    const priorAssessmentDate = priorPlan.assessment_date || priorPlan.created_at;
+    return (
+      <div>
+        {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+        <div style={{ padding: 14, marginBottom: 16, background: "#f0f9ff", border: "0.5px solid #bae6fd", borderRadius: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#075985", marginBottom: 6 }}>
+            Ready to draft annual review
+          </div>
+          <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.55 }}>
+            This will review <strong>v{priorPlan.version}</strong> (assessed {priorAssessmentDate ? new Date(priorAssessmentDate).toLocaleDateString() : "-"}) with
+            <strong> {priorGoalCount} goal{priorGoalCount === 1 ? "" : "s"}</strong>.
+            Claude will pull every touchpoint, HRSN screening, billing month, and risk assessment since that date and draft a review for your approval. You'll edit before saving. Approximate cost: 3-5 cents.
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <Btn variant="ghost" size="sm" onClick={onCancel}>Back</Btn>
+          <Btn variant="primary" size="sm" disabled={drafting} onClick={handleDraft}>
+            {drafting ? "Drafting (~30 seconds)..." : "Draft review"}
+          </Btn>
+        </div>
+      </div>
+    );
+  }
+
+  // Draft is ready. Show preview + editable fields + save/cancel.
+  const rs = draft.review_summary || {};
+  const rp = draft.refreshed_plan || {};
+  const goalsMet        = Array.isArray(rs.goals_met)         ? rs.goals_met         : [];
+  const goalsNotMet     = Array.isArray(rs.goals_not_met)     ? rs.goals_not_met     : [];
+  const goalsCarried    = Array.isArray(rs.goals_carried_over) ? rs.goals_carried_over : [];
+  const goalsRemoved    = Array.isArray(rs.goals_removed)     ? rs.goals_removed     : [];
+  const keyEvents       = Array.isArray(rs.key_events)        ? rs.key_events        : [];
+  const refreshedGoals  = Array.isArray(rp.goals)             ? rp.goals             : [];
+  const refreshedInts   = Array.isArray(rp.interventions)     ? rp.interventions     : [];
+  const refreshedNeeds  = Array.isArray(rp.unmet_needs)       ? rp.unmet_needs       : [];
+  const confCaveats     = Array.isArray(draft.confidence_caveats) ? draft.confidence_caveats : [];
+
+  return (
+    <div>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      {/* Draft header with confidence + reassess */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.textSecondary }}>
+            Review draft
+          </div>
+          {rs.period_covered && (
+            <div style={{ fontSize: 13, color: C.textPrimary, marginTop: 2 }}>{rs.period_covered}</div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {draft.confidence && (
+            <Badge label={"CONFIDENCE " + String(draft.confidence).toUpperCase()} variant={draft.confidence === "high" ? "green" : draft.confidence === "medium" ? "amber" : "red"} size="xs" />
+          )}
+          {rs.interim_review_recommended && (
+            <Badge label="INTERIM REVIEW RECOMMENDED" variant="amber" size="xs" />
+          )}
+          {rs.medications_need_review && (
+            <Badge label="MED REVIEW" variant="amber" size="xs" />
+          )}
+          <Btn variant="outline" size="sm" disabled={drafting} onClick={handleDraft}>
+            {drafting ? "..." : "Re-draft"}
+          </Btn>
+        </div>
+      </div>
+
+      {/* Overall assessment - editable */}
+      <div style={{ marginBottom: 16 }}>
+        <FL>Overall assessment</FL>
+        <textarea
+          value={overallAssessment}
+          onChange={e => setOverallAssessment(e.target.value)}
+          rows={3}
+          style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }}
+        />
+      </div>
+
+      {/* Two-column summary: left = what happened (met/not met/carried/removed), right = what's next */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 6 }}>
+            Prior period review
+          </div>
+          {goalsMet.length > 0 && (
+            <ReviewGroup title={"Goals met (" + goalsMet.length + ")"} tone="green">
+              {goalsMet.map((g, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.textPrimary, marginBottom: 4 }}>
+                  <strong>{g.goal}</strong>
+                  {g.evidence && <div style={{ fontSize: 11, color: C.textTertiary }}>{g.evidence}</div>}
+                </div>
+              ))}
+            </ReviewGroup>
+          )}
+          {goalsNotMet.length > 0 && (
+            <ReviewGroup title={"Goals not met (" + goalsNotMet.length + ")"} tone="red">
+              {goalsNotMet.map((g, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.textPrimary, marginBottom: 4 }}>
+                  <strong>{g.goal}</strong>
+                  {g.reason && <div style={{ fontSize: 11, color: C.textTertiary }}>Reason: {g.reason}</div>}
+                  {g.recommendation && <div style={{ fontSize: 11, color: C.textTertiary }}>Rec: {String(g.recommendation).replace(/_/g, " ")}</div>}
+                </div>
+              ))}
+            </ReviewGroup>
+          )}
+          {goalsCarried.length > 0 && (
+            <ReviewGroup title={"Carry over (" + goalsCarried.length + ")"} tone="blue">
+              {goalsCarried.map((g, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.textPrimary, marginBottom: 4 }}>
+                  <strong>{g.goal}</strong>
+                  {g.rationale && <div style={{ fontSize: 11, color: C.textTertiary }}>{g.rationale}</div>}
+                </div>
+              ))}
+            </ReviewGroup>
+          )}
+          {goalsRemoved.length > 0 && (
+            <ReviewGroup title={"Removed (" + goalsRemoved.length + ")"} tone="neutral">
+              {goalsRemoved.map((g, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.textPrimary, marginBottom: 4 }}>
+                  <strong>{g.goal}</strong>
+                  {g.reason && <div style={{ fontSize: 11, color: C.textTertiary }}>{g.reason}</div>}
+                </div>
+              ))}
+            </ReviewGroup>
+          )}
+          {keyEvents.length > 0 && (
+            <ReviewGroup title={"Key events (" + keyEvents.length + ")"} tone="amber">
+              <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: C.textPrimary }}>
+                {keyEvents.map((ev, i) => <li key={i}>{ev}</li>)}
+              </ul>
+            </ReviewGroup>
+          )}
+        </div>
+
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 6 }}>
+            Refreshed plan
+          </div>
+          {refreshedGoals.length > 0 && (
+            <ReviewGroup title={"Goals (" + refreshedGoals.length + ")"} tone="blue">
+              {refreshedGoals.map((g, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.textPrimary, marginBottom: 6 }}>
+                  <div style={{ display: "flex", gap: 4, alignItems: "baseline", flexWrap: "wrap", marginBottom: 2 }}>
+                    {g.priority && <Badge label={String(g.priority).toUpperCase()} variant={g.priority === "high" ? "red" : g.priority === "medium" ? "amber" : "neutral"} size="xs" />}
+                    {g.source && <Badge label={String(g.source).replace(/_/g, " ").toUpperCase()} variant="neutral" size="xs" />}
+                    {g.domain && <span style={{ fontSize: 10, color: C.textTertiary }}>{g.domain}</span>}
+                  </div>
+                  <strong>{g.goal}</strong>
+                  {g.target_date && <div style={{ fontSize: 11, color: C.textTertiary }}>Target: {g.target_date}</div>}
+                  {g.rationale && <div style={{ fontSize: 11, color: C.textTertiary }}>{g.rationale}</div>}
+                </div>
+              ))}
+            </ReviewGroup>
+          )}
+          {refreshedInts.length > 0 && (
+            <ReviewGroup title={"Interventions (" + refreshedInts.length + ")"} tone="neutral">
+              {refreshedInts.map((iv, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.textPrimary, marginBottom: 4 }}>
+                  <strong>{iv.intervention}</strong>
+                  <div style={{ fontSize: 11, color: C.textTertiary }}>
+                    {iv.owner && <span>Owner: {String(iv.owner).replace(/_/g, " ")} </span>}
+                    {iv.frequency && <span>/ {iv.frequency}</span>}
+                  </div>
+                </div>
+              ))}
+            </ReviewGroup>
+          )}
+          {refreshedNeeds.length > 0 && (
+            <ReviewGroup title={"Unmet needs (" + refreshedNeeds.length + ")"} tone="amber">
+              {refreshedNeeds.map((n, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.textPrimary, marginBottom: 4 }}>
+                  <strong>{n.need}</strong>
+                  {n.category && <span style={{ fontSize: 10, color: C.textTertiary }}> ({n.category})</span>}
+                  {n.plan_to_address && <div style={{ fontSize: 11, color: C.textTertiary }}>{n.plan_to_address}</div>}
+                </div>
+              ))}
+            </ReviewGroup>
+          )}
+        </div>
+      </div>
+
+      {/* Reviewer overrides */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+        <div>
+          <FL>Next review due</FL>
+          <input type="date" value={nextReviewDue} onChange={e => setNextReviewDue(e.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <FL>Reviewer notes (optional)</FL>
+          <input type="text" value={reviewerNotes} onChange={e => setReviewerNotes(e.target.value)} placeholder="Anything worth flagging to supervising CM" style={inputStyle} />
+        </div>
+      </div>
+
+      {/* Confidence caveats */}
+      {confCaveats.length > 0 && (
+        <div style={{ marginBottom: 14, padding: 8, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 6, fontSize: 11, color: C.textSecondary }}>
+          <strong>Caveats:</strong> {confCaveats.join(" / ")}
+        </div>
+      )}
+
+      {/* Model footer */}
+      {modelMeta && (
+        <div style={{ fontSize: 10, color: C.textTertiary, textAlign: "right", marginBottom: 10 }}>
+          Drafted {new Date(modelMeta.generated_at).toLocaleString()} / {modelMeta.model}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 12, borderTop: "0.5px solid " + C.borderLight }}>
+        <Btn variant="ghost" size="sm" onClick={onCancel}>Cancel</Btn>
+        <Btn variant="primary" size="sm" disabled={saving} onClick={handleAccept}>
+          {saving ? "Saving..." : "Accept + create v" + ((priorPlan.version || 1) + 1)}
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
+// Small helper for AnnualReviewDrafter's review-group tiles.
+function ReviewGroup({ title, tone, children }) {
+  const border = tone === "green" ? "#86efac" : tone === "red" ? "#fca5a5" : tone === "amber" ? "#fcd34d" : tone === "blue" ? "#7dd3fc" : C.borderLight;
+  return (
+    <div style={{ marginBottom: 10, paddingLeft: 10, borderLeft: "2px solid " + border }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 4 }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ReviewSummaryPanel - compact display of a plan's review_summary jsonb.
+// Used in PlanDetailModal when looking at a reviewed (v2+) plan to show
+// what changed from the prior version. Link to prior plan is informational
+// only - the reviewer can navigate by filtering the Plans list.
+// ---------------------------------------------------------------------------
+function ReviewSummaryPanel({ summary, priorPlanId }) {
+  if (!summary || typeof summary !== "object") return null;
+  const met       = Array.isArray(summary.goals_met) ? summary.goals_met : [];
+  const notMet    = Array.isArray(summary.goals_not_met) ? summary.goals_not_met : [];
+  const carried   = Array.isArray(summary.goals_carried_over) ? summary.goals_carried_over : [];
+  const removed   = Array.isArray(summary.goals_removed) ? summary.goals_removed : [];
+  const keyEvents = Array.isArray(summary.key_events) ? summary.key_events : [];
+
+  return (
+    <div style={{ marginTop: 4, marginBottom: 16, padding: 14, background: "#f8fafc", border: "0.5px solid " + C.borderLight, borderRadius: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+        Review summary
+        {priorPlanId && (
+          <span style={{ marginLeft: 8, fontSize: 10, color: C.textTertiary, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>
+            (superseded prior plan)
+          </span>
+        )}
+      </div>
+      {summary.period_covered && (
+        <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 6 }}>{summary.period_covered}</div>
+      )}
+      {summary.overall_assessment && (
+        <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.55, marginBottom: 10 }}>
+          {summary.overall_assessment}
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8, marginBottom: 10 }}>
+        <ReviewStat label="Met"      value={met.length}     tone="green" />
+        <ReviewStat label="Not met"  value={notMet.length}  tone="red" />
+        <ReviewStat label="Carried"  value={carried.length} tone="blue" />
+        <ReviewStat label="Removed"  value={removed.length} tone="neutral" />
+      </div>
+      {keyEvents.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 4 }}>
+            Key events during period
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12, color: C.textPrimary }}>
+            {keyEvents.map((ev, i) => <li key={i}>{ev}</li>)}
+          </ul>
+        </div>
+      )}
+      {summary.reviewer_notes && (
+        <div style={{ marginTop: 10, fontSize: 12, color: C.textSecondary, fontStyle: "italic" }}>
+          Reviewer notes: {summary.reviewer_notes}
+        </div>
+      )}
+      {summary.ai_generated && (
+        <div style={{ marginTop: 10, fontSize: 10, color: C.textTertiary, borderTop: "0.5px solid " + C.borderLight, paddingTop: 6 }}>
+          AI-drafted {summary.ai_generated_at ? new Date(summary.ai_generated_at).toLocaleDateString() : ""}
+          {summary.ai_model ? " / " + summary.ai_model : ""}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReviewStat({ label, value, tone }) {
+  const color = tone === "green" ? "#047857" : tone === "red" ? "#dc2626" : tone === "blue" ? "#0369a1" : C.textSecondary;
+  return (
+    <div style={{ padding: "6px 10px", background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: color, lineHeight: 1 }}>{value}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RiskTrajectorySparkline - compact visualization of risk_level over time
+// for one enrollment. Used inside RiskPanel when the member has >= 2 total
+// assessments (current + at least 1 historical). Inline-SVG, no libraries.
+//
+// X-axis: index (evenly spaced) - simpler than date-based and highlights
+//         trajectory regardless of gaps. Most-recent on the right.
+// Y-axis: risk level mapped to height. low=bottom, critical=top.
+// Line + markers color-coded by level at that point.
+// ---------------------------------------------------------------------------
+function RiskTrajectorySparkline({ history, current }) {
+  // Combine history (superseded) + current (active, if any) into one
+  // chronologically-ordered array. `history` is already sorted newest-first
+  // in the parent; reverse to oldest-first, then append current.
+  const historyOldestFirst = Array.isArray(history) ? history.slice().reverse() : [];
+  const points = [...historyOldestFirst];
+  if (current) points.push(current);
+  if (points.length < 2) return null;
+
+  const LEVEL_Y = { low: 3, medium: 2, high: 1, critical: 0 };
+  const LEVEL_COLOR = { low: "#10b981", medium: "#f59e0b", high: "#ef4444", critical: "#991b1b" };
+  const W = 260;
+  const H = 56;
+  const MARGIN = 6;
+  const plotW = W - MARGIN * 2;
+  const plotH = H - MARGIN * 2;
+
+  const coords = points.map((p, i) => {
+    const x = MARGIN + (points.length > 1 ? (i * plotW) / (points.length - 1) : plotW / 2);
+    const yBucket = LEVEL_Y[p.risk_level];
+    const y = MARGIN + (typeof yBucket === "number" ? (yBucket * plotH) / 3 : plotH / 2);
+    return { x, y, point: p };
+  });
+
+  const pathD = coords.map((c, i) => (i === 0 ? "M" : "L") + c.x.toFixed(1) + "," + c.y.toFixed(1)).join(" ");
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 4 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary }}>
+          Risk trajectory ({points.length} assessments)
+        </div>
+        <div style={{ fontSize: 9, color: C.textTertiary }}>
+          oldest {points[0]?.assessed_at ? new Date(points[0].assessed_at).toLocaleDateString() : ""}
+          {" -> "}
+          newest {points[points.length - 1]?.assessed_at ? new Date(points[points.length - 1].assessed_at).toLocaleDateString() : ""}
+        </div>
+      </div>
+      <div style={{ background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6, padding: 4 }}>
+        <svg width="100%" height={H} viewBox={"0 0 " + W + " " + H} preserveAspectRatio="none" style={{ display: "block" }}>
+          {/* Horizontal gridlines - one per level */}
+          {[0, 1, 2, 3].map(i => {
+            const y = MARGIN + (i * plotH) / 3;
+            return <line key={i} x1={MARGIN} y1={y} x2={W - MARGIN} y2={y} stroke="#e5e7eb" strokeWidth="0.5" strokeDasharray="2,2" />;
+          })}
+          {/* Level labels on the left */}
+          <text x={2} y={MARGIN + 3} fontSize="7" fill={C.textTertiary}>CRIT</text>
+          <text x={2} y={MARGIN + plotH / 3 + 3} fontSize="7" fill={C.textTertiary}>HIGH</text>
+          <text x={2} y={MARGIN + 2 * plotH / 3 + 3} fontSize="7" fill={C.textTertiary}>MED</text>
+          <text x={2} y={MARGIN + plotH + 3} fontSize="7" fill={C.textTertiary}>LOW</text>
+          {/* Trajectory line */}
+          <path d={pathD} fill="none" stroke={C.textSecondary} strokeWidth="1.5" />
+          {/* Points colored by level */}
+          {coords.map((c, i) => (
+            <circle
+              key={i}
+              cx={c.x}
+              cy={c.y}
+              r={3.5}
+              fill={LEVEL_COLOR[c.point.risk_level] || C.textTertiary}
+              stroke="white"
+              strokeWidth="1"
+            >
+              <title>
+                {c.point.assessed_at ? new Date(c.point.assessed_at).toLocaleDateString() : ""} - {String(c.point.risk_level || "").toUpperCase()}
+                {c.point.headline ? " - " + c.point.headline : ""}
+              </title>
+            </circle>
+          ))}
+        </svg>
+      </div>
     </div>
   );
 }
