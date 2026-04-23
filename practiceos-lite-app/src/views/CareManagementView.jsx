@@ -2658,6 +2658,46 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
     }
   };
 
+  // Goals editor handlers. Start copies the current normalized goals into
+  // editing state so the user can mutate without affecting the rendered
+  // view. Cancel discards changes. Save writes canonicalized, non-blank
+  // goals back to cm_care_plans and refreshes the parent list.
+  const handleStartEditGoals = () => {
+    setEditedGoals(normalizeGoals(Array.isArray(plan.goals) ? plan.goals : []));
+    setGoalsError(null);
+    setEditingGoals(true);
+  };
+
+  const handleCancelEditGoals = () => {
+    setEditedGoals([]);
+    setGoalsError(null);
+    setEditingGoals(false);
+  };
+
+  const handleSaveGoals = async () => {
+    const cleaned = normalizeGoals(editedGoals).filter(g => !isBlankGoal(g));
+    if (cleaned.length === 0) {
+      setGoalsError("Add at least one goal before saving");
+      return;
+    }
+    setSavingGoals(true);
+    setGoalsError(null);
+    try {
+      const { error: updErr } = await supabase
+        .from("cm_care_plans")
+        .update({ goals: cleaned, updated_at: new Date().toISOString() })
+        .eq("id", plan.id);
+      if (updErr) throw updErr;
+      setEditingGoals(false);
+      setEditedGoals([]);
+      if (onUpdated) onUpdated();
+    } catch (e) {
+      setGoalsError(e.message || "Failed to save goals");
+    } finally {
+      setSavingGoals(false);
+    }
+  };
+
   const goals         = Array.isArray(plan.goals)         ? plan.goals         : [];
   const interventions = Array.isArray(plan.interventions) ? plan.interventions : [];
   const unmetNeeds    = Array.isArray(plan.unmet_needs)   ? plan.unmet_needs   : [];
@@ -2827,7 +2867,7 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
           </div>
           {!editingGoals && (
             <Btn variant="outline" size="sm" onClick={handleStartEditGoals}>
-              Edit goals [debug: role={String(profile?.role)} status={plan.plan_status}]
+              Edit goals
             </Btn>
           )}
         </div>
