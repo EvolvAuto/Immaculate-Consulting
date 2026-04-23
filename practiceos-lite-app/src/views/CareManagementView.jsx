@@ -58,6 +58,25 @@ export default function CareManagementView() {
   const isAdmin = role && ADMIN_ROLES.has(role);
   const [tab, setTab] = useState("registry"); // Default to Registry; PRL is admin-only
 
+  // Role-based tab visibility. Computed unconditionally (no hooks below this
+  // point can be skipped by the early-return below).
+  //   CHW:                              Registry + Touchpoints + CHW
+  //   Clinical (CM / Supervising CM):   all clinical tabs, no PRL
+  //   Admin (Owner / Manager):          all tabs including PRL
+  const visibleTabs = role === "CHW"
+    ? ["registry", "touchpoints", "chw"]
+    : isAdmin
+      ? TAB_KEYS
+      : ["registry", "touchpoints", "plans", "billing", "chw"];
+
+  // Keep tab valid for role. MUST run before any conditional return below,
+  // or React's hook-ordering check will fire error #310 when auth loads
+  // asynchronously (first render no role -> early return -> fewer hooks;
+  // next render role loads -> more hooks -> crash).
+  useEffect(() => {
+    if (!visibleTabs.includes(tab)) setTab(visibleTabs[0]);
+  }, [role]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Unauthorized roles see a polite block instead of the console
   if (!canAccess) {
     return (
@@ -74,22 +93,6 @@ export default function CareManagementView() {
       </div>
     );
   }
-
- // Role-based tab visibility.
-  //   CHW:                       Registry + Touchpoints + CHW Coordination
-  //   Clinical (CM, Supervising CM, Care Manager Supervisor):
-  //                              Registry + Touchpoints + Plans + Billing + CHW
-  //   Admin (Owner, Manager):    all tabs including PRL
-  const visibleTabs = role === "CHW"
-    ? ["registry", "touchpoints", "chw"]
-    : isAdmin
-      ? TAB_KEYS
-      : ["registry", "touchpoints", "plans", "billing", "chw"];
-
-  // Keep tab valid for role
-  useEffect(() => {
-    if (!visibleTabs.includes(tab)) setTab(visibleTabs[0]);
-  }, [role]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
