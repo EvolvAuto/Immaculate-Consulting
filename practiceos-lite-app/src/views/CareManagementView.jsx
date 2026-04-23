@@ -9,6 +9,7 @@ import {
 import { stalenessBand, isBillableByPlan, isPastBillingRiskDay, PLAN_PROGRAM_MATRIX, validatePlanProgramProvider } from "../lib/cmCadence";
 import { normalizeGoals, goalText, blankGoal, isBlankGoal } from "../lib/cmGoals";
 import { GoalEditor, GoalDisplay } from "../components/GoalEditor";
+import BatchTouchpointModal from "../components/BatchTouchpointModal";
 import CHWTab from "./CHWTab";
 
 // ===============================================================================
@@ -804,6 +805,7 @@ function RegistryTab() {
       const enrIds = (enrollments || []).map(e => e.id);
       let lastTpMap = {};
       let riskMap = {};
+      let utrMap = {};
       if (enrIds.length > 0) {
         const { data: tps, error: e2 } = await supabase
           .from("cm_touchpoints")
@@ -846,6 +848,19 @@ function RegistryTab() {
         for (const r of risks || []) {
           riskMap[r.enrollment_id] = r;
         }
+
+        // UTR (Unable to Reach) derived state - 3+ unsuccessful attempts with
+        // no successful contact in between. Computed by cm_enrollment_utr_status
+        // view. Threshold hardcoded 3 in v1; onboarding wizard will make this
+        // practice-configurable later.
+        const { data: utrs, error: e4 } = await supabase
+          .from("cm_enrollment_utr_status")
+          .select("enrollment_id, is_utr, unsuccessful_attempts, first_attempt_at, last_attempt_at, last_success_at")
+          .in("enrollment_id", enrIds);
+        if (e4) throw e4;
+        for (const u of utrs || []) {
+          utrMap[u.enrollment_id] = u;
+        }
       }
 
       // Merge and compute days-since + enrollment-age (for Pending staleness rule)
@@ -864,6 +879,7 @@ function RegistryTab() {
           days_since_enrolled: daysSinceEnrolled,
           has_contact_this_month: !!tp.successful_this_month,
           risk: riskMap[e.id] || null,
+          utr: utrMap[e.id] || null,
         };
       });
       setRows(merged);
@@ -897,6 +913,8 @@ function RegistryTab() {
         if (!isRiskFlagged(r)) return false;
       } else if (riskFilter === "critical") {
         if (!r.risk || r.risk.dismissed_at || r.risk.risk_level !== "critical") return false;
+      } else if (riskFilter === "utr") {
+        if (!r.utr || !r.utr.is_utr) return false;
       }
       return true;
     });
@@ -937,6 +955,10 @@ function RegistryTab() {
     const aiFlagged  = active.filter(r => isRiskFlagged(r));
     const aiCritical = aiFlagged.filter(r => r.risk && r.risk.risk_level === "critical").length;
 
+    // UTR count - Active or Pending members with 3+ unsuccessful attempts
+    // and no successful contact in that window. Signals practice can't reach.
+    const utrCount = rows.filter(r => r.utr && r.utr.is_utr).length;
+
     return {
       total:           rows.length,
       active:          active.length,
@@ -948,6 +970,7 @@ function RegistryTab() {
       billing_at_risk: billingAtRisk,
       ai_flagged:      aiFlagged.length,
       ai_critical:     aiCritical,
+      utr:             utrCount,
       hop:             active.filter(r => r.hop_active).length,
     };
   }, [rows]);
@@ -1000,6 +1023,7 @@ function RegistryTab() {
           <FilterPill active={riskFilter === "all"}       onClick={() => setRiskFilter("all")}>All</FilterPill>
           <FilterPill active={riskFilter === "attention"} onClick={() => setRiskFilter("attention")}>At risk</FilterPill>
           <FilterPill active={riskFilter === "critical"}  onClick={() => setRiskFilter("critical")}>Critical</FilterPill>
+          <FilterPill active={riskFilter === "utr"}       onClick={() => setRiskFilter("utr")}>UTR</FilterPill>
         </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           {canCreateEnroll && (
@@ -1062,6 +1086,11 @@ function RegistryTab() {
                   </Td>
                   <Td>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                      {r.utr && r.utr.is_utr && (
+                        <span title={r.utr.unsuccessful_attempts + " unsuccessful attempts" + (r.utr.first_attempt_at ? " since " + new Date(r.utr.first_attempt_at).toLocaleDateString() : "")}>
+                          <Badge label="UTR" variant="red" size="xs" />
+                        </span>
+                      )}
                       {r.enrollment_status === "Active" && !r.has_contact_this_month && isPastBillingRiskDay() && isBillableByPlan(r.health_plan_type) && (
                         <Badge label="BILL RISK" variant="red" size="xs" />
                       )}
@@ -1523,6 +1552,7 @@ function TouchpointsTab() {
   const [touchpoints, setTouchpoints]       = useState([]);
   const [selectedTp, setSelectedTp]         = useState(null);
   const [showLogModal, setShowLogModal]     = useState(false);
+  const [showBatchModal, setShowBatchModal] = useState(false);
   const [careManagers, setCareManagers]     = useState([]);
 
   // Filter state
@@ -1637,9 +1667,14 @@ function TouchpointsTab() {
               <FilterPill key={p.key} active={dateRange === p.key} onClick={() => setDateRange(p.key)}>{p.label}</FilterPill>
             ))}
           </div>
-          <Btn variant="primary" size="md" onClick={() => setShowLogModal(true)} style={{ marginLeft: "auto" }}>
-            + Log touchpoint
-          </Btn>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <Btn variant="outline" size="md" onClick={() => setShowBatchModal(true)}>
+              + Batch log
+            </Btn>
+            <Btn variant="primary" size="md" onClick={() => setShowLogModal(true)}>
+              + Log touchpoint
+            </Btn>
+          </div>
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 220px", minWidth: 220 }}>
@@ -1743,6 +1778,15 @@ function TouchpointsTab() {
           userRole={role}
           onClose={() => setShowLogModal(false)}
           onLogged={() => { setShowLogModal(false); load(); }}
+        />
+      )}
+      {showBatchModal && (
+        <BatchTouchpointModal
+          practiceId={practiceId}
+          userId={profile?.id}
+          userRole={role}
+          onClose={() => setShowBatchModal(false)}
+          onLogged={() => { setShowBatchModal(false); load(); }}
         />
       )}
     </div>
