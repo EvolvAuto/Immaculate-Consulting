@@ -761,6 +761,7 @@ function RegistryTab() {
   const [acuityFilter, setAcuityFilter]   = useState("all");
   const [programFilter, setProgramFilter] = useState("all");
   const [statusFilter, setStatusFilter]   = useState("Active");
+  const [riskFilter, setRiskFilter]       = useState("all"); // all | attention | critical
   const [selected, setSelected]           = useState(null);
   const [showNewEnroll, setShowNewEnroll] = useState(false);
 
@@ -787,6 +788,7 @@ function RegistryTab() {
       // rather than per-row fetches - cheap and keeps the UI snappy.
       const enrIds = (enrollments || []).map(e => e.id);
       let lastTpMap = {};
+      let riskMap = {};
       if (enrIds.length > 0) {
         const { data: tps, error: e2 } = await supabase
           .from("cm_touchpoints")
@@ -817,6 +819,18 @@ function RegistryTab() {
             }
           }
         }
+
+        // Risk assessments - fetch only active (non-superseded) assessments.
+        // Each enrollment has at most one active assessment due to DB trigger.
+        const { data: risks, error: e3 } = await supabase
+          .from("cm_enrollment_risk_assessments")
+          .select("id, enrollment_id, risk_level, risk_score, headline, narrative, risk_factors, protective_factors, recommended_interventions, suggested_next_contact_by, confidence, assessed_at, acknowledged_at, acknowledged_by, dismissed_at, dismissed_by, dismissed_reason, trigger_reason, model, prompt_version")
+          .in("enrollment_id", enrIds)
+          .is("superseded_at", null);
+        if (e3) throw e3;
+        for (const r of risks || []) {
+          riskMap[r.enrollment_id] = r;
+        }
       }
 
       // Merge and compute days-since + enrollment-age (for Pending staleness rule)
@@ -834,6 +848,7 @@ function RegistryTab() {
           days_since_contact: days,
           days_since_enrolled: daysSinceEnrolled,
           has_contact_this_month: !!tp.successful_this_month,
+          risk: riskMap[e.id] || null,
         };
       });
       setRows(merged);
@@ -846,15 +861,31 @@ function RegistryTab() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Helper: is an enrollment currently "flagged at risk"?
+  // Definition: has an active risk assessment at medium+ AND not dismissed.
+  // Acknowledged assessments still count as flagged (they're on the queue
+  // until dismissed or superseded with a lower-risk reassessment).
+  const isRiskFlagged = (r) => {
+    const risk = r.risk;
+    if (!risk) return false;
+    if (risk.dismissed_at) return false;
+    return risk.risk_level === "medium" || risk.risk_level === "high" || risk.risk_level === "critical";
+  };
+
   // Compute filter + KPI values against the loaded rows
   const filtered = useMemo(() => {
     return rows.filter(r => {
       if (statusFilter  !== "all" && r.enrollment_status !== statusFilter)  return false;
       if (acuityFilter  !== "all" && r.acuity_tier       !== acuityFilter)  return false;
       if (programFilter !== "all" && r.program_type      !== programFilter) return false;
+      if (riskFilter === "attention") {
+        if (!isRiskFlagged(r)) return false;
+      } else if (riskFilter === "critical") {
+        if (!r.risk || r.risk.dismissed_at || r.risk.risk_level !== "critical") return false;
+      }
       return true;
     });
-  }, [rows, statusFilter, acuityFilter, programFilter]);
+  }, [rows, statusFilter, acuityFilter, programFilter, riskFilter]);
 
   const kpis = useMemo(() => {
     const active  = rows.filter(r => r.enrollment_status === "Active");
@@ -887,6 +918,10 @@ function RegistryTab() {
 
     const billingAtRisk = active.filter(r => pastDay20 && !r.has_contact_this_month && isBillableByPlan(r.health_plan_type)).length;
 
+    // AI risk counts - only count non-dismissed active-enrollment members
+    const aiFlagged  = active.filter(r => isRiskFlagged(r));
+    const aiCritical = aiFlagged.filter(r => r.risk && r.risk.risk_level === "critical").length;
+
     return {
       total:           rows.length,
       active:          active.length,
@@ -896,6 +931,8 @@ function RegistryTab() {
       pending:         pending.length,
       stale:           needsAttention.size,
       billing_at_risk: billingAtRisk,
+      ai_flagged:      aiFlagged.length,
+      ai_critical:     aiCritical,
       hop:             active.filter(r => r.hop_active).length,
     };
   }, [rows]);
@@ -911,6 +948,7 @@ function RegistryTab() {
         <KpiCard label="Active caseload"  value={kpis.active}   hint={kpis.pending + " pending enrollment"} />
         <KpiCard label="High acuity"      value={kpis.high}     hint="Active enrollments"  variant="amber" />
         <KpiCard label="Needs attention"  value={kpis.stale}    hint={kpis.billing_at_risk > 0 ? (kpis.billing_at_risk + " at billing risk this month") : "Overdue vs acuity-tier cadence"} variant={kpis.stale > 0 ? "amber" : "neutral"} />
+        <KpiCard label="AI flagged"       value={kpis.ai_flagged} hint={kpis.ai_critical > 0 ? (kpis.ai_critical + " critical") : "Medium+ risk, not dismissed"} variant={kpis.ai_critical > 0 ? "red" : (kpis.ai_flagged > 0 ? "amber" : "neutral")} />
         <KpiCard label="HOP active"       value={kpis.hop}      hint="HRSN interventions"  variant="blue" />
       </div>
 
@@ -942,6 +980,12 @@ function RegistryTab() {
             <option value="General Engagement">General Engagement</option>
           </select>
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary }}>Risk</span>
+          <FilterPill active={riskFilter === "all"}       onClick={() => setRiskFilter("all")}>All</FilterPill>
+          <FilterPill active={riskFilter === "attention"} onClick={() => setRiskFilter("attention")}>At risk</FilterPill>
+          <FilterPill active={riskFilter === "critical"}  onClick={() => setRiskFilter("critical")}>Critical</FilterPill>
+        </div>
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           {canCreateEnroll && (
             <Btn variant="primary" size="sm" onClick={() => setShowNewEnroll(true)}>+ New enrollment</Btn>
@@ -968,6 +1012,7 @@ function RegistryTab() {
                 <Th>Program</Th>
                 <Th>Acuity</Th>
                 <Th>Status</Th>
+                <Th>Risk</Th>
                 <Th>Payer</Th>
                 <Th align="right">Last contact</Th>
                 <Th align="right">Days</Th>
@@ -992,6 +1037,7 @@ function RegistryTab() {
                   </Td>
                   <Td><AcuityBadge tier={r.acuity_tier} /></Td>
                   <Td><StatusBadge status={r.enrollment_status} /></Td>
+                  <Td><RiskBadge risk={r.risk} /></Td>
                   <Td style={{ fontSize: 12 }}>{r.payer_name}</Td>
                   <Td align="right" style={{ fontSize: 12, color: C.textSecondary }}>
                     {r.last_touchpoint_at ? new Date(r.last_touchpoint_at).toLocaleDateString() : "-"}
@@ -1057,6 +1103,38 @@ function StaleDaysBadge({ days, status, acuity, planType }) {
   return <Badge label={days + "d"} variant={variant} size="xs" />;
 }
 
+// Sub-component: AI-assessed clinical risk badge. Shows the latest active
+// (non-superseded) risk_level. If the assessment has been dismissed, renders
+// a muted indicator so reviewers know the AI flagged it but a human cleared it.
+// If no assessment exists yet, shows em-dash.
+function RiskBadge({ risk }) {
+  if (!risk) return <span style={{ color: C.textTertiary, fontSize: 12 }}>-</span>;
+  if (risk.dismissed_at) {
+    return (
+      <span title="Flagged by AI, dismissed by staff" style={{ fontSize: 11, color: C.textTertiary, fontStyle: "italic" }}>
+        Dismissed
+      </span>
+    );
+  }
+  const map = {
+    critical: "red",
+    high:     "red",
+    medium:   "amber",
+    low:      "green",
+  };
+  const label = (risk.risk_level || "").toUpperCase();
+  const variant = map[risk.risk_level] || "neutral";
+  const title = risk.headline || "";
+  return (
+    <span title={title}>
+      <Badge label={label} variant={variant} size="xs" />
+      {risk.acknowledged_at && (
+        <span style={{ marginLeft: 4, fontSize: 10, color: C.textTertiary }} title="Acknowledged">ack</span>
+      )}
+    </span>
+  );
+}
+
 // Sub-component: filter pill button
 function FilterPill({ active, children, onClick }) {
   return (
@@ -1078,10 +1156,37 @@ function FilterPill({ active, children, onClick }) {
 // Sub-component: enrollment detail modal. Read-only for now - edit flows
 // (update acuity, disenroll, reassign CM) come in the next session.
 function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
+  const { profile } = useAuth();
   const [touchpoints, setTouchpoints] = useState([]);
   const [loading, setLoading]         = useState(true);
   // Sub-mode: view (default) | edit | disenroll | activate
   const [mode, setMode] = useState("view");
+
+  // AI risk state - latest active assessment for this enrollment, plus the
+  // action-handler flags for Re-assess / Acknowledge / Dismiss.
+  const [risk, setRisk] = useState(null);
+  const [riskLoading, setRiskLoading] = useState(true);
+  const [riskBusy, setRiskBusy]       = useState(false);
+  const [riskError, setRiskError]     = useState(null);
+  const [showDismiss, setShowDismiss] = useState(false);
+  const [dismissReason, setDismissReason] = useState("");
+
+  const loadRisk = useCallback(async () => {
+    setRiskLoading(true);
+    try {
+      const { data } = await supabase
+        .from("cm_enrollment_risk_assessments")
+        .select("id, risk_level, risk_score, headline, narrative, risk_factors, protective_factors, recommended_interventions, suggested_next_contact_by, confidence, assessed_at, acknowledged_at, acknowledged_by, dismissed_at, dismissed_by, dismissed_reason, trigger_reason, model")
+        .eq("enrollment_id", enrollment.id)
+        .is("superseded_at", null)
+        .maybeSingle();
+      setRisk(data || null);
+    } catch (e) {
+      setRiskError(e.message || "Could not load risk assessment");
+    } finally {
+      setRiskLoading(false);
+    }
+  }, [enrollment.id]);
 
   useEffect(() => {
     supabase
@@ -1091,12 +1196,95 @@ function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
       .order("touchpoint_at", { ascending: false })
       .limit(50)
       .then(({ data }) => { setTouchpoints(data || []); setLoading(false); });
-  }, [enrollment.id]);
+    loadRisk();
+  }, [enrollment.id, loadRisk]);
+
+  // Re-assess: call cmp-risk-assess-enrollment edge fn. Supersedes current
+  // via DB trigger; we just refetch after.
+  const handleReassess = async () => {
+    setRiskBusy(true);
+    setRiskError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-risk-assess-enrollment";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({ enrollment_id: enrollment.id, trigger_reason: "manual" }),
+      });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+      await loadRisk();
+    } catch (e) {
+      setRiskError(e.message || "Re-assess failed");
+    } finally {
+      setRiskBusy(false);
+    }
+  };
+
+  // Acknowledge: mark the current assessment as seen and being worked.
+  const handleAcknowledge = async () => {
+    if (!risk?.id) return;
+    setRiskBusy(true);
+    setRiskError(null);
+    try {
+      const { error: e1 } = await supabase
+        .from("cm_enrollment_risk_assessments")
+        .update({
+          acknowledged_at: new Date().toISOString(),
+          acknowledged_by: profile?.id || null,
+        })
+        .eq("id", risk.id);
+      if (e1) throw e1;
+      await loadRisk();
+    } catch (e) {
+      setRiskError(e.message || "Acknowledge failed");
+    } finally {
+      setRiskBusy(false);
+    }
+  };
+
+  // Dismiss: removes from "At risk" queue. Requires a reason for audit trail.
+  const handleDismiss = async () => {
+    if (!risk?.id) return;
+    if (!dismissReason.trim()) { setRiskError("Dismiss reason required"); return; }
+    setRiskBusy(true);
+    setRiskError(null);
+    try {
+      const { error: e1 } = await supabase
+        .from("cm_enrollment_risk_assessments")
+        .update({
+          dismissed_at: new Date().toISOString(),
+          dismissed_by: profile?.id || null,
+          dismissed_reason: dismissReason.trim(),
+        })
+        .eq("id", risk.id);
+      if (e1) throw e1;
+      setShowDismiss(false);
+      setDismissReason("");
+      await loadRisk();
+    } catch (e) {
+      setRiskError(e.message || "Dismiss failed");
+    } finally {
+      setRiskBusy(false);
+    }
+  };
 
   const title = (enrollment.patients?.first_name || "") + " " + (enrollment.patients?.last_name || "");
   const canActivate   = enrollment.enrollment_status === "Pending" || enrollment.enrollment_status === "On Hold";
   const canDisenroll  = enrollment.enrollment_status !== "Disenrolled";
   const canEdit       = enrollment.enrollment_status !== "Deceased" && enrollment.enrollment_status !== "Transferred";
+
+  // Role gate for risk actions. CHW can trigger Re-assess but cannot
+  // Acknowledge/Dismiss (those are supervisor-level decisions).
+  const role = profile?.role;
+  const canReassess = role && enrollment.enrollment_status !== "Disenrolled";
+  const canAckDismiss = role && role !== "CHW";
 
   // Inline mode: show the relevant form in place of the read-only view.
   if (mode === "edit") {
@@ -1177,6 +1365,23 @@ function EnrollmentDetail({ enrollment, onClose, onUpdated }) {
           </div>
         </div>
       )}
+
+      {/* AI clinical risk panel */}
+      <RiskPanel
+        risk={risk}
+        loading={riskLoading}
+        busy={riskBusy}
+        error={riskError}
+        canReassess={canReassess}
+        canAckDismiss={canAckDismiss}
+        onReassess={handleReassess}
+        onAcknowledge={handleAcknowledge}
+        showDismiss={showDismiss}
+        setShowDismiss={setShowDismiss}
+        dismissReason={dismissReason}
+        setDismissReason={setDismissReason}
+        onDismiss={handleDismiss}
+      />
 
       {/* Touchpoint history */}
       <div>
@@ -4564,6 +4769,228 @@ function AnalysisSection({ title, tone, children }) {
         {title}
       </div>
       {children}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RiskPanel - renders the latest active risk assessment for an enrollment
+// in the EnrollmentDetail modal. Three states:
+//   - loading
+//   - no assessment yet (shows "Run initial assessment" CTA)
+//   - assessment present (shows narrative + factors + interventions + actions)
+// Actions: Re-assess (any role), Acknowledge + Dismiss (non-CHW only).
+// ---------------------------------------------------------------------------
+function RiskPanel({
+  risk, loading, busy, error,
+  canReassess, canAckDismiss,
+  onReassess, onAcknowledge,
+  showDismiss, setShowDismiss,
+  dismissReason, setDismissReason,
+  onDismiss,
+}) {
+  if (loading) {
+    return (
+      <div style={{ marginBottom: 20, padding: 12, background: C.bgSecondary, borderRadius: 8, fontSize: 12, color: C.textTertiary }}>
+        Loading risk assessment...
+      </div>
+    );
+  }
+
+  // No assessment yet - show "Run initial assessment" CTA
+  if (!risk) {
+    return (
+      <div style={{ marginBottom: 20, padding: 14, background: C.bgSecondary, border: "0.5px dashed " + C.borderLight, borderRadius: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 3 }}>
+              Clinical risk
+            </div>
+            <div style={{ fontSize: 13, color: C.textSecondary }}>
+              No assessment yet. Run an assessment to evaluate engagement, clinical, and social risk signals.
+            </div>
+          </div>
+          {canReassess && (
+            <Btn variant="primary" size="sm" disabled={busy} onClick={onReassess}>
+              {busy ? "Assessing..." : "Run assessment"}
+            </Btn>
+          )}
+        </div>
+        {error && (
+          <div style={{ marginTop: 10, fontSize: 12, color: C.red, background: C.redBg, padding: 8, borderRadius: 6, border: "0.5px solid " + C.redBorder }}>
+            {error}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const level = risk.risk_level;
+  const levelColor =
+    level === "critical" ? "#dc2626" :
+    level === "high"     ? "#dc2626" :
+    level === "medium"   ? "#d97706" :
+    "#047857";
+  const levelBg =
+    level === "critical" ? "#fef2f2" :
+    level === "high"     ? "#fef2f2" :
+    level === "medium"   ? "#fffbeb" :
+    "#f0fdf4";
+  const levelBorder =
+    level === "critical" ? "#fca5a5" :
+    level === "high"     ? "#fca5a5" :
+    level === "medium"   ? "#fcd34d" :
+    "#86efac";
+
+  const factors = Array.isArray(risk.risk_factors) ? risk.risk_factors : [];
+  const interventions = Array.isArray(risk.recommended_interventions) ? risk.recommended_interventions : [];
+  const protective = Array.isArray(risk.protective_factors) ? risk.protective_factors : [];
+
+  const severityColor = (s) => s === "high" ? "red" : s === "medium" ? "amber" : "neutral";
+  const urgencyColor  = (u) => u === "urgent" ? "red" : u === "high" ? "red" : u === "medium" ? "amber" : "neutral";
+
+  return (
+    <div style={{ marginBottom: 20, padding: 14, background: levelBg, border: "0.5px solid " + levelBorder, borderRadius: 10 }}>
+      {/* Header - level + headline + action buttons */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 240 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: levelColor }}>
+              {(level || "").toUpperCase()} RISK
+            </div>
+            {typeof risk.risk_score === "number" && (
+              <div style={{ fontSize: 10, color: C.textTertiary }}>score {risk.risk_score}/100</div>
+            )}
+            {risk.confidence && (
+              <Badge label={"CONF " + String(risk.confidence).toUpperCase()} variant={risk.confidence === "high" ? "green" : risk.confidence === "medium" ? "amber" : "red"} size="xs" />
+            )}
+            {risk.acknowledged_at && <Badge label="ACK" variant="blue" size="xs" />}
+            {risk.dismissed_at && <Badge label="DISMISSED" variant="neutral" size="xs" />}
+          </div>
+          {risk.headline && (
+            <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary, lineHeight: 1.4 }}>
+              {risk.headline}
+            </div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {canReassess && (
+            <Btn variant="outline" size="sm" disabled={busy} onClick={onReassess}>
+              {busy ? "..." : "Re-assess"}
+            </Btn>
+          )}
+          {canAckDismiss && !risk.acknowledged_at && !risk.dismissed_at && (
+            <Btn variant="outline" size="sm" disabled={busy} onClick={onAcknowledge}>Acknowledge</Btn>
+          )}
+          {canAckDismiss && !risk.dismissed_at && (
+            <Btn variant="outline" size="sm" disabled={busy} onClick={() => setShowDismiss(true)} style={{ color: C.textSecondary }}>
+              Dismiss
+            </Btn>
+          )}
+        </div>
+      </div>
+
+      {/* Dismiss reason inline form */}
+      {showDismiss && (
+        <div style={{ marginBottom: 12, padding: 10, background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6 }}>
+          <FL>Reason for dismissing this assessment</FL>
+          <input
+            type="text"
+            value={dismissReason}
+            onChange={e => setDismissReason(e.target.value)}
+            placeholder="e.g. Already resolved - member re-engaged last week"
+            style={inputStyle}
+          />
+          <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "flex-end" }}>
+            <Btn variant="ghost" size="sm" onClick={() => { setShowDismiss(false); setDismissReason(""); }}>Cancel</Btn>
+            <Btn variant="primary" size="sm" disabled={busy || !dismissReason.trim()} onClick={onDismiss}>
+              {busy ? "Dismissing..." : "Confirm dismiss"}
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div style={{ marginBottom: 10, fontSize: 12, color: C.red, background: C.redBg, padding: 8, borderRadius: 6, border: "0.5px solid " + C.redBorder }}>
+          {error}
+        </div>
+      )}
+
+      {/* Narrative */}
+      {risk.narrative && (
+        <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.55, marginBottom: 12 }}>
+          {risk.narrative}
+        </div>
+      )}
+
+      {/* Risk factors */}
+      {factors.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 6 }}>
+            Risk factors
+          </div>
+          {factors.map((f, i) => (
+            <div key={i} style={{ padding: "6px 10px", background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6, marginBottom: i < factors.length - 1 ? 4 : 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                <Badge label={String(f.severity || "med").toUpperCase()} variant={severityColor(f.severity)} size="xs" />
+                {f.category && <Badge label={String(f.category).toUpperCase()} variant="neutral" size="xs" />}
+                <div style={{ fontSize: 12, color: C.textPrimary, fontWeight: 500 }}>{f.factor}</div>
+              </div>
+              {f.evidence && <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>Evidence: {f.evidence}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Recommended interventions */}
+      {interventions.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 6 }}>
+            Recommended interventions
+          </div>
+          {interventions.map((iv, i) => (
+            <div key={i} style={{ padding: "6px 10px", background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6, marginBottom: i < interventions.length - 1 ? 4 : 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                <Badge label={String(iv.urgency || "med").toUpperCase()} variant={urgencyColor(iv.urgency)} size="xs" />
+                <div style={{ fontSize: 12, color: C.textPrimary, fontWeight: 500, flex: 1 }}>{iv.action}</div>
+              </div>
+              <div style={{ fontSize: 10, color: C.textTertiary, marginTop: 3, display: "flex", gap: 10 }}>
+                {iv.owner && <span>Owner: {String(iv.owner).replace(/_/g, " ")}</span>}
+                {iv.rationale && <span style={{ flex: 1 }}>- {iv.rationale}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Protective factors + next-contact-by + assessment metadata */}
+      {protective.length > 0 && (
+        <div style={{ marginBottom: 10, fontSize: 12, color: C.textSecondary }}>
+          <span style={{ fontWeight: 600, color: C.textPrimary }}>Protective factors:</span> {protective.join(" / ")}
+        </div>
+      )}
+      {risk.suggested_next_contact_by && (
+        <div style={{ marginBottom: 8, fontSize: 12, color: C.textPrimary }}>
+          <span style={{ fontWeight: 600 }}>Suggested next contact by:</span>{" "}
+          <span style={{ color: levelColor, fontWeight: 600 }}>
+            {new Date(risk.suggested_next_contact_by + "T12:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
+          </span>
+        </div>
+      )}
+
+      {/* Dismiss reason audit trail */}
+      {risk.dismissed_at && risk.dismissed_reason && (
+        <div style={{ marginTop: 10, fontSize: 11, color: C.textTertiary, fontStyle: "italic", paddingTop: 8, borderTop: "0.5px solid " + C.borderLight }}>
+          Dismissed {new Date(risk.dismissed_at).toLocaleDateString()}: {risk.dismissed_reason}
+        </div>
+      )}
+
+      {/* Footer: assessment metadata */}
+      <div style={{ marginTop: 10, fontSize: 10, color: C.textTertiary, borderTop: "0.5px solid " + C.borderLight, paddingTop: 8, display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <span>Assessed {risk.assessed_at ? new Date(risk.assessed_at).toLocaleString() : ""}</span>
+        <span>Trigger: {risk.trigger_reason}{risk.model ? " / " + risk.model : ""}</span>
+      </div>
     </div>
   );
 }
