@@ -1865,10 +1865,11 @@ function CHWTab() {
 // Enrollment has three plan-related dimensions:
 //   1. health_plan_type - Tailored Plan / Standard Plan / Other (or null for informal)
 //   2. program_type     - TCM / AMH / General Engagement / Other
-//   3. cm_provider_type - AMH+ / AMH Tier 3 / CMA / CIN / Plan-based / Other
+//   3. cm_provider_type - AMH+ / AMH Tier 3 / CMA / CIN / Other
+//      (Plan-based excluded: practices do not enroll plan-managed members)
 //
 // Valid combinations are enforced by PLAN_PROGRAM_MATRIX in cmCadence.js:
-//   Tailored Plan -> TCM, delivered by Plan-based / AMH+ / CMA / CIN
+//   Tailored Plan -> TCM, delivered by AMH+ / CMA / CIN
 //   Standard Plan -> AMH, delivered by AMH Tier 3 / CIN
 //   Other         -> General Engagement or Other, any provider
 //   (null plan)   -> informal, no constraint
@@ -1890,7 +1891,6 @@ const ALL_PROGRAM_TYPES = [
 ];
 
 const ALL_PROVIDER_TYPES = [
-  "Plan-based",
   "AMH+",
   "AMH Tier 3",
   "CMA",
@@ -1922,6 +1922,7 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
 
   const [saving, setSaving]               = useState(false);
   const [error, setError]                 = useState(null);
+  const [autoFilledFrom, setAutoFilledFrom] = useState("");
 
   // Load lookup data in parallel
   useEffect(() => {
@@ -1975,6 +1976,42 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
       setAcuityTier("");
     }
   }, [planType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-populate from patient insurance when a patient is selected.
+  //
+  // Pulls rank=1 active insurance policy and:
+  //   - Pre-fills payer_name + plan_member_id (if those fields are empty)
+  //   - Derives health_plan_type from payer_category:
+  //       "NC Medicaid - Tailored"  -> "Tailored Plan"
+  //       "NC Medicaid - Standard"  -> "Standard Plan"
+  //       anything else             -> left null (user picks)
+  //   - Program type cascades automatically via the plan-cascade useEffect
+  //
+  // Only fills empty fields - won't clobber anything the user already typed.
+  // Shows a small info banner so the user knows auto-fill happened.
+  useEffect(() => {
+    if (!patientId) { setAutoFilledFrom(""); return; }
+    let cancelled = false;
+    supabase
+      .from("insurance_policies")
+      .select("payer_category, payer_name, member_id")
+      .eq("patient_id", patientId)
+      .eq("is_active", true)
+      .order("rank", { ascending: true })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        if (!payerName.trim())    setPayerName(data.payer_name || "");
+        if (!planMemberId.trim()) setPlanMemberId(data.member_id || "");
+        if (!planType) {
+          if (data.payer_category === "NC Medicaid - Tailored")      setPlanType("Tailored Plan");
+          else if (data.payer_category === "NC Medicaid - Standard") setPlanType("Standard Plan");
+        }
+        setAutoFilledFrom(data.payer_name || "insurance on file");
+      });
+    return () => { cancelled = true; };
+  }, [patientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Patient search filtering
   const patientMatches = useMemo(() => {
@@ -2098,7 +2135,7 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
                   {selectedPatient.date_of_birth ? " | DOB " + new Date(selectedPatient.date_of_birth).toLocaleDateString() : ""}
                 </div>
               </div>
-              <Btn size="sm" variant="outline" onClick={() => { setPatientId(""); setPatientSearch(""); }}>
+              <Btn size="sm" variant="outline" onClick={() => { setPatientId(""); setPatientSearch(""); setAutoFilledFrom(""); }}>
                 Change
               </Btn>
             </div>
@@ -2145,6 +2182,12 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
           )}
         </div>
 
+        {autoFilledFrom && (
+          <div style={{ gridColumn: "1 / -1", padding: "8px 12px", background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8, fontSize: 12, color: C.textSecondary }}>
+            <strong>Auto-filled</strong> payer, plan type, and member ID from {autoFilledFrom} on file. Edit any field to override.
+          </div>
+        )}
+
         {/* Plan type picker - drives program + provider cascades */}
         <div>
           <FL>Health plan type</FL>
@@ -2181,7 +2224,7 @@ function NewEnrollmentModal({ practiceId, userId, onClose, onCreated }) {
           </select>
           {planType === "Tailored Plan" && !allowOverride && (
             <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
-              Tailored Plan: Plan-based, AMH+, CMA, or CIN
+              Tailored Plan: AMH+, CMA, or CIN
             </div>
           )}
           {planType === "Standard Plan" && !allowOverride && (
