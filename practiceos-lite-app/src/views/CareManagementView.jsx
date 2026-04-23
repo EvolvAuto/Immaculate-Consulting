@@ -1932,7 +1932,7 @@ function PlansTab({ practiceId, profile }) {
     setLoading(true);
     supabase
       .from("cm_care_plans")
-      .select("id, patient_id, enrollment_id, plan_type, plan_status, version, assessment_date, last_reviewed_at, next_review_due, effective_date, expires_at, goals, medications_reviewed, ai_drafted, human_reviewed_at, member_ack_at, created_at, patients(first_name, last_name, mrn), cm_enrollments(program_type, health_plan_type, cm_provider_type)")
+      .select("id, patient_id, enrollment_id, plan_type, plan_status, version, assessment_date, last_reviewed_at, next_review_due, effective_date, expires_at, goals, interventions, unmet_needs, risk_factors, strengths, supports, medications_reviewed, ai_drafted, ai_draft_model, ai_draft_at, ai_draft_prompt_version, human_reviewed_at, member_ack_at, notes, created_at, patients(first_name, last_name, mrn), cm_enrollments(program_type, health_plan_type, cm_provider_type)")
       .eq("practice_id", practiceId)
       .order("created_at", { ascending: false })
       .then(({ data, error: e }) => {
@@ -2144,7 +2144,12 @@ function PlanDetailModal({ plan, onClose, onUpdated }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-        <DetailField label="Status"      value={<PlanStatusBadge status={plan.plan_status} />} />
+        <DetailField label="Status"      value={
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <PlanStatusBadge status={plan.plan_status} />
+            {plan.ai_drafted && <Badge label="AI DRAFTED" variant="blue" size="xs" />}
+          </div>
+        } />
         <DetailField label="Version"     value={"v" + plan.version} />
         <DetailField label="Assessment"  value={plan.assessment_date ? new Date(plan.assessment_date).toLocaleDateString() : "-"} />
         <DetailField label="Effective"   value={plan.effective_date ? new Date(plan.effective_date).toLocaleDateString() : "-"} />
@@ -2175,7 +2180,7 @@ function PlanSection({ title, items, emptyMsg }) {
       ) : (
         <div style={{ border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
           {items.map((item, i) => {
-            const text = typeof item === "string" ? item : (item.text || item.description || JSON.stringify(item));
+            const text = typeof item === "string" ? item : (item.text || item.description || item.name || JSON.stringify(item));
             return (
               <div key={i} style={{ padding: "8px 12px", borderBottom: i < items.length - 1 ? "0.5px solid " + C.borderLight : "none", fontSize: 13 }}>
                 {text}
@@ -2214,6 +2219,18 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
   const [medsReviewed, setMedsReviewed]     = useState(false);
   const [notes, setNotes]                   = useState("");
 
+  // AI draft state - set when user clicks "Draft with AI".
+  // `aiDraft` holds the full structured response so we can save all sections.
+  // `aiMeta`  holds model/version/generated_at for the audit fields on save.
+  // `goalsBaseline` captures what the textarea looked like right after drafting;
+  // if the user edits it, we detect divergence and fall back to simple strings
+  // (preserving their edits but losing the AI's per-goal metadata).
+  const [aiDrafting, setAiDrafting]     = useState(false);
+  const [aiError, setAiError]           = useState(null);
+  const [aiDraft, setAiDraft]           = useState(null);
+  const [aiMeta, setAiMeta]             = useState(null);
+  const [goalsBaseline, setGoalsBaseline] = useState("");
+
   useEffect(() => {
     if (!practiceId) return;
     supabase
@@ -2234,6 +2251,11 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
     if (!selectedEnrollment) return;
     if (selectedEnrollment.health_plan_type === "Standard Plan") setPlanType("AMH Tier 3 Care Plan");
     else setPlanType("Care Plan");
+    // Clear any prior AI draft when the enrollment changes
+    setAiDraft(null);
+    setAiMeta(null);
+    setAiError(null);
+    setGoalsBaseline("");
   }, [selectedEnrollment?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -2243,13 +2265,71 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
     setNextReviewDue(d.toISOString().split("T")[0]);
   }, [assessmentDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // -------------------------------------------------------------------------
+  // AI draft call - invokes the cmp-draft-care-plan edge function with the
+  // current enrollment. Populates the goals textarea + captures structured
+  // sections that will be written on save.
+  // -------------------------------------------------------------------------
+  const handleAiDraft = async () => {
+    if (!enrollmentId) { setAiError("Pick an enrollment first"); return; }
+    setAiDrafting(true);
+    setAiError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-draft-care-plan";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({ enrollment_id: enrollmentId }),
+      });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+
+      // Capture goals text + structured data + audit metadata
+      setGoalsText(body.goals_text || "");
+      setGoalsBaseline(body.goals_text || "");
+      setAiDraft(body.structured || null);
+      setAiMeta({
+        model_used:     body.model_used,
+        prompt_version: body.prompt_version,
+        generated_at:   body.generated_at,
+      });
+
+      // If AI recommends 6-month review cadence, override the 12-month default
+      const cadence = body.structured?.recommended_review_cadence_months;
+      if (cadence === 6 && assessmentDate) {
+        const d = new Date(assessmentDate + "T12:00:00Z");
+        d.setUTCMonth(d.getUTCMonth() + 6);
+        setNextReviewDue(d.toISOString().split("T")[0]);
+      }
+    } catch (e) {
+      setAiError(e.message || "AI draft failed");
+    } finally {
+      setAiDrafting(false);
+    }
+  };
+
   const save = async () => {
     if (!enrollmentId) { setError("Pick an enrollment"); return; }
     if (!planType)     { setError("Pick a plan type"); return; }
 
     setSaving(true); setError(null);
 
-    const goals = goalsText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+    // Goal resolution:
+    // - If AI drafted AND the textarea still matches the AI baseline exactly,
+    //   save the full structured goal objects (preserves domain/target_date/measure/rationale).
+    // - Otherwise the user edited the textarea, so save as simple string array.
+    const goalsFromText = goalsText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+    const textareaMatchesBaseline = aiDraft && goalsText === goalsBaseline;
+    const goals = textareaMatchesBaseline && Array.isArray(aiDraft.goals) && aiDraft.goals.length > 0
+      ? aiDraft.goals
+      : goalsFromText;
 
     const nowIso = new Date().toISOString();
     const payload = {
@@ -2267,6 +2347,21 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
       notes:         notes.trim() || null,
       created_by:    userId || null,
     };
+
+    // When AI drafted, attach all structured sections + audit flags so the
+    // PlanDetailModal will render interventions/unmet_needs/etc. and CMs
+    // can see the AI provenance.
+    if (aiDraft) {
+      payload.interventions = Array.isArray(aiDraft.interventions) ? aiDraft.interventions : [];
+      payload.unmet_needs   = Array.isArray(aiDraft.unmet_needs)   ? aiDraft.unmet_needs   : [];
+      payload.risk_factors  = Array.isArray(aiDraft.risk_factors)  ? aiDraft.risk_factors  : [];
+      payload.strengths     = Array.isArray(aiDraft.strengths)     ? aiDraft.strengths     : [];
+      payload.supports      = Array.isArray(aiDraft.supports)      ? aiDraft.supports      : [];
+      payload.ai_drafted            = true;
+      payload.ai_draft_model        = aiMeta?.model_used || null;
+      payload.ai_draft_at           = aiMeta?.generated_at || nowIso;
+      payload.ai_draft_prompt_version = aiMeta?.prompt_version || null;
+    }
 
     try {
       const { error: insErr } = await supabase.from("cm_care_plans").insert(payload);
@@ -2301,6 +2396,35 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
           </select>
         </div>
 
+        {/* AI Draft call-to-action - appears once an enrollment is picked */}
+        {enrollmentId && (
+          <div style={{ gridColumn: "1 / -1", padding: 12, background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.textPrimary }}>AI draft assistant</div>
+                <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 2 }}>
+                  {aiDraft
+                    ? "Draft generated. Review each section below before saving."
+                    : "Pull the member's record (enrollment, touchpoints, HRSN, problem list) and draft SMART goals + interventions + barriers for your review."}
+                </div>
+              </div>
+              <Btn
+                variant={aiDraft ? "outline" : "primary"}
+                size="sm"
+                disabled={aiDrafting}
+                onClick={handleAiDraft}
+              >
+                {aiDrafting ? "Drafting..." : (aiDraft ? "Re-draft" : "Draft with AI")}
+              </Btn>
+            </div>
+            {aiError && (
+              <div style={{ marginTop: 8, fontSize: 12, color: C.red, background: C.redBg, padding: "6px 10px", borderRadius: 6, border: "0.5px solid " + C.redBorder }}>
+                {aiError}
+              </div>
+            )}
+          </div>
+        )}
+
         <div>
           <FL>Plan type</FL>
           <select value={planType} onChange={e => setPlanType(e.target.value)} style={selectStyle}>
@@ -2321,7 +2445,11 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
         <div>
           <FL>Next review due</FL>
           <input type="date" value={nextReviewDue} onChange={e => setNextReviewDue(e.target.value)} style={inputStyle} />
-          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>Default: 1 year after assessment</div>
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
+            {aiDraft && aiDraft.recommended_review_cadence_months === 6
+              ? "AI recommends 6-month review based on this member's profile"
+              : "Default: 1 year after assessment"}
+          </div>
         </div>
 
         <div>
@@ -2330,6 +2458,18 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
             <span style={{ fontSize: 13 }}>Medications reviewed</span>
           </label>
         </div>
+
+        {/* Assessment summary - shown when AI drafted */}
+        {aiDraft?.assessment_summary && (
+          <div style={{ gridColumn: "1 / -1", padding: 12, background: "#f0f9ff", border: "0.5px solid #bae6fd", borderRadius: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#075985", marginBottom: 4 }}>
+              AI Assessment Summary
+            </div>
+            <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.5 }}>
+              {aiDraft.assessment_summary}
+            </div>
+          </div>
+        )}
 
         <div style={{ gridColumn: "1 / -1" }}>
           <FL>Goals (one per line)</FL>
@@ -2340,8 +2480,19 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
             placeholder="Reduce A1C to under 7.0 by next review&#10;Attend all scheduled primary care visits&#10;Fill prescriptions within 48 hours of PCP refill"
             style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
           />
-          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>Each non-blank line becomes a goal. Interventions and other sections can be added after the plan is created (via MCP for now).</div>
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
+            {aiDraft
+              ? "Edit freely - each non-blank line is a goal. AI-structured metadata (domain, target date, measure) is preserved only if you keep the text exactly as drafted."
+              : "Each non-blank line becomes a goal. Interventions and other sections can be added after the plan is created (via MCP for now)."}
+          </div>
         </div>
+
+        {/* AI draft preview - read-only cards for the sections that aren't editable in v1 */}
+        {aiDraft && (
+          <div style={{ gridColumn: "1 / -1" }}>
+            <AiDraftPreview draft={aiDraft} />
+          </div>
+        )}
 
         <div style={{ gridColumn: "1 / -1" }}>
           <FL>Notes (optional)</FL>
@@ -2356,6 +2507,107 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
         </Btn>
       </div>
     </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AiDraftPreview - read-only preview of the sections the AI drafted.
+// For v1 users cannot edit these in the creation modal (they edit post-save
+// via MCP or future PlanDetailModal enhancements). Visible tells the CM what
+// context the AI included so they can course-correct with a Re-draft.
+// ---------------------------------------------------------------------------
+function AiDraftPreview({ draft }) {
+  const interventions = Array.isArray(draft.interventions) ? draft.interventions : [];
+  const unmetNeeds    = Array.isArray(draft.unmet_needs)   ? draft.unmet_needs   : [];
+  const riskFactors   = Array.isArray(draft.risk_factors)  ? draft.risk_factors  : [];
+  const strengths     = Array.isArray(draft.strengths)     ? draft.strengths     : [];
+  const supports      = Array.isArray(draft.supports)      ? draft.supports      : [];
+  const quality       = draft.quality_notes || {};
+
+  return (
+    <div style={{ padding: 12, background: "#fafafa", border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary }}>
+          AI draft sections
+        </div>
+        {quality.data_completeness && (
+          <Badge
+            label={"DATA " + String(quality.data_completeness).toUpperCase()}
+            variant={quality.data_completeness === "high" ? "green" : quality.data_completeness === "medium" ? "amber" : "red"}
+            size="xs"
+          />
+        )}
+      </div>
+
+      <AiDraftChunk title="Interventions" items={interventions} render={(i) => (
+        <div>
+          <div style={{ fontSize: 13, color: C.textPrimary }}>{i.description}</div>
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>
+            {[i.cadence, i.responsible_party].filter(Boolean).join(" \u00B7 ")}
+          </div>
+        </div>
+      )} />
+
+      <AiDraftChunk title="Unmet needs / barriers" items={unmetNeeds} render={(u) => (
+        <div>
+          <div style={{ fontSize: 13, color: C.textPrimary, display: "flex", gap: 6, alignItems: "baseline" }}>
+            <span>{u.description}</span>
+            {u.urgency && <Badge label={String(u.urgency).toUpperCase()} variant={u.urgency === "urgent" ? "red" : u.urgency === "high" ? "amber" : "neutral"} size="xs" />}
+          </div>
+          {u.mitigation_idea && (
+            <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2, fontStyle: "italic" }}>Idea: {u.mitigation_idea}</div>
+          )}
+        </div>
+      )} />
+
+      <AiDraftChunk title="Risk factors" items={riskFactors} render={(r) => (
+        <div style={{ fontSize: 13, color: C.textPrimary }}>{r.description}</div>
+      )} />
+
+      <AiDraftChunk title="Strengths" items={strengths} render={(s) => (
+        <div style={{ fontSize: 13, color: C.textPrimary }}>{typeof s === "string" ? s : (s.text || JSON.stringify(s))}</div>
+      )} />
+
+      <AiDraftChunk title="Supports" items={supports} render={(s) => (
+        <div>
+          <div style={{ fontSize: 13, color: C.textPrimary }}>{s.name}{s.relationship ? " (" + s.relationship + ")" : ""}</div>
+          {s.role && <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{s.role}</div>}
+        </div>
+      )} />
+
+      {Array.isArray(quality.missing_data_elements) && quality.missing_data_elements.length > 0 && (
+        <div style={{ marginTop: 12, padding: 10, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 6 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 4 }}>
+            Missing data that would improve this draft
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.textPrimary }}>
+            {quality.missing_data_elements.map((el, i) => <li key={i}>{el}</li>)}
+          </ul>
+        </div>
+      )}
+
+      <div style={{ marginTop: 10, fontSize: 10, color: C.textTertiary, fontStyle: "italic" }}>
+        Clinical review required before finalization.
+      </div>
+    </div>
+  );
+}
+
+function AiDraftChunk({ title, items, render }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 4 }}>
+        {title} ({items.length})
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {items.map((it, i) => (
+          <div key={i} style={{ padding: "8px 10px", background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6 }}>
+            {render(it)}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
