@@ -102,7 +102,7 @@ export default function CareManagementView() {
       <div style={{ flex: 1, overflow: "auto", padding: 24, background: C.bgTertiary }}>
         {tab === "registry"    && <RegistryTab />}
         {tab === "touchpoints" && <TouchpointsTab />}
-        {tab === "plans"       && <PlansTab practiceId={practiceId} profile={profile} />}
+        {tab === "plans"       && <PlansTab practiceId={profile?.practice_id} profile={profile} />}
         {tab === "billing"     && <BillingTab />}
         {tab === "chw"         && <CHWTab />}
         {tab === "prl"         && <PRLTab />}
