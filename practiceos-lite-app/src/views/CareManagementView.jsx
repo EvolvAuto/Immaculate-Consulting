@@ -7,6 +7,8 @@ import {
   SectionHead, FL, TabBar
 } from "../components/ui";
 import { stalenessBand, isBillableByPlan, isPastBillingRiskDay, PLAN_PROGRAM_MATRIX, validatePlanProgramProvider } from "../lib/cmCadence";
+import { normalizeGoals, goalText, blankGoal, isBlankGoal } from "../lib/cmGoals";
+import { GoalEditor, GoalDisplay } from "../components/GoalEditor";
 import CHWTab from "./CHWTab";
 
 // ===============================================================================
@@ -2808,7 +2810,12 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
         </div>
       )}
 
-      <PlanSection title="Goals"         items={goals}         emptyMsg="No goals recorded" />
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+          Goals ({normalizeGoals(goals).length})
+        </div>
+        <GoalDisplay goals={goals} emptyMsg="No goals recorded" />
+      </div>
       <PlanSection title="Interventions" items={interventions} emptyMsg="No interventions recorded" />
       <PlanSection title="Unmet needs"   items={unmetNeeds}    emptyMsg="No unmet needs recorded" />
       <PlanSection title="Risk factors"  items={riskFactors}   emptyMsg="No risk factors recorded" />
@@ -2984,22 +2991,19 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
   const [planType, setPlanType]           = useState("");
   const [assessmentDate, setAssessmentDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [nextReviewDue, setNextReviewDue]   = useState("");
-  const [goalsText, setGoalsText]           = useState("");
+  // Structured goals array (canonical shape). Replaces the old goalsText string.
+  // Always at least one blank row so there's always somewhere to type.
+  const [structuredGoals, setStructuredGoals] = useState([blankGoal()]);
   const [medsReviewed, setMedsReviewed]     = useState(false);
   const [notes, setNotes]                   = useState("");
 
-  // AI draft state - set when user clicks "Draft with AI".
-  // `aiDraft` holds the full structured response so we can save all sections.
-  // `aiMeta`  holds model/version/generated_at for the audit fields on save.
-  // `goalsBaseline` captures what the textarea looked like right after drafting;
-  // if the user edits it, we detect divergence and fall back to simple strings
-  // (preserving their edits but losing the AI's per-goal metadata).
+  // AI draft state. Only structure-level draft data here now - goals live in
+  // structuredGoals above. aiDraft.goals is merged into structuredGoals on
+  // "Draft with AI" so the editor shows the AI output immediately.
   const [aiDrafting, setAiDrafting]     = useState(false);
   const [aiError, setAiError]           = useState(null);
   const [aiDraft, setAiDraft]           = useState(null);
   const [aiMeta, setAiMeta]             = useState(null);
-  const [goalsBaseline, setGoalsBaseline] = useState("");
-
   useEffect(() => {
     if (!practiceId) return;
     supabase
@@ -3024,7 +3028,6 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
     setAiDraft(null);
     setAiMeta(null);
     setAiError(null);
-    setGoalsBaseline("");
   }, [selectedEnrollment?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -3060,9 +3063,12 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
       const body = await res.json();
       if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
 
-      // Capture goals text + structured data + audit metadata
-      setGoalsText(body.goals_text || "");
-      setGoalsBaseline(body.goals_text || "");
+      // Populate structuredGoals directly from the AI output. normalizeGoals
+      // handles the legacy {text, ...} shape from cmp-draft-care-plan v1 by
+      // renaming text -> goal.
+      const aiGoals = Array.isArray(body.structured?.goals) ? body.structured.goals : [];
+      setStructuredGoals(normalizeGoals(aiGoals));
+
       setAiDraft(body.structured || null);
       setAiMeta({
         model_used:     body.model_used,
@@ -3083,22 +3089,15 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
       setAiDrafting(false);
     }
   };
-
   const save = async () => {
     if (!enrollmentId) { setError("Pick an enrollment"); return; }
     if (!planType)     { setError("Pick a plan type"); return; }
 
-    setSaving(true); setError(null);
+    // Goals: filter blanks, normalize, then require at least one non-blank.
+    const goals = normalizeGoals(structuredGoals).filter(g => !isBlankGoal(g));
+    if (goals.length === 0) { setError("Add at least one goal"); return; }
 
-    // Goal resolution:
-    // - If AI drafted AND the textarea still matches the AI baseline exactly,
-    //   save the full structured goal objects (preserves domain/target_date/measure/rationale).
-    // - Otherwise the user edited the textarea, so save as simple string array.
-    const goalsFromText = goalsText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-    const textareaMatchesBaseline = aiDraft && goalsText === goalsBaseline;
-    const goals = textareaMatchesBaseline && Array.isArray(aiDraft.goals) && aiDraft.goals.length > 0
-      ? aiDraft.goals
-      : goalsFromText;
+    setSaving(true); setError(null);
 
     const nowIso = new Date().toISOString();
     const payload = {
@@ -3117,9 +3116,9 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
       created_by:    userId || null,
     };
 
-    // When AI drafted, attach all structured sections + audit flags so the
-    // PlanDetailModal will render interventions/unmet_needs/etc. and CMs
-    // can see the AI provenance.
+    // When AI drafted, attach all the other structured sections + audit flags.
+    // goals is already canonical-shaped above (came from structuredGoals which
+    // is kept in canonical form via normalizeGoals on every AI draft call).
     if (aiDraft) {
       payload.interventions = Array.isArray(aiDraft.interventions) ? aiDraft.interventions : [];
       payload.unmet_needs   = Array.isArray(aiDraft.unmet_needs)   ? aiDraft.unmet_needs   : [];
@@ -3138,7 +3137,6 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
       onCreated();
     } catch (e) { setError(e.message || "Failed to create plan"); setSaving(false); }
   };
-
   if (loading) {
     return (
       <Modal title="New care plan" onClose={onClose} width={760}>
@@ -3241,18 +3239,15 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
         )}
 
         <div style={{ gridColumn: "1 / -1" }}>
-          <FL>Goals (one per line)</FL>
-          <textarea
-            value={goalsText}
-            onChange={e => setGoalsText(e.target.value)}
-            rows={5}
-            placeholder="Reduce A1C to under 7.0 by next review&#10;Attend all scheduled primary care visits&#10;Fill prescriptions within 48 hours of PCP refill"
-            style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+          <GoalEditor
+            goals={structuredGoals}
+            onChange={setStructuredGoals}
+            label="Goals"
           />
           <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
             {aiDraft
-              ? "Edit freely - each non-blank line is a goal. AI-structured metadata (domain, target date, measure) is preserved only if you keep the text exactly as drafted."
-              : "Each non-blank line becomes a goal. Interventions and other sections can be added after the plan is created (via MCP for now)."}
+              ? "AI-drafted goals load structured. Edit the text, adjust priority, add target dates - all fields persist."
+              : "Add one or more goals. Expand each row to set domain, target date, measure, and rationale."}
           </div>
         </div>
 
