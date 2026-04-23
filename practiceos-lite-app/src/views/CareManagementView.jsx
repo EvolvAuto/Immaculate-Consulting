@@ -44,11 +44,18 @@ const CM_ROLES = new Set([
   "Care Manager Supervisor",
 ]);
 
+// Admin-only tabs (PRL). Clinical roles (CM, Supervising CM, CHW) don't see
+// PRL - it's the health-plan roster exchange and is an administrative/billing
+// function, not clinical care work. Owners and Managers can grant a user
+// "Manager" role if they need PRL access.
+const ADMIN_ROLES = new Set(["Owner", "Manager"]);
+
 export default function CareManagementView() {
   const { profile } = useAuth();
   const role = profile?.role;
   const canAccess = role && (CM_ROLES.has(role) || role === "CHW");
-  const [tab, setTab] = useState("prl"); // Default to PRL since it's fully wired
+  const isAdmin = role && ADMIN_ROLES.has(role);
+  const [tab, setTab] = useState("registry"); // Default to Registry; PRL is admin-only
 
   // Unauthorized roles see a polite block instead of the console
   if (!canAccess) {
@@ -67,10 +74,16 @@ export default function CareManagementView() {
     );
   }
 
-  // CHW role: only see a limited view of Registry + Touchpoints (no PRL, no Billing, no Plans)
+ // Role-based tab visibility.
+  //   CHW:                       Registry + Touchpoints + CHW Coordination
+  //   Clinical (CM, Supervising CM, Care Manager Supervisor):
+  //                              Registry + Touchpoints + Plans + Billing + CHW
+  //   Admin (Owner, Manager):    all tabs including PRL
   const visibleTabs = role === "CHW"
     ? ["registry", "touchpoints", "chw"]
-    : TAB_KEYS;
+    : isAdmin
+      ? TAB_KEYS
+      : ["registry", "touchpoints", "plans", "billing", "chw"];
 
   // Keep tab valid for role
   useEffect(() => {
