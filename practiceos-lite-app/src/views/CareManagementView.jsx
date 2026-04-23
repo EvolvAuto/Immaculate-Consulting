@@ -5324,51 +5324,28 @@ function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSaved }) {
         ai_generated_at:    modelMeta?.generated_at,
       };
 
-      const refreshed = draft.refreshed_plan || {};
-      const assessmentDate = new Date().toISOString().split("T")[0];
-      // Default 365d out if reviewer didn't override
-      let nextDue = nextReviewDue || null;
-      if (!nextDue && refreshed.suggested_next_review_due) nextDue = refreshed.suggested_next_review_due;
-      if (!nextDue) {
-        const d = new Date();
-        d.setUTCFullYear(d.getUTCFullYear() + 1);
-        nextDue = d.toISOString().split("T")[0];
-      }
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
 
-      const { data: inserted, error: insErr } = await supabase
-        .from("cm_care_plans")
-        .insert({
-          practice_id:         priorPlan.practice_id,
-          patient_id:          priorPlan.patient_id,
-          enrollment_id:       priorPlan.enrollment_id,
-          plan_type:           priorPlan.plan_type,
-          plan_status:         "Draft",
-          version:             (priorPlan.version || 1) + 1,
-          assessment_date:     assessmentDate,
-          next_review_due:     nextDue,
-          effective_date:      null,
-          goals:               Array.isArray(refreshed.goals)         ? refreshed.goals         : [],
-          interventions:       Array.isArray(refreshed.interventions) ? refreshed.interventions : [],
-          unmet_needs:         Array.isArray(refreshed.unmet_needs)   ? refreshed.unmet_needs   : [],
-          risk_factors:        Array.isArray(refreshed.risk_factors)  ? refreshed.risk_factors  : [],
-          strengths:           Array.isArray(refreshed.strengths)     ? refreshed.strengths     : [],
-          supports:            Array.isArray(refreshed.supports)      ? refreshed.supports      : [],
-          emergency_plan:      refreshed.emergency_plan || {},
-          medications_reviewed: false,
-          prior_plan_id:       priorPlan.id,
-          review_summary:      finalSummary,
-          ai_drafted:          true,
-          ai_draft_model:      modelMeta?.model || null,
-          ai_draft_at:         modelMeta?.generated_at || new Date().toISOString(),
-          ai_draft_prompt_version: modelMeta?.prompt_version || null,
-          notes:               reviewerNotes.trim() || null,
-          created_by:          userId || null,
-          updated_by:          userId || null,
-        })
-        .select("id")
-        .single();
-
-      if (insErr) throw insErr;
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-save-annual-review";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({
+          prior_plan_id:   priorPlan.id,
+          refreshed_plan:  draft.refreshed_plan || {},
+          review_summary:  { ...draft.review_summary, overall_assessment: overallAssessment || draft.review_summary?.overall_assessment || "" },
+          next_review_due: nextReviewDue || null,
+          reviewer_notes:  reviewerNotes.trim() || null,
+          model_meta:      modelMeta || {},
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
       if (onSaved) onSaved();
     } catch (e) {
       setError(e.message || "Save failed");
