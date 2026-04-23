@@ -2895,9 +2895,9 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
           <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary }}>
             Goals ({normalizeGoals(editingGoals ? editedGoals : goals).length})
           </div>
-          {!editingGoals && (plan.plan_status === "Draft" || plan.plan_status === "Active") && role && role !== "CHW" && (
+          {!editingGoals && (
             <Btn variant="outline" size="sm" onClick={handleStartEditGoals}>
-              Edit goals
+              Edit goals [debug: role={String(profile?.role)} status={plan.plan_status}]
             </Btn>
           )}
         </div>
