@@ -108,9 +108,14 @@ function stripKnownKeys(obj) {
 }
 
 // Normalize an array of goals (or null/undefined). Always returns an array.
+// CRITICAL: Does NOT filter blank goals. Blank rows are legitimate in-progress
+// state in the editor (user clicks "+ Add goal" to get a blank to type into).
+// Previous version filtered here, which caused the "Add goal" button to
+// silently do nothing - new blanks got filtered out on re-render.
+// Callers filter blanks themselves via .filter(g => !isBlankGoal(g)) on save.
 export function normalizeGoals(goals) {
   if (!Array.isArray(goals)) return [];
-  return goals.map(normalizeGoal).filter(g => g.goal && g.goal.trim().length > 0);
+  return goals.map(normalizeGoal);
 }
 
 // Extract plain display text from a normalized (or legacy) goal.
