@@ -2533,6 +2533,16 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
   // (staff-captured member acknowledgment). All nested flows render INSIDE the
   // existing Modal wrapper to avoid double-Modal stacking.
   const [mode, setMode] = useState("view");
+  // Edit-goals mode: toggles the Goals section from read-only GoalDisplay to
+  // editable GoalEditor with Save/Cancel buttons. Used to add structured
+  // metadata (domain, target_date, measure, rationale, status) to goals on
+  // existing plans - particularly useful for legacy plans that were migrated
+  // from string-array goals to the canonical shape and now need metadata
+  // filled in after the fact.
+  const [editingGoals, setEditingGoals] = useState(false);
+  const [editedGoals, setEditedGoals]   = useState([]);
+  const [savingGoals, setSavingGoals]   = useState(false);
+  const [goalsError, setGoalsError]     = useState(null);
 
   // Role gate for the Annual Review AI button. Tier gating is enforced
   // server-side in cmp-draft-annual-review; a 403 surfaces in the error
@@ -2645,6 +2655,76 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
       setError(e.message || String(e));
     } finally {
       setSharingPortal(false);
+    }
+  };
+
+  const goals         = Array.isArray(plan.goals)         ? plan.goals         : [];const handleSharePortal = async () => {
+    if (!plan.document_storage_path) {
+      setError("Generate the PDF first, then share to portal.");
+      return;
+    }
+    setSharingPortal(true); setError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-share-plan-portal";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({ plan_id: plan.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || "Portal share failed");
+      if (onUpdated) onUpdated();
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setSharingPortal(false);
+    }
+  };
+
+  // Goal editing. Seed editedGoals from the current plan, swap to editor
+  // mode, and wait for the user to Save or Cancel.
+  const handleStartEditGoals = () => {
+    setEditedGoals(normalizeGoals(plan.goals));
+    setGoalsError(null);
+    setEditingGoals(true);
+  };
+
+  const handleCancelEditGoals = () => {
+    setEditingGoals(false);
+    setGoalsError(null);
+    setEditedGoals([]);
+  };
+
+  // Save edited goals. Filters out blank rows, requires at least one goal,
+  // and writes directly to cm_care_plans.goals. Since this is a metadata
+  // edit (not a version bump), we do not create a new plan version - the
+  // existing row is updated in place. Calling onUpdated() refreshes the
+  // parent list and closes the modal per existing PlanDetailModal patterns.
+  const handleSaveGoals = async () => {
+    setSavingGoals(true);
+    setGoalsError(null);
+    try {
+      const cleanGoals = normalizeGoals(editedGoals).filter(g => !isBlankGoal(g));
+      if (cleanGoals.length === 0) {
+        setGoalsError("Plan must have at least one goal");
+        setSavingGoals(false);
+        return;
+      }
+      const { error: updErr } = await supabase
+        .from("cm_care_plans")
+        .update({ goals: cleanGoals, updated_at: new Date().toISOString() })
+        .eq("id", plan.id);
+      if (updErr) throw updErr;
+      if (onUpdated) onUpdated();
+    } catch (e) {
+      setGoalsError(e.message || "Failed to save goals");
+      setSavingGoals(false);
     }
   };
 
@@ -2811,10 +2891,36 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
       )}
 
       <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
-          Goals ({normalizeGoals(goals).length})
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary }}>
+            Goals ({normalizeGoals(editingGoals ? editedGoals : goals).length})
+          </div>
+          {!editingGoals && (plan.plan_status === "Draft" || plan.plan_status === "Active") && role && role !== "CHW" && (
+            <Btn variant="outline" size="sm" onClick={handleStartEditGoals}>
+              Edit goals
+            </Btn>
+          )}
         </div>
-        <GoalDisplay goals={goals} emptyMsg="No goals recorded" />
+        {editingGoals ? (
+          <div>
+            <GoalEditor goals={editedGoals} onChange={setEditedGoals} label={null} />
+            {goalsError && (
+              <div style={{ marginTop: 8, padding: "8px 10px", background: C.redBg, border: "0.5px solid " + C.redBorder, borderRadius: 6, fontSize: 12, color: C.red }}>
+                {goalsError}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+              <Btn variant="primary" size="sm" onClick={handleSaveGoals} disabled={savingGoals}>
+                {savingGoals ? "Saving..." : "Save goals"}
+              </Btn>
+              <Btn variant="ghost" size="sm" onClick={handleCancelEditGoals} disabled={savingGoals}>
+                Cancel
+              </Btn>
+            </div>
+          </div>
+        ) : (
+          <GoalDisplay goals={goals} emptyMsg="No goals recorded" />
+        )}
       </div>
       <PlanSection title="Interventions" items={interventions} emptyMsg="No interventions recorded" />
       <PlanSection title="Unmet needs"   items={unmetNeeds}    emptyMsg="No unmet needs recorded" />
@@ -3139,14 +3245,14 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
   };
   if (loading) {
     return (
-      <Modal title="New care plan" onClose={onClose} width={760}>
+      <Modal title="New care plan" onClose={onClose} width={900}>
         <Loader label="Loading enrollments..." />
       </Modal>
     );
   }
 
   return (
-    <Modal title="New care plan" onClose={onClose} width={760}>
+    <Modal title="New care plan" onClose={onClose} width={900}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
