@@ -3099,6 +3099,15 @@ function BillingPeriodDetailModal({ period, userId, canSubmitClaim, onClose, onU
   const [denialCode, setDenialCode]   = useState("");
   const [denialReason, setDenialReason] = useState("");
 
+  // AI explainer state. The edge function returns a structured analysis with
+  // status assessment, path-to-ready steps, audit risks, and recommended
+  // actions. `aiContext` holds the small metadata packet (billing_month,
+  // days_remaining, etc.) so the UI can show deadlines without recomputing.
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiAnalysis, setAiAnalysis]   = useState(null);
+  const [aiContext, setAiContext]     = useState(null);
+  const [aiError, setAiError]         = useState(null);
+
   const title = (period.patients?.first_name || "") + " " + (period.patients?.last_name || "")
     + " - " + new Date(period.billing_month + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 
@@ -3155,6 +3164,41 @@ function BillingPeriodDetailModal({ period, userId, canSubmitClaim, onClose, onU
     });
   };
 
+  // -------------------------------------------------------------------------
+  // AI explainer - calls cmp-billing-explainer and renders the structured
+  // analysis inline. Works for all claim statuses; the edge function returns
+  // different sections based on status (path_to_ready vs audit_risks vs
+  // denial_analysis). Re-runnable by clicking again.
+  // -------------------------------------------------------------------------
+  const handleAiAnalyze = async () => {
+    setAiAnalyzing(true);
+    setAiError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not authenticated");
+
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-billing-explainer";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({ billing_period_id: period.id }),
+      });
+      const body = await res.json();
+      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+
+      setAiAnalysis(body.analysis || null);
+      setAiContext(body.context || null);
+    } catch (e) {
+      setAiError(e.message || "AI analysis failed");
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
   const roleRows = [
     ["Care Manager",             period.actual_care_manager_contacts],
     ["Supervising Care Manager", period.actual_supervising_contacts],
@@ -3180,24 +3224,40 @@ function BillingPeriodDetailModal({ period, userId, canSubmitClaim, onClose, onU
     <Modal title={title} onClose={onClose} width={760}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      {/* Action buttons based on current claim state - row hidden when empty */}
-      {(showReady || showSubmitted || showVerify) && (
-        <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight, flexWrap: "wrap" }}>
-          {showReady && (
-            <Btn variant="primary" size="sm" onClick={() => setShowSubmit(true)}>Submit claim</Btn>
-          )}
-          {showSubmitted && (
-            <>
-              <Btn variant="primary" size="sm" onClick={() => setShowPaid(true)}>Mark paid</Btn>
-              <Btn variant="outline" size="sm" onClick={() => setShowDenied(true)} style={{ color: C.red, borderColor: C.redBorder }}>Mark denied</Btn>
-            </>
-          )}
-          {showVerify && (
-            <Btn variant="outline" size="sm" disabled={saving} onClick={approveVerification}>
-              {saving ? "Approving..." : "Mark verified"}
-            </Btn>
-          )}
+      {/* Toolbar: Explain with AI always available; claim lifecycle actions conditional */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight, flexWrap: "wrap" }}>
+        <Btn
+          variant={aiAnalysis ? "outline" : "primary"}
+          size="sm"
+          disabled={aiAnalyzing}
+          onClick={handleAiAnalyze}
+        >
+          {aiAnalyzing ? "Analyzing..." : (aiAnalysis ? "Re-analyze" : "Explain with AI")}
+        </Btn>
+        {showReady && (
+          <Btn variant="primary" size="sm" onClick={() => setShowSubmit(true)}>Submit claim</Btn>
+        )}
+        {showSubmitted && (
+          <>
+            <Btn variant="primary" size="sm" onClick={() => setShowPaid(true)}>Mark paid</Btn>
+            <Btn variant="outline" size="sm" onClick={() => setShowDenied(true)} style={{ color: C.red, borderColor: C.redBorder }}>Mark denied</Btn>
+          </>
+        )}
+        {showVerify && (
+          <Btn variant="outline" size="sm" disabled={saving} onClick={approveVerification}>
+            {saving ? "Approving..." : "Mark verified"}
+          </Btn>
+        )}
+      </div>
+
+      {/* AI analysis error + result */}
+      {aiError && (
+        <div style={{ marginBottom: 16, fontSize: 12, color: C.red, background: C.redBg, padding: "10px 12px", borderRadius: 8, border: "0.5px solid " + C.redBorder }}>
+          {aiError}
         </div>
+      )}
+      {aiAnalysis && (
+        <BillingAnalysisCard analysis={aiAnalysis} context={aiContext} claimStatus={period.claim_status} />
       )}
 
       {/* Inline submit claim form */}
@@ -4296,3 +4356,214 @@ const selectStyle = {
   WebkitAppearance: "none",
   paddingRight: 32,
 };
+
+// ---------------------------------------------------------------------------
+// BillingAnalysisCard - renders the structured output from cmp-billing-explainer.
+// Sections shown adapt to claim_status: Not Ready gets path_to_ready, Ready/
+// Submitted get audit_risks, Denied gets denial_analysis. All statuses get
+// the narrative summary + recommended_next_actions + add_on_opportunities.
+// ---------------------------------------------------------------------------
+function BillingAnalysisCard({ analysis, context, claimStatus }) {
+  if (!analysis) return null;
+
+  const pathToReady     = Array.isArray(analysis.path_to_ready)          ? analysis.path_to_ready          : [];
+  const auditRisks      = Array.isArray(analysis.audit_risks)            ? analysis.audit_risks            : [];
+  const nextActions     = Array.isArray(analysis.recommended_next_actions) ? analysis.recommended_next_actions : [];
+  const addOns          = Array.isArray(analysis.add_on_opportunities)   ? analysis.add_on_opportunities   : [];
+  const denial          = analysis.denial_analysis || null;
+  const caveats         = Array.isArray(analysis.confidence_caveats)     ? analysis.confidence_caveats     : [];
+
+  const statusLabel = (s) => {
+    if (!s) return "Analysis";
+    return s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const statusColor = (s) => {
+    if (s === "ready_strong" || s === "paid" || s === "on_track") return "#047857"; // green
+    if (s === "ready_audit_risk" || s === "at_risk" || s === "submitted_waiting") return "#d97706"; // amber
+    if (s === "blocked" || s === "denied_resubmittable" || s === "denied_terminal") return "#dc2626"; // red
+    return "#0369a1"; // blue
+  };
+
+  const priorityColor = (p) => p === "urgent" ? "red" : p === "high" ? "red" : p === "medium" ? "amber" : "neutral";
+  const severityColor = (s) => s === "high" ? "red" : s === "medium" ? "amber" : "neutral";
+
+  const deadlineLabel = (d) => {
+    if (!d) return null;
+    if (d === "asap")         return "ASAP";
+    if (d === "end_of_month") return "End of month";
+    // Try to parse as ISO date
+    try {
+      const dt = new Date(d + "T12:00:00Z");
+      return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    } catch (e) { return d; }
+  };
+
+  return (
+    <div style={{ marginBottom: 20, padding: 14, background: "#f0f9ff", border: "0.5px solid #bae6fd", borderRadius: 10 }}>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10, gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#075985" }}>
+            AI Analysis
+          </div>
+          {analysis.status_assessment && (
+            <div style={{ fontSize: 12, fontWeight: 700, color: statusColor(analysis.status_assessment) }}>
+              {statusLabel(analysis.status_assessment)}
+            </div>
+          )}
+          {context?.days_remaining_in_month > 0 && context?.month_status === "current" && (
+            <div style={{ fontSize: 11, color: C.textTertiary }}>
+              {context.days_remaining_in_month} day{context.days_remaining_in_month === 1 ? "" : "s"} left this month
+            </div>
+          )}
+        </div>
+        {analysis.confidence && (
+          <Badge
+            label={"CONFIDENCE " + String(analysis.confidence).toUpperCase()}
+            variant={analysis.confidence === "high" ? "green" : analysis.confidence === "medium" ? "amber" : "red"}
+            size="xs"
+          />
+        )}
+      </div>
+
+      {/* Narrative */}
+      {analysis.narrative_summary && (
+        <div style={{ fontSize: 13, color: C.textPrimary, lineHeight: 1.55, marginBottom: 14 }}>
+          {analysis.narrative_summary}
+        </div>
+      )}
+
+      {/* Path to ready (Not Ready periods) */}
+      {pathToReady.length > 0 && (
+        <AnalysisSection title="Path to ready" tone="amber">
+          {pathToReady.map((step, i) => (
+            <div key={i} style={{ padding: "8px 10px", background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6, marginBottom: i < pathToReady.length - 1 ? 6 : 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 2 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{step.action}</div>
+                {deadlineLabel(step.deadline) && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.red, whiteSpace: "nowrap" }}>
+                    By {deadlineLabel(step.deadline)}
+                  </div>
+                )}
+              </div>
+              {step.reason && (
+                <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{step.reason}</div>
+              )}
+            </div>
+          ))}
+        </AnalysisSection>
+      )}
+
+      {/* Audit risks (Ready/Submitted periods) */}
+      {auditRisks.length > 0 && (
+        <AnalysisSection title="Audit durability risks" tone="amber">
+          {auditRisks.map((risk, i) => (
+            <div key={i} style={{ padding: "8px 10px", background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6, marginBottom: i < auditRisks.length - 1 ? 6 : 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                <Badge label={String(risk.severity || "medium").toUpperCase()} variant={severityColor(risk.severity)} size="xs" />
+                <div style={{ fontSize: 13, color: C.textPrimary }}>{risk.risk}</div>
+              </div>
+              {risk.mitigation && (
+                <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2, fontStyle: "italic" }}>Mitigation: {risk.mitigation}</div>
+              )}
+            </div>
+          ))}
+        </AnalysisSection>
+      )}
+
+      {/* Denial analysis (Denied periods) */}
+      {claimStatus === "Denied" && denial && denial.root_cause_hypothesis && (
+        <AnalysisSection title="Denial analysis" tone="red">
+          <div style={{ padding: 10, background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6 }}>
+            <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 4 }}>
+              <strong style={{ color: C.textPrimary }}>Likely root cause:</strong> {denial.root_cause_hypothesis}
+            </div>
+            {Array.isArray(denial.evidence) && denial.evidence.length > 0 && (
+              <div style={{ marginTop: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, marginBottom: 2 }}>Evidence</div>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.textPrimary }}>
+                  {denial.evidence.map((ev, i) => <li key={i}>{ev}</li>)}
+                </ul>
+              </div>
+            )}
+            {denial.resubmission_viability && (
+              <div style={{ marginTop: 8, fontSize: 12 }}>
+                <strong style={{ color: C.textPrimary }}>Resubmission viability:</strong>{" "}
+                <Badge
+                  label={String(denial.resubmission_viability).replace(/_/g, " ").toUpperCase()}
+                  variant={denial.resubmission_viability === "viable" ? "green" : denial.resubmission_viability === "partially_viable" ? "amber" : "red"}
+                  size="xs"
+                />
+              </div>
+            )}
+            {Array.isArray(denial.resubmission_steps) && denial.resubmission_steps.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.textSecondary, marginBottom: 2 }}>Resubmission steps</div>
+                <ol style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.textPrimary }}>
+                  {denial.resubmission_steps.map((st, i) => <li key={i}>{st}</li>)}
+                </ol>
+              </div>
+            )}
+          </div>
+        </AnalysisSection>
+      )}
+
+      {/* Add-on opportunities */}
+      {addOns.length > 0 && (
+        <AnalysisSection title="Add-on code opportunities" tone="green">
+          {addOns.map((a, i) => (
+            <div key={i} style={{ padding: "8px 10px", background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6, marginBottom: i < addOns.length - 1 ? 6 : 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>{String(a.code || "").toUpperCase()}</div>
+                <Badge
+                  label={String(a.eligibility || "").replace(/_/g, " ").toUpperCase()}
+                  variant={a.eligibility === "likely_eligible" ? "green" : a.eligibility === "needs_verification" ? "amber" : "neutral"}
+                  size="xs"
+                />
+              </div>
+              {a.reasoning && <div style={{ fontSize: 11, color: C.textTertiary }}>{a.reasoning}</div>}
+            </div>
+          ))}
+        </AnalysisSection>
+      )}
+
+      {/* Recommended next actions (always shown) */}
+      {nextActions.length > 0 && (
+        <AnalysisSection title="Recommended next actions" tone="blue">
+          {nextActions.map((a, i) => (
+            <div key={i} style={{ padding: "8px 10px", background: C.bgPrimary, border: "0.5px solid " + C.borderLight, borderRadius: 6, marginBottom: i < nextActions.length - 1 ? 6 : 0 }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                <Badge label={String(a.priority || "medium").toUpperCase()} variant={priorityColor(a.priority)} size="xs" />
+                <div style={{ fontSize: 13, color: C.textPrimary, flex: 1 }}>{a.action}</div>
+              </div>
+              <div style={{ fontSize: 10, color: C.textTertiary, marginTop: 4, display: "flex", gap: 10 }}>
+                {a.owner && <span>Owner: {String(a.owner).replace(/_/g, " ")}</span>}
+                {a.estimated_impact && <span>Impact: {String(a.estimated_impact).replace(/_/g, " ")}</span>}
+              </div>
+            </div>
+          ))}
+        </AnalysisSection>
+      )}
+
+      {/* Confidence caveats */}
+      {caveats.length > 0 && (
+        <div style={{ marginTop: 10, padding: 8, fontSize: 11, color: C.textTertiary, fontStyle: "italic" }}>
+          Caveats: {caveats.join(" / ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AnalysisSection({ title, tone, children }) {
+  const borderColor = tone === "amber" ? "#fbbf24" : tone === "red" ? "#f87171" : tone === "green" ? "#34d399" : "#60a5fa";
+  return (
+    <div style={{ marginBottom: 12, paddingLeft: 10, borderLeft: "2px solid " + borderColor }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 6 }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
