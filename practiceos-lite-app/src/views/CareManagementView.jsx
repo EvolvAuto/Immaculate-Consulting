@@ -2392,7 +2392,7 @@ function BillingTab({ practiceId, profile }) {
 
   const role = profile?.role;
   const canRecompute  = role && role !== "CHW";
-  const canSubmitClaim = role === "Owner" || role === "Manager" || role === "Care Manager Supervisor";
+  const canSubmitClaim = role && role !== "CHW";
 
   const load = () => {
     if (!practiceId) return;
@@ -2711,27 +2711,35 @@ function BillingPeriodDetailModal({ period, userId, canSubmitClaim, onClose, onU
 
   const flags = Array.isArray(period.flagged_issues) ? period.flagged_issues : [];
 
+  // Which action buttons should be shown. Precomputed so the action row
+  // only renders when at least one is available (avoids empty bordered row).
+  const showReady     = period.claim_status === "Ready"     && canSubmitClaim && !showSubmit;
+  const showSubmitted = period.claim_status === "Submitted" && canSubmitClaim && !showPaid && !showDenied;
+  const showVerify    = period.verification_status !== "Approved" && canSubmitClaim;
+
   return (
     <Modal title={title} onClose={onClose} width={760}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
-      {/* Action buttons based on current claim state */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight, flexWrap: "wrap" }}>
-        {period.claim_status === "Ready" && canSubmitClaim && !showSubmit && (
-          <Btn variant="primary" size="sm" onClick={() => setShowSubmit(true)}>Submit claim</Btn>
-        )}
-        {period.claim_status === "Submitted" && canSubmitClaim && !showPaid && !showDenied && (
-          <>
-            <Btn variant="primary" size="sm" onClick={() => setShowPaid(true)}>Mark paid</Btn>
-            <Btn variant="outline" size="sm" onClick={() => setShowDenied(true)} style={{ color: C.red, borderColor: C.redBorder }}>Mark denied</Btn>
-          </>
-        )}
-        {period.verification_status !== "Approved" && canSubmitClaim && (
-          <Btn variant="outline" size="sm" disabled={saving} onClick={approveVerification}>
-            {saving ? "Approving..." : "Mark verified"}
-          </Btn>
-        )}
-      </div>
+      {/* Action buttons based on current claim state - row hidden when empty */}
+      {(showReady || showSubmitted || showVerify) && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight, flexWrap: "wrap" }}>
+          {showReady && (
+            <Btn variant="primary" size="sm" onClick={() => setShowSubmit(true)}>Submit claim</Btn>
+          )}
+          {showSubmitted && (
+            <>
+              <Btn variant="primary" size="sm" onClick={() => setShowPaid(true)}>Mark paid</Btn>
+              <Btn variant="outline" size="sm" onClick={() => setShowDenied(true)} style={{ color: C.red, borderColor: C.redBorder }}>Mark denied</Btn>
+            </>
+          )}
+          {showVerify && (
+            <Btn variant="outline" size="sm" disabled={saving} onClick={approveVerification}>
+              {saving ? "Approving..." : "Mark verified"}
+            </Btn>
+          )}
+        </div>
+      )}
 
       {/* Inline submit claim form */}
       {showSubmit && (
