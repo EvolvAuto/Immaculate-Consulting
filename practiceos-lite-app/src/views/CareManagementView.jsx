@@ -2363,7 +2363,7 @@ function PlansTab({ practiceId, profile }) {
     setLoading(true);
     supabase
       .from("cm_care_plans")
-      .select("id, patient_id, enrollment_id, plan_type, plan_status, version, assessment_date, last_reviewed_at, next_review_due, effective_date, expires_at, goals, interventions, unmet_needs, risk_factors, strengths, supports, medications_reviewed, ai_drafted, ai_draft_model, ai_draft_at, ai_draft_prompt_version, human_reviewed_at, member_ack_at, notes, created_at, patients(first_name, last_name, mrn), cm_enrollments(program_type, health_plan_type, cm_provider_type)")
+      .select("id, patient_id, enrollment_id, plan_type, plan_status, version, assessment_date, last_reviewed_at, next_review_due, effective_date, expires_at, goals, interventions, unmet_needs, risk_factors, strengths, supports, medications_reviewed, ai_drafted, ai_draft_model, ai_draft_at, ai_draft_prompt_version, human_reviewed_at, human_reviewed_by, human_reviewer_role, prior_plan_id, review_summary, member_ack_at, member_ack_method, member_ack_notes, member_ack_by, member_ack_role, document_url, document_storage_path, document_generated_at, portal_shared_at, portal_shared_by, notes, created_at, patients(first_name, last_name, mrn), cm_enrollments(program_type, health_plan_type, cm_provider_type)")
       .eq("practice_id", practiceId)
       .order("created_at", { ascending: false })
       .then(({ data, error: e }) => {
@@ -2525,10 +2525,11 @@ function PlanStatusBadge({ status }) {
 function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
-  // Sub-mode: "view" (default, read-only) | "draftReview" (AI annual review).
-  // Keeping the sub-mode inside PlanDetailModal instead of opening a nested
-  // modal avoids double-Modal stacking and lets the reviewer flip back to the
-  // prior-plan view without closing the whole thing.
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [sharingPortal,  setSharingPortal]  = useState(false);
+  // Sub-mode: "view" (default) | "draftReview" (annual review) | "captureAck"
+  // (staff-captured member acknowledgment). All nested flows render INSIDE the
+  // existing Modal wrapper to avoid double-Modal stacking.
   const [mode, setMode] = useState("view");
 
   // Role gate for the Annual Review AI button. Tier gating is enforced
@@ -2582,6 +2583,69 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
     } catch (e) { setError(e.message); setSaving(false); }
   };
 
+  // Generate (or regenerate) the PDF and open it in a new tab. Each call
+  // produces a fresh artifact so the download always reflects the current
+  // plan state. The edge function also writes document_url/path/at to the
+  // plan row.
+  const handleDownloadPdf = async () => {
+    setGeneratingPdf(true); setError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-generate-plan-pdf";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({ plan_id: plan.id }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body?.signed_url) {
+        throw new Error(body?.error || "PDF generation failed");
+      }
+      window.open(body.signed_url, "_blank", "noopener,noreferrer");
+      if (onUpdated) onUpdated();
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  // Push the plan to the patient portal and queue a notification email.
+  // Requires a PDF on file (edge function also enforces this).
+  const handleSharePortal = async () => {
+    if (!plan.document_storage_path) {
+      setError("Generate the PDF first, then share to portal.");
+      return;
+    }
+    setSharingPortal(true); setError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-share-plan-portal";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({ plan_id: plan.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || "Portal share failed");
+      if (onUpdated) onUpdated();
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setSharingPortal(false);
+    }
+  };
+
   const goals         = Array.isArray(plan.goals)         ? plan.goals         : [];
   const interventions = Array.isArray(plan.interventions) ? plan.interventions : [];
   const unmetNeeds    = Array.isArray(plan.unmet_needs)   ? plan.unmet_needs   : [];
@@ -2605,15 +2669,24 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
     );
   }
 
+  if (mode === "captureAck") {
+    return (
+      <Modal title={"Capture acknowledgment: " + title} onClose={onClose} width={560}>
+        <CaptureAckForm
+          plan={plan}
+          onCancel={() => setMode("view")}
+          onSaved={() => { setMode("view"); if (onUpdated) onUpdated(); }}
+        />
+      </Modal>
+    );
+  }
+
   return (
     <Modal title={title} onClose={onClose} width={820}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight, flexWrap: "wrap" }}>
         {plan.plan_status === "Draft" && plan.ai_drafted && !plan.human_reviewed_by && (
-          // AI-drafted Draft - activation requires human review attestation
-          // per the cm_care_plans_ai_review_gate check constraint. CHW can't
-          // attest clinical plans, so only non-CHW roles get the button.
           role && role !== "CHW" ? (
             <Btn variant="primary" size="sm" disabled={saving} onClick={() => transitionStatus("Active", { markReviewed: true })}>
               {saving ? "Activating..." : "Mark reviewed + activate"}
@@ -2625,7 +2698,6 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
           )
         )}
         {plan.plan_status === "Draft" && (!plan.ai_drafted || plan.human_reviewed_by) && (
-          // Human-drafted plan OR AI-drafted plan that already has reviewer on file
           <Btn variant="primary" size="sm" disabled={saving} onClick={() => transitionStatus("Active")}>
             {saving ? "Activating..." : "Activate plan"}
           </Btn>
@@ -2643,6 +2715,21 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
         {canDraftReview && (
           <Btn variant="primary" size="sm" onClick={() => setMode("draftReview")}>
             Draft annual review with AI
+          </Btn>
+        )}
+        {plan.plan_status === "Active" && role && role !== "CHW" && (
+          <Btn variant="outline" size="sm" disabled={generatingPdf} onClick={handleDownloadPdf}>
+            {generatingPdf ? "Generating..." : (plan.document_generated_at ? "Download PDF" : "Generate PDF")}
+          </Btn>
+        )}
+        {plan.plan_status === "Active" && role && role !== "CHW" && !plan.member_ack_at && (
+          <Btn variant="outline" size="sm" onClick={() => setMode("captureAck")}>
+            Capture acknowledgment
+          </Btn>
+        )}
+        {plan.plan_status === "Active" && role && role !== "CHW" && plan.document_storage_path && !plan.portal_shared_at && (
+          <Btn variant="outline" size="sm" disabled={sharingPortal} onClick={handleSharePortal}>
+            {sharingPortal ? "Sharing..." : "Share to portal"}
           </Btn>
         )}
       </div>
@@ -2663,8 +2750,63 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
         <DetailField label="Last reviewed" value={plan.last_reviewed_at ? new Date(plan.last_reviewed_at).toLocaleDateString() : "-"} />
         <DetailField label="Next review" value={plan.next_review_due ? new Date(plan.next_review_due).toLocaleDateString() : "-"} />
         <DetailField label="Meds reviewed" value={plan.medications_reviewed ? "Yes" : "No"} />
-        <DetailField label="Member ack"  value={plan.member_ack_at ? new Date(plan.member_ack_at).toLocaleDateString() : "No"} />
+        <DetailField label="PDF generated" value={plan.document_generated_at ? new Date(plan.document_generated_at).toLocaleDateString() : "-"} />
       </div>
+
+      {/* Lifecycle panel: PDF + portal share + member ack status. Only
+          surfaces on Active plans where lifecycle is meaningful. */}
+      {plan.plan_status === "Active" && (plan.portal_shared_at || plan.member_ack_at || plan.document_storage_path) && (
+        <div style={{ padding: 12, marginBottom: 20, border: "0.5px solid " + C.borderLight, borderRadius: 8, background: C.bgSecondary }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 10 }}>
+            Lifecycle
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textTertiary, textTransform: "uppercase", marginBottom: 4 }}>PDF</div>
+              {plan.document_storage_path ? (
+                <div style={{ fontSize: 13, color: C.textPrimary }}>
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: C.green, marginRight: 6, verticalAlign: "middle" }}></span>
+                  Generated
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: C.textTertiary, fontStyle: "italic" }}>Not yet generated</div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textTertiary, textTransform: "uppercase", marginBottom: 4 }}>Portal share</div>
+              {plan.portal_shared_at ? (
+                <div style={{ fontSize: 13, color: C.textPrimary }}>
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: C.green, marginRight: 6, verticalAlign: "middle" }}></span>
+                  {new Date(plan.portal_shared_at).toLocaleDateString()}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: C.textTertiary, fontStyle: "italic" }}>Not shared</div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: C.textTertiary, textTransform: "uppercase", marginBottom: 4 }}>Member ack</div>
+              {plan.member_ack_at ? (
+                <div style={{ fontSize: 13, color: C.textPrimary }}>
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: C.green, marginRight: 6, verticalAlign: "middle" }}></span>
+                  {new Date(plan.member_ack_at).toLocaleDateString()}
+                  {plan.member_ack_method && (
+                    <span style={{ fontSize: 11, color: C.textTertiary, marginLeft: 6 }}>
+                      ({plan.member_ack_method}{plan.member_ack_role ? ", " + plan.member_ack_role.toLowerCase() : ""})
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: C.textTertiary, fontStyle: "italic" }}>Pending</div>
+              )}
+            </div>
+          </div>
+          {plan.member_ack_notes && (
+            <div style={{ marginTop: 10, padding: "8px 10px", background: C.bgPrimary, borderRadius: 6, fontSize: 12, color: C.textSecondary, borderLeft: "2px solid " + C.borderLight }}>
+              <span style={{ fontWeight: 600, color: C.textTertiary }}>Ack notes: </span>{plan.member_ack_notes}
+            </div>
+          )}
+        </div>
+      )}
 
       <PlanSection title="Goals"         items={goals}         emptyMsg="No goals recorded" />
       <PlanSection title="Interventions" items={interventions} emptyMsg="No interventions recorded" />
@@ -2679,6 +2821,120 @@ function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
         <ReviewSummaryPanel summary={plan.review_summary} priorPlanId={plan.prior_plan_id} />
       )}
     </Modal>
+  );
+}
+
+// Staff-captured member acknowledgment. Records that a CM walked the member
+// through their plan via phone/in-person/video. The edge function handles
+// server-side validation (Command tier, Active plan, non-CHW role, method
+// in the accepted set).
+function CaptureAckForm({ plan, onCancel, onSaved }) {
+  const [method, setMethod] = useState("Telephonic");
+  const [notes,  setNotes]  = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error,  setError]  = useState(null);
+
+  const METHOD_OPTIONS = [
+    { value: "Telephonic", label: "By phone" },
+    { value: "In Person",  label: "In person" },
+    { value: "Video",      label: "Video visit" },
+  ];
+
+  const handleSubmit = async () => {
+    setSaving(true); setError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-member-ack-plan";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({
+          plan_id: plan.id,
+          method:  method,
+          notes:   notes || null,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body?.error || "Acknowledgment failed");
+      onSaved();
+    } catch (e) {
+      setError(e.message || String(e));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+      <div style={{ fontSize: 13, color: C.textSecondary, marginBottom: 16, lineHeight: 1.5 }}>
+        Record that you walked the member through this care plan and they acknowledged it verbally.
+        This attestation becomes part of the audit trail for NC Medicaid compliance.
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+          How did you confirm?
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {METHOD_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setMethod(opt.value)}
+              style={{
+                padding: "8px 14px",
+                border: "0.5px solid " + (method === opt.value ? C.teal : C.borderLight),
+                background: method === opt.value ? C.teal : C.bgPrimary,
+                color: method === opt.value ? "#ffffff" : C.textPrimary,
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: method === opt.value ? 600 : 400,
+                fontFamily: "inherit",
+                cursor: "pointer",
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 20 }}>
+        <FL>Notes (optional)</FL>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Any questions the member raised, or changes they requested..."
+          rows={4}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            border: "1px solid " + C.borderMid,
+            borderRadius: 8,
+            fontSize: 13,
+            fontFamily: "inherit",
+            resize: "vertical",
+            boxSizing: "border-box",
+            background: C.bgPrimary,
+            color: C.textPrimary,
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 12, borderTop: "0.5px solid " + C.borderLight }}>
+        <Btn variant="ghost" size="sm" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Btn>
+        <Btn variant="primary" size="sm" onClick={handleSubmit} disabled={saving}>
+          {saving ? "Recording..." : "Record acknowledgment"}
+        </Btn>
+      </div>
+    </div>
   );
 }
 
