@@ -103,7 +103,7 @@ export default function CareManagementView() {
         {tab === "registry"    && <RegistryTab />}
         {tab === "touchpoints" && <TouchpointsTab />}
         {tab === "plans"       && <PlansTab practiceId={profile?.practice_id} profile={profile} />}
-        {tab === "billing"     && <BillingTab />}
+        {tab === "billing"     && <BillingTab practiceId={profile?.practice_id} profile={profile} />}
         {tab === "chw"         && <CHWTab />}
         {tab === "prl"         && <PRLTab />}
       </div>
@@ -2358,15 +2358,538 @@ function NewPlanModal({ practiceId, userId, onClose, onCreated }) {
   );
 }
 
-function BillingTab() {
+// ===============================================================================
+// Billing Readiness tab
+// ===============================================================================
+//
+// Displays cm_billing_periods - one row per (enrollment, billing_month).
+//
+// Data pipeline: supabase.rpc("cm_rollup_practice_billing", { practice, month })
+// aggregates qualifying touchpoints (counts_toward_tcm_contact) into billing
+// period rows, computing readiness flags and claim_status.
+//
+// v1 simplified rules:
+//   - required_contacts_total = 1 for any Active TCM or AMH enrollment
+//   - meets_contact_requirements = actual >= required
+//   - has_care_manager_majority = care_manager_count >= ceil(total / 2)
+//   - Ready when: meets + CM majority + no duplicative
+//
+// Claim lifecycle (simplified): Not Ready -> Ready (auto) -> Submitted (manual)
+//   -> Paid / Denied. No appeal/void UI in v1.
+//
+// Month is normalized to first-of-month. Prev/next buttons shift by calendar
+// month. "Recompute this month" calls the rollup RPC and reloads.
+// ===============================================================================
+
+function BillingTab({ practiceId, profile }) {
+  const [month, setMonth]             = useState(() => firstOfCurrentMonth());
+  const [periods, setPeriods]         = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selected, setSelected]       = useState(null);
+  const [rollingUp, setRollingUp]     = useState(false);
+
+  const role = profile?.role;
+  const canRecompute  = role && role !== "CHW";
+  const canSubmitClaim = role === "Owner" || role === "Manager" || role === "Care Manager Supervisor";
+
+  const load = () => {
+    if (!practiceId) return;
+    setLoading(true);
+    supabase
+      .from("cm_billing_periods")
+      .select("id, patient_id, enrollment_id, billing_month, acuity_tier_snapshot, program_type_snapshot, required_contacts_total, actual_contacts_total, actual_in_person, actual_telephonic, actual_video, actual_care_manager_contacts, actual_supervising_contacts, actual_extender_contacts, actual_provider_contacts, meets_contact_requirements, has_care_manager_majority, has_duplicative_service, claim_status, claim_external_id, claim_ready_at, claim_submitted_at, claim_paid_at, claim_paid_amount, claim_denial_code, claim_denial_reason, verification_status, verified_at, flagged_issues, notes, patients(first_name, last_name, mrn), cm_enrollments(health_plan_type, cm_provider_type, payer_name)")
+      .eq("practice_id", practiceId)
+      .eq("billing_month", month)
+      .order("claim_status", { ascending: true })
+      .then(({ data, error: e }) => {
+        if (e) setError(e.message);
+        else setPeriods(data || []);
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => { load(); }, [practiceId, month]);
+
+  const recompute = async () => {
+    if (!practiceId) return;
+    setRollingUp(true);
+    setError(null);
+    try {
+      const { error: rpcErr } = await supabase.rpc("cm_rollup_practice_billing", {
+        p_practice_id: practiceId,
+        p_month: month,
+      });
+      if (rpcErr) throw rpcErr;
+      load();
+    } catch (e) {
+      setError(e.message || "Recompute failed");
+    } finally {
+      setRollingUp(false);
+    }
+  };
+
+  // KPIs
+  const kpis = useMemo(() => {
+    const counts = {
+      total:     periods.length,
+      ready:     0,
+      notReady:  0,
+      submitted: 0,
+      paid:      0,
+      denied:    0,
+    };
+    for (const p of periods) {
+      if (p.claim_status === "Ready")     counts.ready++;
+      else if (p.claim_status === "Not Ready") counts.notReady++;
+      else if (p.claim_status === "Submitted") counts.submitted++;
+      else if (p.claim_status === "Paid")      counts.paid++;
+      else if (p.claim_status === "Denied")    counts.denied++;
+    }
+    return counts;
+  }, [periods]);
+
+  const filtered = useMemo(() => {
+    if (statusFilter === "all") return periods;
+    return periods.filter(p => p.claim_status === statusFilter);
+  }, [periods, statusFilter]);
+
+  const monthLabel = new Date(month + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+
+  const shiftMonth = (deltaMonths) => {
+    const d = new Date(month + "T12:00:00Z");
+    d.setUTCMonth(d.getUTCMonth() + deltaMonths);
+    setMonth(d.toISOString().split("T")[0].substring(0, 8) + "01");
+  };
+
   return (
-    <ComingSoonTab
-      title="Billing Readiness - Coming next session"
-      description="Monthly billing periods dashboard. Acuity + program snapshotted per month. Readiness flags: meets_contact_requirements, has_care_manager_majority, has_duplicative_service. Claim lifecycle tracking."
-      schemaNote="Tables ready: cm_billing_periods, cm_duplicative_services"
-    />
+    <div>
+      {/* Month selector + recompute */}
+      <Card style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <Btn variant="outline" size="sm" onClick={() => shiftMonth(-1)}>&larr; Prev</Btn>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.textPrimary, minWidth: 160, textAlign: "center" }}>
+            {monthLabel}
+          </div>
+          <Btn variant="outline" size="sm" onClick={() => shiftMonth(1)}>Next &rarr;</Btn>
+          <Btn variant="ghost" size="sm" onClick={() => setMonth(firstOfCurrentMonth())}>Current</Btn>
+        </div>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          {canRecompute && (
+            <Btn variant="primary" size="sm" disabled={rollingUp} onClick={recompute}>
+              {rollingUp ? "Recomputing..." : "Recompute this month"}
+            </Btn>
+          )}
+          <Btn variant="outline" size="sm" onClick={load}>Refresh</Btn>
+        </div>
+      </Card>
+
+      {/* KPI strip */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 20 }}>
+        <KpiCard label="Billable periods" value={kpis.total}     hint="Enrollments this month" />
+        <KpiCard label="Ready to bill"    value={kpis.ready}     hint="Meet floor + CM majority" variant={kpis.ready > 0 ? "green" : "neutral"} />
+        <KpiCard label="Not ready"        value={kpis.notReady}  hint="Missing contacts" variant={kpis.notReady > 0 ? "amber" : "neutral"} />
+        <KpiCard label="Submitted"        value={kpis.submitted} hint="Awaiting payment" variant="blue" />
+        <KpiCard label="Paid"             value={kpis.paid}      hint="Revenue collected" variant="green" />
+        {kpis.denied > 0 && (
+          <KpiCard label="Denied"         value={kpis.denied}    hint="Needs follow-up" variant="red" />
+        )}
+      </div>
+
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      {/* Filter bar */}
+      <Card style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, padding: 12 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary, marginRight: 4 }}>Status</span>
+        {["all", "Ready", "Not Ready", "Submitted", "Paid", "Denied"].map(s => (
+          <FilterPill key={s} active={statusFilter === s} onClick={() => setStatusFilter(s)}>
+            {s === "all" ? "All" : s}
+          </FilterPill>
+        ))}
+      </Card>
+
+      {/* Table */}
+      <Card>
+        {loading ? (
+          <Loader label="Loading billing periods..." />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title={periods.length === 0 ? "No billing periods for " + monthLabel : "No periods match filter"}
+            message={periods.length === 0 ? "Click \"Recompute this month\" to aggregate touchpoints into billing periods." : "Change the status filter to see more results."}
+          />
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr>
+                <Th>Patient</Th>
+                <Th>Program</Th>
+                <Th align="right">Contacts</Th>
+                <Th>Methods</Th>
+                <Th>Flags</Th>
+                <Th>Claim</Th>
+                <Th>Verification</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(bp => {
+                const met  = bp.meets_contact_requirements;
+                const maj  = bp.has_care_manager_majority;
+                const dup  = bp.has_duplicative_service;
+                return (
+                  <tr key={bp.id} onClick={() => setSelected(bp)} style={{ cursor: "pointer" }}>
+                    <Td>
+                      <div style={{ fontWeight: 600 }}>
+                        {bp.patients?.last_name || ""}, {bp.patients?.first_name || ""}
+                      </div>
+                      {bp.patients?.mrn && (
+                        <div style={{ fontSize: 11, color: C.textTertiary, fontFamily: "monospace", marginTop: 2 }}>{bp.patients.mrn}</div>
+                      )}
+                    </Td>
+                    <Td>
+                      <div>{bp.program_type_snapshot}</div>
+                      <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>
+                        {bp.cm_enrollments?.health_plan_type || "-"}
+                        {bp.acuity_tier_snapshot ? " | " + bp.acuity_tier_snapshot : ""}
+                      </div>
+                    </Td>
+                    <Td align="right">
+                      <span style={{ color: met ? C.green : C.red, fontWeight: 700 }}>
+                        {bp.actual_contacts_total}
+                      </span>
+                      <span style={{ color: C.textTertiary }}> / {bp.required_contacts_total}</span>
+                    </Td>
+                    <Td>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", fontSize: 11 }}>
+                        {bp.actual_in_person  > 0 && <span style={{ color: C.textSecondary }}>IP:{bp.actual_in_person}</span>}
+                        {bp.actual_telephonic > 0 && <span style={{ color: C.textSecondary }}>Tel:{bp.actual_telephonic}</span>}
+                        {bp.actual_video      > 0 && <span style={{ color: C.textSecondary }}>Vid:{bp.actual_video}</span>}
+                        {bp.actual_contacts_total === 0 && <span style={{ color: C.textTertiary }}>none</span>}
+                      </div>
+                    </Td>
+                    <Td>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                        {!met && <Badge label="UNDER FLOOR" variant="red" size="xs" />}
+                        {met && !maj && <Badge label="NO CM MAJORITY" variant="amber" size="xs" />}
+                        {dup && <Badge label="DUPLICATIVE" variant="red" size="xs" />}
+                      </div>
+                    </Td>
+                    <Td><ClaimStatusBadge status={bp.claim_status} /></Td>
+                    <Td><VerificationBadge status={bp.verification_status} /></Td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </Card>
+
+      {selected && (
+        <BillingPeriodDetailModal
+          period={selected}
+          userId={profile?.id}
+          canSubmitClaim={canSubmitClaim}
+          onClose={() => setSelected(null)}
+          onUpdated={() => { setSelected(null); load(); }}
+        />
+      )}
+    </div>
   );
 }
+
+// Helper: first of current calendar month as YYYY-MM-DD
+function firstOfCurrentMonth() {
+  const now = new Date();
+  return now.getUTCFullYear() + "-" + String(now.getUTCMonth() + 1).padStart(2, "0") + "-01";
+}
+
+function ClaimStatusBadge({ status }) {
+  const map = {
+    "Not Ready": "neutral",
+    "Ready":     "green",
+    "Submitted": "blue",
+    "Paid":      "green",
+    "Denied":    "red",
+    "Appealed":  "amber",
+    "Void":      "neutral",
+  };
+  return <Badge label={status} variant={map[status] || "neutral"} size="xs" />;
+}
+
+function VerificationBadge({ status }) {
+  if (!status || status === "Not Reviewed") {
+    return <span style={{ fontSize: 11, color: C.textTertiary }}>-</span>;
+  }
+  const map = { "Reviewed": "blue", "Approved": "green", "Flagged": "red" };
+  return <Badge label={status} variant={map[status] || "neutral"} size="xs" />;
+}
+
+// ---------------------------------------------------------------------------
+// BillingPeriodDetailModal - breakdown of a billing period with claim
+// lifecycle actions and verification controls.
+// ---------------------------------------------------------------------------
+
+function BillingPeriodDetailModal({ period, userId, canSubmitClaim, onClose, onUpdated }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState(null);
+  const [showSubmit, setShowSubmit]   = useState(false);
+  const [showPaid, setShowPaid]       = useState(false);
+  const [showDenied, setShowDenied]   = useState(false);
+  const [claimExtId, setClaimExtId]   = useState("");
+  const [paidAmount, setPaidAmount]   = useState("");
+  const [denialCode, setDenialCode]   = useState("");
+  const [denialReason, setDenialReason] = useState("");
+
+  const title = (period.patients?.first_name || "") + " " + (period.patients?.last_name || "")
+    + " - " + new Date(period.billing_month + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+
+  const patchBillingPeriod = async (patch) => {
+    setSaving(true); setError(null);
+    try {
+      const { error: updErr } = await supabase
+        .from("cm_billing_periods")
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("id", period.id);
+      if (updErr) throw updErr;
+      onUpdated();
+    } catch (e) {
+      setError(e.message || "Update failed");
+      setSaving(false);
+    }
+  };
+
+  const submitClaim = async () => {
+    if (!claimExtId.trim()) { setError("External claim ID required"); return; }
+    await patchBillingPeriod({
+      claim_status:        "Submitted",
+      claim_external_id:   claimExtId.trim(),
+      claim_submitted_at:  new Date().toISOString(),
+      claim_submitted_by:  userId || null,
+      claim_ready_at:      period.claim_ready_at || new Date().toISOString(),
+    });
+  };
+
+  const markPaid = async () => {
+    const amt = parseFloat(paidAmount);
+    if (isNaN(amt) || amt < 0) { setError("Valid paid amount required"); return; }
+    await patchBillingPeriod({
+      claim_status:      "Paid",
+      claim_paid_at:     new Date().toISOString(),
+      claim_paid_amount: amt,
+    });
+  };
+
+  const markDenied = async () => {
+    if (!denialReason.trim()) { setError("Denial reason required"); return; }
+    await patchBillingPeriod({
+      claim_status:        "Denied",
+      claim_denial_code:   denialCode.trim() || null,
+      claim_denial_reason: denialReason.trim(),
+    });
+  };
+
+  const approveVerification = async () => {
+    await patchBillingPeriod({
+      verification_status: "Approved",
+      verified_at:         new Date().toISOString(),
+      verified_by:         userId || null,
+    });
+  };
+
+  const roleRows = [
+    ["Care Manager",             period.actual_care_manager_contacts],
+    ["Supervising Care Manager", period.actual_supervising_contacts],
+    ["Extender",                 period.actual_extender_contacts],
+    ["Provider",                 period.actual_provider_contacts],
+  ].filter(r => r[1] > 0);
+
+  const methodRows = [
+    ["In Person",  period.actual_in_person],
+    ["Telephonic", period.actual_telephonic],
+    ["Video",      period.actual_video],
+  ].filter(r => r[1] > 0);
+
+  const flags = Array.isArray(period.flagged_issues) ? period.flagged_issues : [];
+
+  return (
+    <Modal title={title} onClose={onClose} width={760}>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+
+      {/* Action buttons based on current claim state */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16, paddingBottom: 12, borderBottom: "0.5px solid " + C.borderLight, flexWrap: "wrap" }}>
+        {period.claim_status === "Ready" && canSubmitClaim && !showSubmit && (
+          <Btn variant="primary" size="sm" onClick={() => setShowSubmit(true)}>Submit claim</Btn>
+        )}
+        {period.claim_status === "Submitted" && canSubmitClaim && !showPaid && !showDenied && (
+          <>
+            <Btn variant="primary" size="sm" onClick={() => setShowPaid(true)}>Mark paid</Btn>
+            <Btn variant="outline" size="sm" onClick={() => setShowDenied(true)} style={{ color: C.red, borderColor: C.redBorder }}>Mark denied</Btn>
+          </>
+        )}
+        {period.verification_status !== "Approved" && canSubmitClaim && (
+          <Btn variant="outline" size="sm" disabled={saving} onClick={approveVerification}>
+            {saving ? "Approving..." : "Mark verified"}
+          </Btn>
+        )}
+      </div>
+
+      {/* Inline submit claim form */}
+      {showSubmit && (
+        <div style={{ padding: 12, marginBottom: 16, background: C.bgSecondary, borderRadius: 8 }}>
+          <FL>External claim ID (from billing system)</FL>
+          <input type="text" value={claimExtId} onChange={e => setClaimExtId(e.target.value)} placeholder="e.g. CLM-2026-04-00123" style={{ ...inputStyle, fontFamily: "monospace" }} />
+          <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+            <Btn variant="ghost" size="sm" onClick={() => { setShowSubmit(false); setClaimExtId(""); }}>Cancel</Btn>
+            <Btn variant="primary" size="sm" disabled={saving || !claimExtId.trim()} onClick={submitClaim}>
+              {saving ? "Submitting..." : "Confirm submission"}
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Inline mark paid form */}
+      {showPaid && (
+        <div style={{ padding: 12, marginBottom: 16, background: C.bgSecondary, borderRadius: 8 }}>
+          <FL>Paid amount (USD)</FL>
+          <input type="number" step="0.01" value={paidAmount} onChange={e => setPaidAmount(e.target.value)} placeholder="0.00" style={inputStyle} />
+          <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+            <Btn variant="ghost" size="sm" onClick={() => { setShowPaid(false); setPaidAmount(""); }}>Cancel</Btn>
+            <Btn variant="primary" size="sm" disabled={saving || !paidAmount} onClick={markPaid}>
+              {saving ? "Saving..." : "Confirm payment"}
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Inline mark denied form */}
+      {showDenied && (
+        <div style={{ padding: 12, marginBottom: 16, background: C.bgSecondary, borderRadius: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
+            <div>
+              <FL>Denial code (optional)</FL>
+              <input type="text" value={denialCode} onChange={e => setDenialCode(e.target.value)} placeholder="e.g. CO-97" style={{ ...inputStyle, fontFamily: "monospace" }} />
+            </div>
+            <div>
+              <FL>Denial reason</FL>
+              <input type="text" value={denialReason} onChange={e => setDenialReason(e.target.value)} placeholder="e.g. Duplicate service" style={inputStyle} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "flex-end" }}>
+            <Btn variant="ghost" size="sm" onClick={() => { setShowDenied(false); setDenialCode(""); setDenialReason(""); }}>Cancel</Btn>
+            <Btn variant="primary" size="sm" disabled={saving || !denialReason.trim()} onClick={markDenied} style={{ background: C.red, borderColor: C.red }}>
+              {saving ? "Saving..." : "Confirm denial"}
+            </Btn>
+          </div>
+        </div>
+      )}
+
+      {/* Summary row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <DetailField label="Program"          value={period.program_type_snapshot} />
+        <DetailField label="Plan"             value={period.cm_enrollments?.health_plan_type || "-"} />
+        <DetailField label="Acuity"           value={period.acuity_tier_snapshot || "-"} />
+        <DetailField label="Provider"         value={period.cm_enrollments?.cm_provider_type || "-"} />
+        <DetailField label="Claim status"     value={<ClaimStatusBadge status={period.claim_status} />} />
+        <DetailField label="Verification"     value={<VerificationBadge status={period.verification_status} />} />
+        <DetailField label="Contacts"         value={period.actual_contacts_total + " / " + period.required_contacts_total} />
+        <DetailField label="CM majority"      value={period.has_care_manager_majority ? "Yes" : "No"} />
+      </div>
+
+      {/* Claim lifecycle audit */}
+      {(period.claim_ready_at || period.claim_submitted_at || period.claim_paid_at) && (
+        <div style={{ marginBottom: 20, padding: 12, background: C.bgSecondary, borderRadius: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+            Claim lifecycle
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+            {period.claim_ready_at && <div>Ready: {new Date(period.claim_ready_at).toLocaleString()}</div>}
+            {period.claim_submitted_at && (
+              <div>
+                Submitted: {new Date(period.claim_submitted_at).toLocaleString()}
+                {period.claim_external_id && <span style={{ fontFamily: "monospace", color: C.textSecondary }}> ({period.claim_external_id})</span>}
+              </div>
+            )}
+            {period.claim_paid_at && (
+              <div style={{ color: C.green }}>
+                Paid: {new Date(period.claim_paid_at).toLocaleString()}
+                {period.claim_paid_amount && <span> - ${Number(period.claim_paid_amount).toFixed(2)}</span>}
+              </div>
+            )}
+            {period.claim_denial_reason && (
+              <div style={{ color: C.red }}>
+                Denied: {period.claim_denial_code ? "[" + period.claim_denial_code + "] " : ""}{period.claim_denial_reason}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Contact breakdown */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+          Qualifying contacts ({period.actual_contacts_total})
+        </div>
+        {period.actual_contacts_total === 0 ? (
+          <div style={{ fontSize: 12, color: C.textTertiary, fontStyle: "italic", padding: "6px 0" }}>
+            No qualifying contacts logged this month. Log touchpoints from the Touchpoints tab - only successful contacts via In Person, Telephonic, or Video count toward the billing floor.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>By method</div>
+              {methodRows.map(([label, count]) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 13 }}>
+                  <span>{label}</span>
+                  <span style={{ fontWeight: 600 }}>{count}</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>By role</div>
+              {roleRows.map(([label, count]) => (
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontSize: 13 }}>
+                  <span>{label}</span>
+                  <span style={{ fontWeight: 600 }}>{count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Flagged issues */}
+      {flags.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+            Flagged issues ({flags.length})
+          </div>
+          <div style={{ border: "0.5px solid " + C.redBorder, borderRadius: 8, background: C.redBg }}>
+            {flags.map((f, i) => {
+              const text = typeof f === "string" ? f : (f.message || f.description || JSON.stringify(f));
+              return (
+                <div key={i} style={{ padding: "8px 12px", borderBottom: i < flags.length - 1 ? "0.5px solid " + C.redBorder : "none", fontSize: 13 }}>
+                  {text}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {period.notes && (
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+            Notes
+          </div>
+          <div style={{ fontSize: 13, padding: "8px 12px", background: C.bgSecondary, borderRadius: 8 }}>
+            {period.notes}
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function CHWTab() {
   return (
     <ComingSoonTab
