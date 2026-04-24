@@ -11,7 +11,7 @@
 // onChange so the saved data is always canonical.
 // ===============================================================================
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { C } from "../lib/tokens";
 import { Badge, Btn } from "./ui";
 import {
@@ -128,6 +128,21 @@ export function GoalEditor({ goals, onChange, readOnly = false, label = "Goals" 
   );
 }
 
+// AutoGrowTextarea - textarea that auto-resizes height to fit content so
+// users don't have to scroll within a short box to read long goal text.
+// The height is recomputed every time value changes via useEffect, and the
+// manual resize handle is suppressed because auto-sizing makes it redundant.
+function AutoGrowTextarea({ value, ...props }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [value]);
+  return <textarea ref={ref} value={value} {...props} />;
+}
+
 function GoalEditorRow({ goal, index, total, readOnly, onChange, onRemove, onMoveUp, onMoveDown }) {
   const [expanded, setExpanded] = useState(false);
   const g = goal || blankGoal();
@@ -212,18 +227,19 @@ function GoalEditorRow({ goal, index, total, readOnly, onChange, onRemove, onMov
         )}
       </div>
 
-      {/* Goal text (main input) */}
-      <textarea
+     {/* Goal text (main input) - auto-grows to fit content */}
+      <AutoGrowTextarea
         value={g.goal || ""}
         onChange={e => onChange({ goal: e.target.value })}
         readOnly={readOnly}
         placeholder="e.g. Reduce A1C to under 7.0 by next review"
-        rows={2}
         style={{
           ...inputStyle,
           fontSize: 13,
-          resize: "vertical",
+          resize: "none",
           marginBottom: 8,
+          minHeight: 60,
+          overflow: "hidden",
           background: readOnly ? C.bgSecondary : C.bgPrimary,
         }}
       />
