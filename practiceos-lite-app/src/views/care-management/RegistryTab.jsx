@@ -24,6 +24,21 @@ import NewEnrollmentModal from "./NewEnrollmentModal";
 // parallel, then composes the row model used by the table and KPIs.
 // ===============================================================================
 
+// PlanRiskBadge - renders the plan's PRL risk score (H/M/L/N) as a compact
+// badge. Distinct from our own AcuityBadge (acuity_tier) and RiskBadge (AI
+// cm_enrollment_risk_assessments). Null/empty renders nothing.
+function PlanRiskBadge({ code }) {
+  if (!code) return null;
+  const map = {
+    H: { label: "Plan: H", variant: "red" },
+    M: { label: "Plan: M", variant: "amber" },
+    L: { label: "Plan: L", variant: "neutral" },
+    N: { label: "Plan: N/A", variant: "neutral" },
+  };
+  const m = map[code] || { label: "Plan: " + code, variant: "neutral" };
+  return <Badge label={m.label} variant={m.variant} size="xs" />;
+}
+
 // NextContactCell - formats suggested_next_contact_by from the latest risk
 // assessment. Color-codes by urgency: past-due red, <=7d amber, else neutral.
 // Renders a dash when no active risk assessment exists on the enrollment.
@@ -52,6 +67,8 @@ export default function RegistryTab() {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
   const [rows, setRows]         = useState([]);
+  const [adtCounts, setAdtCounts] = useState({}); // enrollment_id -> count in last 90d
+  const [priorityPopLabels, setPriorityPopLabels] = useState({});
   const [acuityFilter, setAcuityFilter]   = useState("all");
   const [programFilter, setProgramFilter] = useState("all");
   const [statusFilter, setStatusFilter]   = useState("Active");
@@ -71,7 +88,7 @@ export default function RegistryTab() {
       // Fetch enrollments + patient names in one call via the embedded FK select.
       const { data: enrollments, error: e1 } = await supabase
         .from("cm_enrollments")
-        .select("id, patient_id, program_type, enrollment_status, acuity_tier, health_plan_type, cm_provider_type, payer_name, plan_member_id, enrolled_at, assigned_at, disenrolled_at, disenrollment_reason_code, assigned_care_manager_id, hop_eligible, hop_active, patients(first_name, last_name, date_of_birth)")
+        .select("id, patient_id, program_type, enrollment_status, acuity_tier, health_plan_type, cm_provider_type, payer_name, plan_member_id, enrolled_at, assigned_at, disenrolled_at, disenrollment_reason_code, assigned_care_manager_id, hop_eligible, hop_active, php_risk_score_category, php_risk_evidence, priority_populations, population_segment, waiver_service, tcl_member_status, plan_unable_to_reach, plan_last_unsuccessful_contact_date, prl_last_synced_at, patients(first_name, last_name, date_of_birth)")
         .eq("practice_id", practiceId)
         .order("enrollment_status", { ascending: true })
         .order("acuity_tier",        { ascending: true })
@@ -139,6 +156,22 @@ export default function RegistryTab() {
         for (const u of utrs || []) {
           utrMap[u.enrollment_id] = u;
         }
+
+        // ADT events in the last 90 days per enrollment. Surfaces as a flag
+        // on rows with recent hospital events from the plan's PRL history.
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setUTCDate(ninetyDaysAgo.getUTCDate() - 90);
+        const { data: adts, error: e5 } = await supabase
+          .from("cm_enrollment_adt_events")
+          .select("enrollment_id, reported_in_reporting_month")
+          .in("enrollment_id", enrIds)
+          .gte("reported_in_reporting_month", ninetyDaysAgo.toISOString().slice(0, 10));
+        if (e5) throw e5;
+        const adtCountsLocal = {};
+        for (const a of adts || []) {
+          adtCountsLocal[a.enrollment_id] = (adtCountsLocal[a.enrollment_id] || 0) + 1;
+        }
+        setAdtCounts(adtCountsLocal);
       }
 
       // Merge and compute days-since + enrollment-age (for Pending staleness rule)
@@ -169,6 +202,21 @@ export default function RegistryTab() {
   }, [practiceId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Load priority-population code->label map once per session. Small static
+  // dataset; fine to cache in component state.
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("cm_reference_codes")
+        .select("code, label")
+        .eq("category", "priority_population")
+        .eq("is_active", true);
+      const m = {};
+      for (const r of data || []) m[r.code] = r.label;
+      setPriorityPopLabels(m);
+    })();
+  }, []);
 
   // Helper: is an enrollment currently "flagged at risk"?
   // Definition: has an active risk assessment at medium+ AND not dismissed.
@@ -332,7 +380,7 @@ export default function RegistryTab() {
                 <Th align="right">Days</Th>
                 <Th align="right">Next contact</Th>
                 <Th>Flags</Th>
-                <Th>Flags</Th>
+                <Th>Plan view</Th>
               </tr>
             </thead>
             <tbody>
@@ -371,12 +419,46 @@ export default function RegistryTab() {
                           <Badge label="UTR" variant="red" size="xs" />
                         </span>
                       )}
+                      {r.plan_unable_to_reach && (!r.utr || !r.utr.is_utr) && (
+                        <span title="Plan's PRL reports member unable to reach (our derived UTR disagrees)">
+                          <Badge label="PLAN UTR" variant="amber" size="xs" />
+                        </span>
+                      )}
                       {r.enrollment_status === "Active" && !r.has_contact_this_month && isPastBillingRiskDay() && isBillableByPlan(r.health_plan_type) && (
                         <Badge label="BILL RISK" variant="red" size="xs" />
                       )}
                       {r.hop_active && <Badge label="HOP" variant="blue" size="xs" />}
                       {r.hop_eligible && !r.hop_active && <Badge label="HOP eligible" variant="neutral" size="xs" />}
                     </div>
+                  </Td>
+                  <Td>
+                    {r.prl_last_synced_at ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+                          <PlanRiskBadge code={r.php_risk_score_category} />
+                          {adtCounts[r.id] > 0 && (
+                            <Badge label={adtCounts[r.id] + " ADT 90d"} variant="amber" size="xs" />
+                          )}
+                        </div>
+                        {Array.isArray(r.priority_populations) && r.priority_populations.length > 0 && (
+                          <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+                            {r.priority_populations.slice(0, 2).map(code => (
+                              <span key={code} style={{ fontSize: 10, padding: "1px 6px", background: C.bgSecondary, borderRadius: 10, color: C.textSecondary, whiteSpace: "nowrap" }}>
+                                {priorityPopLabels[code] || code}
+                              </span>
+                            ))}
+                            {r.priority_populations.length > 2 && (
+                              <span style={{ fontSize: 10, color: C.textTertiary }}>+{r.priority_populations.length - 2}</span>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10, color: C.textTertiary }}>
+                          PRL {new Date(r.prl_last_synced_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ) : (
+                      <span style={{ color: C.textTertiary, fontSize: 11 }}>No PRL</span>
+                    )}
                   </Td>
                 </tr>
               ))}
