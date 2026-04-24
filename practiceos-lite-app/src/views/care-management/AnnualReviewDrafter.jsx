@@ -345,10 +345,10 @@ export default function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSav
         </div>
       )}
 
-      {/* Model footer */}
-      {modelMeta && (
+      {/* Timestamp footer */}
+      {modelMeta && modelMeta.generated_at && (
         <div style={{ fontSize: 10, color: C.textTertiary, textAlign: "right", marginBottom: 10 }}>
-          Drafted {new Date(modelMeta.generated_at).toLocaleString()} / {modelMeta.model}
+          Drafted {new Date(modelMeta.generated_at).toLocaleString()}
         </div>
       )}
 
