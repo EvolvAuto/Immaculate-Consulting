@@ -17,20 +17,20 @@ export default function PortalView() {
   const [tab, setTab] = useState("home");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [data, setData] = useState({ patient: null, appts: [], labs: [], threads: [], insurance: [] });
+  const [data, setData] = useState({ patient: null, appts: [], labs: [], threads: [], insurance: [], plans: [] });
 
   useEffect(() => {
     if (!profile?.patient_id) { setLoading(false); return; }
     (async () => {
       try {
         setLoading(true);
-        const patientId = profile.patient_id;
-        const [patient, appts, labs, threads, ins] = await Promise.all([
+        const [patient, appts, labs, threads, ins, plans] = await Promise.all([
           supabase.from("patients").select("*").eq("id", patientId).single(),
           supabase.from("appointments").select("*, providers(first_name, last_name)").eq("patient_id", patientId).order("appt_date", { ascending: false }).limit(20),
           supabase.from("lab_results").select("*").eq("patient_id", patientId).eq("released_to_portal", true).order("resulted_at", { ascending: false }).limit(20),
           supabase.from("message_threads").select("*, messages(id, body, direction, created_at, sender_label, is_read)").eq("patient_id", patientId).order("last_message_at", { ascending: false }),
           supabase.from("insurance_policies").select("*").eq("patient_id", patientId).eq("is_active", true).order("rank"),
+          supabase.from("cm_care_plans").select("id, member_ack_at").eq("patient_id", patientId).eq("plan_status", "Active").not("portal_shared_at", "is", null),
         ]);
         if (patient.error) throw patient.error;
         setData({
@@ -39,6 +39,7 @@ export default function PortalView() {
           labs: labs.data || [],
           threads: threads.data || [],
           insurance: ins.data || [],
+          plans: plans.data || [],
         });
       } catch (e) { setError(e.message); }
       finally { setLoading(false); }
@@ -82,6 +83,28 @@ export default function PortalView() {
 
         {tab === "home" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+           {(data.plans || []).some((p) => !p.member_ack_at) && (
+              <Card
+                onClick={() => {
+                  const el = document.getElementById("portal-care-plans-anchor");
+                  if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                style={{
+                  background: "linear-gradient(135deg, #FEF3C7, #FFFBEB)",
+                  borderLeft: "4px solid " + C.amber,
+                  padding: 20,
+                  cursor: "pointer",
+                }}
+              >
+                <Badge label="Action needed" variant="amber" />
+                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 10 }}>
+                  Please review your care plan
+                </div>
+                <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 4 }}>
+                  Your care team has shared a care plan with you. Tap here to read it and confirm.
+                </div>
+              </Card>
+            )}
             {upcoming[0] && (
               <Card style={{ background: `linear-gradient(135deg, ${C.tealBg}, ${C.bgPrimary})`, borderLeft: `4px solid ${C.teal}`, padding: 20 }}>
                 <Badge label="Next Appointment" variant="teal" />
@@ -118,6 +141,8 @@ export default function PortalView() {
                 <div style={{ fontSize: 11, color: C.textTertiary }}>Upcoming visits</div>
               </Card>
             </div>
+
+            <CarePlansSection patientId={profile.patient_id} />
           </div>
         )}
 
@@ -204,8 +229,6 @@ export default function PortalView() {
                   </Card>
                 ))}
             </div>
-
-            <CarePlansSection patientId={profile.patient_id} />
           </div>
         )}
       </div>
