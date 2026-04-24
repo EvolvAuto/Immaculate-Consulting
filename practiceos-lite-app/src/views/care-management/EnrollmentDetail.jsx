@@ -37,6 +37,7 @@ export default function EnrollmentDetail({ enrollment, onClose, onUpdated, onRis
   const [riskLoading, setRiskLoading] = useState(true);
   const [riskBusy, setRiskBusy]       = useState(false);
   const [riskError, setRiskError]     = useState(null);
+  const [riskOverloaded, setRiskOverloaded] = useState(false);
   const [showDismiss, setShowDismiss] = useState(false);
   const [dismissReason, setDismissReason] = useState("");
 
@@ -79,6 +80,7 @@ export default function EnrollmentDetail({ enrollment, onClose, onUpdated, onRis
   const handleReassess = async () => {
     setRiskBusy(true);
     setRiskError(null);
+    setRiskOverloaded(false);
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token;
@@ -93,7 +95,11 @@ export default function EnrollmentDetail({ enrollment, onClose, onUpdated, onRis
         body: JSON.stringify({ enrollment_id: enrollment.id, trigger_reason: "manual" }),
       });
       const body = await res.json();
-      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+      if (!res.ok || body.error) {
+        const err = new Error(body.error || "HTTP " + res.status);
+        err.overloaded = body.overloaded === true;
+        throw err;
+      }
       await loadRisk();
       // Await the parent's reload so rows is fresh before the user can close
       // the modal. Previously this was fire-and-forget, which produced a race:
@@ -102,6 +108,7 @@ export default function EnrollmentDetail({ enrollment, onClose, onUpdated, onRis
       if (onRiskChanged) await onRiskChanged();
     } catch (e) {
       setRiskError(e.message || "Re-assess failed");
+      setRiskOverloaded(e.overloaded === true);
     } finally {
       setRiskBusy(false);
     }
@@ -255,6 +262,7 @@ export default function EnrollmentDetail({ enrollment, onClose, onUpdated, onRis
         loading={riskLoading}
         busy={riskBusy}
         error={riskError}
+        overloaded={riskOverloaded}
         canReassess={canReassess}
         canAckDismiss={canAckDismiss}
         onReassess={handleReassess}
