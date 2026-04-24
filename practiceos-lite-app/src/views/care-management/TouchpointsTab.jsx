@@ -73,7 +73,7 @@ export default function TouchpointsTab() {
       // RLS issues on the users table cross-scope.
       let query = supabase
         .from("cm_touchpoints")
-        .select("id, touchpoint_at, contact_method, successful_contact, delivered_by_role, activity_category_code, notes, enrollment_id, patient_id, delivered_by_user_id, hrsn_domains_addressed, counts_toward_tcm_contact, ai_scribe_model, cm_enrollments(program_type, acuity_tier), patients(first_name, last_name)")
+        .select("id, touchpoint_at, contact_method, successful_contact, delivered_by_role, activity_category_code, adt_reason_code, notes, enrollment_id, patient_id, delivered_by_user_id, hrsn_domains_addressed, counts_toward_tcm_contact, ai_scribe_model, cm_enrollments(program_type, acuity_tier), patients(first_name, last_name)")
         .eq("practice_id", practiceId)
         .order("touchpoint_at", { ascending: false })
         .limit(200);
@@ -316,6 +316,20 @@ function formatTouchpointTime(iso) {
 function TouchpointDetailModal({ touchpoint, onClose }) {
   const tp = touchpoint;
   const patientName = (tp.patients?.first_name || "") + " " + (tp.patients?.last_name || "");
+  const [adtLabel, setAdtLabel] = useState(null);
+
+  // If tagged with an ADT reason, look up the human label ("ED Visit or
+  // Discharge") instead of showing raw code "001". Small dataset; one query.
+  useEffect(() => {
+    if (!tp.adt_reason_code) return;
+    supabase
+      .from("cm_reference_codes")
+      .select("label")
+      .eq("category", "adt_reason")
+      .eq("code", tp.adt_reason_code)
+      .maybeSingle()
+      .then(({ data }) => setAdtLabel(data?.label || null));
+  }, [tp.adt_reason_code]);
 
   return (
     <Modal title={"Touchpoint: " + patientName} onClose={onClose} width={600}>
@@ -327,8 +341,10 @@ function TouchpointDetailModal({ touchpoint, onClose }) {
         <DetailField label="Program"  value={tp.cm_enrollments?.program_type || "-"} />
         <DetailField label="Acuity"   value={<AcuityBadge tier={tp.cm_enrollments?.acuity_tier} />} />
         <DetailField label="Activity" value={tp.activity_category_code || "-"} />
+        {tp.adt_reason_code && (
+          <DetailField label="ADT event" value={adtLabel || tp.adt_reason_code} />
+        )}
       </div>
-
       {tp.notes && (
         <div style={{ marginTop: 16 }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary, marginBottom: 6 }}>Notes</div>
