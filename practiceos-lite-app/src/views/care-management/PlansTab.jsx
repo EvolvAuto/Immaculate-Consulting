@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { C } from "../../lib/tokens";
 import { Badge, Btn, Card, Loader, EmptyState, ErrorBanner } from "../../components/ui";
-import { KpiCard, PlanStatusBadge, Th, Td } from "./shared";
+import { KpiCard, PlanStatusBadge, Th, Td, selectStyle } from "./shared";
 import PlanDetailModal from "./PlanDetailModal";
 import NewPlanModal from "./NewPlanModal";
 
