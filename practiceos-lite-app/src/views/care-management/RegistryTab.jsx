@@ -24,33 +24,135 @@ import NewEnrollmentModal from "./NewEnrollmentModal";
 // parallel, then composes the row model used by the table and KPIs.
 // ===============================================================================
 
-// SortableTh - clickable header that participates in client-side sort state.
-// Shows an arrow indicator on the active column; dim double-arrow on inactive
-// sortable columns to hint clickability. Non-sortable headers still render
-// as plain <Th>.
+// SORT_LABELS: per-column plain-English direction labels that replace cryptic
+// arrow symbols. Each key matches a SortableTh sortKey in the thead.
+const SORT_LABELS = {
+  patient:      { asc: "A→Z",            desc: "Z→A"            },
+  plan:         { asc: "A→Z",            desc: "Z→A"            },
+  program:      { asc: "A→Z",            desc: "Z→A"            },
+  acuity:       { asc: "Low first",      desc: "High first"     },
+  status:       { asc: "Inactive first", desc: "Active first"   },
+  risk:         { asc: "Low first",      desc: "High first"     },
+  payer:        { asc: "A→Z",            desc: "Z→A"            },
+  last_contact: { asc: "Oldest first",   desc: "Newest first"   },
+  days:         { asc: "Fewest first",   desc: "Most first"     },
+  next_contact: { asc: "Earliest due",   desc: "Latest due"     },
+  plan_risk:    { asc: "Low first",      desc: "High first"     },
+};
+const SORT_HEADERS = {
+  patient: "Patient", plan: "Plan", program: "Program", acuity: "Acuity",
+  status: "Status", risk: "Risk", payer: "Payer",
+  last_contact: "Last contact", days: "Days", next_contact: "Next contact",
+  plan_risk: "Plan view",
+};
+
+// SortableTh - clickable header with plain-English active-direction pill.
+// No arrow symbols; active columns show a small teal pill like "High first"
+// so users see the consequence of the sort, not a decoded direction icon.
+// Inactive columns render as plain header text with cursor:pointer.
 function SortableTh({ children, sortKey, sortState, onSort, align }) {
   const isActive = sortState.key === sortKey;
+  const labels = SORT_LABELS[sortKey] || { asc: "Ascending", desc: "Descending" };
+  const activeLabel = isActive ? (sortState.dir === "asc" ? labels.asc : labels.desc) : null;
+  const nextActionHint = !isActive
+    ? ("Click to sort (" + labels.asc + ")")
+    : sortState.dir === "asc"
+      ? ("Click to reverse (" + labels.desc + ")")
+      : "Click to clear sort";
   return (
     <Th align={align}>
       <span
         onClick={() => onSort(sortKey)}
-        style={{ cursor: "pointer", userSelect: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
-        title="Click to sort"
+        style={{
+          cursor: "pointer",
+          userSelect: "none",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          color: isActive ? C.teal : undefined,
+        }}
+        title={nextActionHint}
       >
         {children}
-        <span style={{
-          fontSize: 9,
-          color: isActive ? C.teal : C.textTertiary,
-          opacity: isActive ? 1 : 0.5,
-          minWidth: 10,
-        }}>
-          {isActive ? (sortState.dir === "asc" ? "▲" : "▼") : "⇅"}
-        </span>
+        {activeLabel && (
+          <span style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: C.teal,
+            textTransform: "none",
+            letterSpacing: 0,
+            padding: "2px 6px",
+            background: C.tealBg,
+            borderRadius: 10,
+            whiteSpace: "nowrap",
+          }}>
+            {activeLabel}
+          </span>
+        )}
       </span>
     </Th>
   );
 }
 
+// SortHintBar - persistent slim bar above the table. Default state teaches
+// discoverability ("click any column header to sort"); when a sort is active
+// it transforms into a teal chip showing "Sorted by X - Y first" with a Reset
+// link. Single surface, two states - self-documenting key for users.
+function SortHintBar({ sortState, onClear }) {
+  if (!sortState.key) {
+    return (
+      <div style={{
+        fontSize: 11,
+        color: C.textTertiary,
+        marginBottom: 10,
+        padding: "5px 12px",
+        background: C.bgSecondary,
+        border: "0.5px solid " + C.borderLight,
+        borderRadius: 6,
+        display: "inline-block",
+      }}>
+        Click any column header to sort. Click the same header again to reverse or clear.
+      </div>
+    );
+  }
+  const headerName = SORT_HEADERS[sortState.key] || sortState.key;
+  const labels     = SORT_LABELS[sortState.key] || {};
+  const dirLabel   = sortState.dir === "asc" ? labels.asc : labels.desc;
+  return (
+    <div style={{
+      fontSize: 12,
+      marginBottom: 10,
+      padding: "6px 12px",
+      background: C.tealBg,
+      border: "0.5px solid " + C.teal,
+      borderRadius: 6,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 10,
+      color: C.teal,
+    }}>
+      <span style={{ fontWeight: 600 }}>
+        Sorted by {headerName} — {dirLabel}
+      </span>
+      <button
+        onClick={onClear}
+        style={{
+          background: "transparent",
+          border: "none",
+          color: C.teal,
+          cursor: "pointer",
+          fontSize: 11,
+          fontWeight: 600,
+          textDecoration: "underline",
+          padding: 0,
+        }}
+        title="Return to default sort (Active first, then High acuity, newest enrolled)"
+      >
+        Reset
+      </button>
+    </div>
+  );
+}
 // PlanRiskBadge - renders the plan's PRL risk score (H/M/L/N) as a compact
 // badge. Distinct from our own AcuityBadge (acuity_tier) and RiskBadge (AI
 // cm_enrollment_risk_assessments). Null/empty renders nothing.
@@ -472,6 +574,8 @@ export default function RegistryTab() {
           <Btn variant="outline" size="sm" onClick={load}>Refresh</Btn>
         </div>
       </Card>
+
+      <SortHintBar sortState={sortState} onClear={() => setSortState({ key: null, dir: null })} />
 
       {/* Registry table */}
       {filtered.length === 0 ? (
