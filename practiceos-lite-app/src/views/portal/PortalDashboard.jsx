@@ -212,11 +212,7 @@ export default function PortalDashboard({ patient, practice, patientId, practice
         ))}
       </div>
 
-      <div style={{
-        display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(170px, 1fr))",
-        gap:10, marginBottom:14,
-      }}>
-        {pendingPlan && (
+      {pendingPlan && (
         <Panel accent={C.amberMid}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
             <div style={{ flex:1, minWidth:240 }}>
