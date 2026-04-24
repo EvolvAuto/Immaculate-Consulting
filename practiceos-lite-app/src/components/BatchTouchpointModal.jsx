@@ -53,6 +53,7 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
   // Data loaded on mount
   const [enrollments, setEnrollments]     = useState([]);
   const [activityCodes, setActivityCodes] = useState([]);
+  const [adtReasonCodes, setAdtReasonCodes] = useState([]);
   const [loading, setLoading]             = useState(true);
 
   // Filter + selection state
@@ -70,6 +71,7 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
   const [contactMethod, setContactMethod] = useState("Telephonic");
   const [activityCode, setActivityCode]   = useState("");
   const [selectedHrsn, setSelectedHrsn]   = useState([]);
+  const [adtReasonCode, setAdtReasonCode] = useState(""); // shared - same code applied to all rows
   const [sharedNotes, setSharedNotes]     = useState("");
   const [defaultOutcome, setDefaultOutcome] = useState("successful"); // "successful" | "unsuccessful"
 
@@ -99,10 +101,18 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
         .eq("category", "activity_category")
         .eq("is_active", true)
         .order("sort_order", { ascending: true }),
-    ]).then(([eRes, acRes]) => {
+      supabase
+        .from("cm_reference_codes")
+        .select("code, label, sort_order")
+        .eq("category", "adt_reason")
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+    ]).then(([eRes, acRes, adtRes]) => {
       if (cancelled) return;
       setEnrollments(eRes.data || []);
       setActivityCodes(acRes.data || []);
+      // Hide code "000" (Null) - in UI terms "no ADT event" is "don't pick one"
+      setAdtReasonCodes((adtRes.data || []).filter(c => c.code !== "000"));
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -247,6 +257,7 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
         counts_toward_tcm_contact: countsTowardTcm,
         delivered_by_role:         deliveredByRole,
         activity_category_code:    activityCode,
+        adt_reason_code:           adtReasonCode || null,
         hrsn_domains_addressed:    selectedHrsn,
         notes:                     combinedNotes,
         source:                    "Manual-Batch",
@@ -428,6 +439,18 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
               : activityCodes.map(c => <option key={c.code} value={c.code}>{c.label}</option>)
             }
           </select>
+        </div>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>ADT event addressed (optional)</FL>
+          <select value={adtReasonCode} onChange={e => setAdtReasonCode(e.target.value)} style={selectStyle}>
+            <option value="">-- None / routine engagement --</option>
+            {adtReasonCodes.map(c => (
+              <option key={c.code} value={c.code}>{c.label}</option>
+            ))}
+          </select>
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
+            Tag a hospital event this batch addresses (post-discharge outreach, ED follow-up, etc.). Flows into the next AMH PRL v7.0 outbound file as Section D reason codes.
+          </div>
         </div>
         <div style={{ gridColumn: "1 / -1" }}>
           <FL>HRSN domains (optional)</FL>
