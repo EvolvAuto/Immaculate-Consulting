@@ -194,7 +194,6 @@ export default function PortalView() {
             </Card>
 
             <div style={{ marginTop: 20 }}>
-              <div style={{ marginTop: 20 }}>
               <SectionHead title="Insurance on File" />
               {data.insurance.length === 0 ? <EmptyState title="No insurance on file" />
                 : data.insurance.map((i) => (
