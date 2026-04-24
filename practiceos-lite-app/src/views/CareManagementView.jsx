@@ -2220,25 +2220,55 @@ function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged })
           )}
         </div>
 
-        <div style={{ gridColumn: "1 / -1", padding: 12, background: contactMethod === "Attempt - No Contact" ? C.amberBg : C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: contactMethod === "Attempt - No Contact" ? "not-allowed" : "pointer" }}>
-            <input
-              type="checkbox"
-              checked={successful}
+        <div style={{ gridColumn: "1 / -1", padding: 12, background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+            Outcome
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
               disabled={contactMethod === "Attempt - No Contact"}
-              onChange={e => setSuccessful(e.target.checked)}
-            />
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>
-                Successful contact (counts toward billing + cadence)
-              </div>
-              <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
-                {contactMethod === "Attempt - No Contact"
-                  ? "Locked OFF - an attempt with no contact is never billable."
-                  : "Turn OFF if you reached voicemail or left a message without engaging the member."}
-              </div>
-            </div>
-          </label>
+              onClick={() => setSuccessful(true)}
+              style={{
+                padding: "8px 16px",
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                border: "0.5px solid " + (successful && contactMethod !== "Attempt - No Contact" ? "#86efac" : C.borderLight),
+                background: successful && contactMethod !== "Attempt - No Contact" ? "#ecfdf5" : C.bgPrimary,
+                color: contactMethod === "Attempt - No Contact" ? C.textTertiary : (successful ? "#047857" : C.textSecondary),
+                borderRadius: 6,
+                cursor: contactMethod === "Attempt - No Contact" ? "not-allowed" : "pointer",
+                opacity: contactMethod === "Attempt - No Contact" ? 0.5 : 1,
+              }}
+            >
+              Successful
+            </button>
+            <button
+              type="button"
+              onClick={() => setSuccessful(false)}
+              style={{
+                padding: "8px 16px",
+                fontSize: 13,
+                fontWeight: 600,
+                fontFamily: "inherit",
+                border: "0.5px solid " + (!successful ? "#fcd34d" : C.borderLight),
+                background: !successful ? "#fffbeb" : C.bgPrimary,
+                color: !successful ? "#b45309" : C.textSecondary,
+                borderRadius: 6,
+                cursor: "pointer",
+              }}
+            >
+              Unsuccessful
+            </button>
+          </div>
+          <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 8 }}>
+            {contactMethod === "Attempt - No Contact"
+              ? "Attempt - No Contact is always Unsuccessful (not billable)."
+              : successful
+                ? "Successful contacts count toward TCM billing floor (if method qualifies) and acuity-tier cadence."
+                : "Unsuccessful attempts do not count toward billing. 3+ unsuccessful attempts with no success surface the member as UTR on the Registry."}
+          </div>
         </div>
       </div>
 
