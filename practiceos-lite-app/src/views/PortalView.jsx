@@ -10,6 +10,7 @@ import { C } from "../lib/tokens";
 import { insertRow, updateRow } from "../lib/db";
 import { APPT_STATUS_VARIANT, ageFromDOB, slotToTime } from "../components/constants";
 import { Badge, Btn, Card, Modal, Input, Textarea, Select, TopBar, TabBar, SectionHead, Loader, ErrorBanner, EmptyState, FL } from "../components/ui";
+import CarePlansSection from "../components/CarePlansSection";
 
 export default function PortalView() {
   const { profile, practiceId } = useAuth();
@@ -193,6 +194,7 @@ export default function PortalView() {
             </Card>
 
             <div style={{ marginTop: 20 }}>
+              <div style={{ marginTop: 20 }}>
               <SectionHead title="Insurance on File" />
               {data.insurance.length === 0 ? <EmptyState title="No insurance on file" />
                 : data.insurance.map((i) => (
@@ -203,6 +205,8 @@ export default function PortalView() {
                   </Card>
                 ))}
             </div>
+
+            <CarePlansSection patientId={profile.patient_id} />
           </div>
         )}
       </div>
