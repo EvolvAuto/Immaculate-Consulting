@@ -19,6 +19,7 @@ export default function PortalDashboard({ patient, practice, patientId, practice
   const [recentPayments, setRecentPayments] = useState(0);
   const [hrsnSchedule, setHrsnSchedule] = useState(null);
   const [hrsnLastResponse, setHrsnLastResponse] = useState(null);
+  const [pendingPlan, setPendingPlan]   = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -106,6 +107,29 @@ export default function PortalDashboard({ patient, practice, patientId, practice
     return () => { active = false; };
   }, [patientId, practice]);
 
+  // Fetch the first unacked shared care plan for this patient (if any).
+  // Surfaces an action-needed Panel on the dashboard that tapjumps to the
+  // carePlan tab. RLS already scopes to self-readable plans.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("cm_care_plans")
+          .select("id, plan_type, version, portal_shared_at")
+          .eq("patient_id", patientId)
+          .eq("plan_status", "Active")
+          .not("portal_shared_at", "is", null)
+          .is("member_ack_at", null)
+          .order("portal_shared_at", { ascending: false })
+          .limit(1);
+        if (!active) return;
+        setPendingPlan((data || [])[0] || null);
+      } catch (_e) { /* silent */ }
+    })();
+    return () => { active = false; };
+  }, [patientId]);
+
   // Derive whether to show the HRSN screening CTA panel
   const hrsnState = (() => {
     const tier = practice && practice.subscription_tier;
@@ -187,6 +211,31 @@ export default function PortalDashboard({ patient, practice, patientId, practice
           </div>
         ))}
       </div>
+
+      <div style={{
+        display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(170px, 1fr))",
+        gap:10, marginBottom:14,
+      }}>
+        {kpis.map((k, i) => ({pendingPlan && (
+        <Panel accent={C.amberMid}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <div style={{ flex:1, minWidth:240 }}>
+              <div style={{ fontSize:10, fontWeight:600, color:C.amber, textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>
+                Action needed
+              </div>
+              <div style={{ fontSize:14, fontWeight:600, color:C.textPrimary, marginBottom:3 }}>
+                Please review your care plan
+              </div>
+              <div style={{ fontSize:12, color:C.textSecondary, lineHeight:1.55 }}>
+                Your care team has shared a care plan with you. Read it over and confirm you've reviewed it.
+              </div>
+            </div>
+            <Btn variant="primary" onClick={() => goTab("carePlan")}>
+              Review care plan
+            </Btn>
+          </div>
+        </Panel>
+      )}
 
       <div style={{
         display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(170px, 1fr))",
