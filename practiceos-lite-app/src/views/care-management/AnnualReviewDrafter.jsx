@@ -29,6 +29,7 @@ export default function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSav
   const [drafting, setDrafting]   = useState(false);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState(null);
+  const [aiOverloaded, setAiOverloaded] = useState(false);
   const [draft, setDraft]         = useState(null);
   const [context, setContext]     = useState(null);
   const [modelMeta, setModelMeta] = useState(null);
@@ -43,6 +44,7 @@ export default function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSav
   const handleDraft = async () => {
     setDrafting(true);
     setError(null);
+    setAiOverloaded(false);
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token;
@@ -58,7 +60,11 @@ export default function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSav
         body: JSON.stringify({ prior_plan_id: priorPlan.id }),
       });
       const body = await res.json();
-      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+      if (!res.ok || body.error) {
+        const err = new Error(body.error || "HTTP " + res.status);
+        err.overloaded = body.overloaded === true;
+        throw err;
+      }
 
       setDraft(body.draft || null);
       setContext(body.context || null);
@@ -73,6 +79,7 @@ export default function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSav
       setReviewerNotes("");
     } catch (e) {
       setError(e.message || "Draft failed");
+      setAiOverloaded(e.overloaded === true);
     } finally {
       setDrafting(false);
     }
@@ -133,7 +140,11 @@ export default function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSav
     const priorAssessmentDate = priorPlan.assessment_date || priorPlan.created_at;
     return (
       <div>
-        {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+        {error && (aiOverloaded ? (
+          <div style={{ marginBottom: 16, fontSize: 12, padding: "10px 12px", borderRadius: 8, color: "#854F0B", background: "#FEF3C7", border: "0.5px solid #F59E0B" }}>
+            {"\u26A0 " + error}
+          </div>
+        ) : <ErrorBanner message={error} onDismiss={() => { setError(null); setAiOverloaded(false); }} />)}
         <div style={{ padding: 14, marginBottom: 16, background: "#f0f9ff", border: "0.5px solid #bae6fd", borderRadius: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#075985", marginBottom: 6 }}>
             Ready to draft annual review
@@ -169,7 +180,11 @@ export default function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSav
 
   return (
     <div>
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+      {error && (aiOverloaded ? (
+        <div style={{ marginBottom: 16, fontSize: 12, padding: "10px 12px", borderRadius: 8, color: "#854F0B", background: "#FEF3C7", border: "0.5px solid #F59E0B" }}>
+          {"\u26A0 " + error}
+        </div>
+      ) : <ErrorBanner message={error} onDismiss={() => { setError(null); setAiOverloaded(false); }} />)}
 
       {/* Draft header with confidence + reassess */}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
