@@ -11,10 +11,14 @@ import { C } from "../lib/tokens";
 import { toISODate, slotToTime, APPT_STATUS_VARIANT, QUEUE_STATUS_VARIANT, TASK_PRIORITY_VARIANT, initialsOf } from "../components/constants";
 import { Badge, Btn, Card, TopBar, StatCard, SectionHead, Avatar, ApptTypeDot, Loader, ErrorBanner, EmptyState } from "../components/ui";
 import ProChartPrepCard from "../components/pro/ProChartPrepCard";
+import AiUsageCard from "../components/AiUsageCard";
 
 // Roles that get the Inbox widget on the Dashboard.
 // Hard-coded rather than derived from NAV_BY_ROLE so this is import-safe.
 const INBOX_ROLES = ["Owner", "Manager", "Provider", "Medical Assistant", "Front Desk"];
+
+// Roles that see the AI Usage widget on the Dashboard.
+const AI_USAGE_ROLES = ["Owner", "Manager"];
 
 export default function DashboardView({ onNav }) {
   const { practiceId, profile, role, tier } = useAuth();
@@ -34,6 +38,7 @@ export default function DashboardView({ onNav }) {
   const [threads, setThreads] = useState([]);
 
   const hasInbox = INBOX_ROLES.indexOf(role) !== -1;
+  const hasAiUsage = AI_USAGE_ROLES.indexOf(role) !== -1 && (tier === "Pro" || tier === "Command");
 
   // ─── Primary load: appts + queue + tasks + IC insight of the day ─────────
   useEffect(() => {
@@ -122,6 +127,8 @@ export default function DashboardView({ onNav }) {
       </div>
 
       <ProChartPrepCard practiceId={practiceId} tier={tier} onNav={onNav} />
+
+      {hasAiUsage && <AiUsageCard practiceId={practiceId} tier={tier} />}
 
       {data.insights && (
         <Card style={{ borderLeft: `3px solid ${C.teal}` }}>
