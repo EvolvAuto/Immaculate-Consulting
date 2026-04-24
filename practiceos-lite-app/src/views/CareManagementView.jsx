@@ -423,10 +423,7 @@ function RegistryTab() {
           <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} style={{ ...selectStyle, width: "auto", minWidth: 150 }}>
             <option value="all">All programs</option>
             <option value="TCM">TCM</option>
-            <option value="AMH Plus">AMH Plus</option>
-            <option value="AMH Tier 3">AMH Tier 3</option>
-            <option value="CMA">CMA</option>
-            <option value="CIN CM">CIN CM</option>
+            <option value="AMH">AMH</option>
             <option value="General Engagement">General Engagement</option>
           </select>
         </div>
@@ -1024,10 +1021,7 @@ function TouchpointsTab() {
           <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} style={{ ...selectStyle, width: "auto", minWidth: 150 }}>
             <option value="all">All programs</option>
             <option value="TCM">TCM</option>
-            <option value="AMH Plus">AMH Plus</option>
-            <option value="AMH Tier 3">AMH Tier 3</option>
-            <option value="CMA">CMA</option>
-            <option value="CIN CM">CIN CM</option>
+            <option value="AMH">AMH</option>
             <option value="General Engagement">General Engagement</option>
           </select>
           <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textSecondary, cursor: "pointer" }}>
