@@ -27,6 +27,7 @@ export default function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [generatingReviewPdf, setGeneratingReviewPdf] = useState(false);
   const [sharingPortal,  setSharingPortal]  = useState(false);
   // Sub-mode: "view" (default) | "draftReview" (annual review) | "captureAck"
   // (staff-captured member acknowledgment). All nested flows render INSIDE the
@@ -123,6 +124,38 @@ export default function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
       setError(e.message || String(e));
     } finally {
       setGeneratingPdf(false);
+    }
+  };
+
+  // Generate the annual-review-style PDF. Distinct from handleDownloadPdf
+  // because the content includes review_summary (goals met/not met/carried/
+  // removed) in addition to the refreshed plan. Only enabled for plans that
+  // are themselves annual reviews (prior_plan_id + review_summary present).
+  const handleDownloadReviewPdf = async () => {
+    setGeneratingReviewPdf(true); setError(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error("Not signed in");
+      const url = supabase.supabaseUrl + "/functions/v1/cmp-generate-annual-review-pdf";
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json",
+          "Authorization": "Bearer " + token,
+        },
+        body: JSON.stringify({ plan_id: plan.id }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body?.signed_url) {
+        throw new Error(body?.error || "Annual review PDF generation failed");
+      }
+      window.open(body.signed_url, "_blank", "noopener,noreferrer");
+      if (onUpdated) onUpdated();
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setGeneratingReviewPdf(false);
     }
   };
 
@@ -271,6 +304,11 @@ export default function PlanDetailModal({ plan, profile, onClose, onUpdated }) {
         {plan.plan_status === "Active" && role && role !== "CHW" && (
           <Btn variant="outline" size="sm" disabled={generatingPdf} onClick={handleDownloadPdf}>
             {generatingPdf ? "Generating..." : (plan.document_generated_at ? "Download PDF" : "Generate PDF")}
+          </Btn>
+        )}
+        {plan.plan_status === "Active" && role && role !== "CHW" && plan.prior_plan_id && plan.review_summary && (
+          <Btn variant="outline" size="sm" disabled={generatingReviewPdf} onClick={handleDownloadReviewPdf}>
+            {generatingReviewPdf ? "Generating..." : "Annual Review PDF"}
           </Btn>
         )}
         {plan.plan_status === "Active" && role && role !== "CHW" && !plan.member_ack_at && (
