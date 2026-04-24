@@ -17,7 +17,7 @@ import { inputStyle, selectStyle, ALL_PROVIDER_TYPES } from "./shared";
 // modal's title/close affordance.
 // ===============================================================================
 
-function EditEnrollmentForm({ enrollment, onCancel, onSaved }) {
+export function EditEnrollmentForm({ enrollment, onCancel, onSaved }) {
   const [careManagers, setCareManagers] = useState([]);
   const [loading, setLoading]           = useState(true);
   const [saving, setSaving]             = useState(false);
@@ -189,7 +189,7 @@ function EditEnrollmentForm({ enrollment, onCancel, onSaved }) {
 // Side-effects: enrollment_status -> 'Disenrolled', disenrolled_at set.
 // ---------------------------------------------------------------------------
 
-function DisenrollForm({ enrollment, onCancel, onSaved }) {
+export function DisenrollForm({ enrollment, onCancel, onSaved }) {
   const [reasonCodes, setReasonCodes] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [saving, setSaving]           = useState(false);
@@ -287,7 +287,7 @@ function DisenrollForm({ enrollment, onCancel, onSaved }) {
 // If moving from On Hold, does not overwrite existing enrolled_at.
 // ---------------------------------------------------------------------------
 
-function ActivateForm({ enrollment, onCancel, onSaved }) {
+export function ActivateForm({ enrollment, onCancel, onSaved }) {
   const [enrolledAt, setEnrolledAt] = useState(() => {
     if (enrollment.enrolled_at) return enrollment.enrolled_at.split("T")[0];
     return new Date().toISOString().split("T")[0];
