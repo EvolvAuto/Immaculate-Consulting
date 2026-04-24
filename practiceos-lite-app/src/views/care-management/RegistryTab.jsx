@@ -267,11 +267,8 @@ export default function RegistryTab() {
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textTertiary }}>Program</span>
           <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} style={{ ...selectStyle, width: "auto", minWidth: 150 }}>
             <option value="all">All programs</option>
-            <option value="TCM">TCM</option>
-            <option value="AMH Plus">AMH Plus</option>
-            <option value="AMH Tier 3">AMH Tier 3</option>
-            <option value="CMA">CMA</option>
-            <option value="CIN CM">CIN CM</option>
+            <option value="TCM">TCM (Tailored Plan)</option>
+            <option value="AMH">AMH (Standard Plan)</option>
             <option value="General Engagement">General Engagement</option>
           </select>
         </div>
