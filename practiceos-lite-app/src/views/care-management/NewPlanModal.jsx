@@ -45,6 +45,7 @@ export default function NewPlanModal({ practiceId, userId, onClose, onCreated })
   // "Draft with AI" so the editor shows the AI output immediately.
   const [aiDrafting, setAiDrafting]     = useState(false);
   const [aiError, setAiError]           = useState(null);
+  const [aiOverloaded, setAiOverloaded] = useState(false);
   const [aiDraft, setAiDraft]           = useState(null);
   const [aiMeta, setAiMeta]             = useState(null);
   useEffect(() => {
@@ -89,6 +90,7 @@ export default function NewPlanModal({ practiceId, userId, onClose, onCreated })
     if (!enrollmentId) { setAiError("Pick an enrollment first"); return; }
     setAiDrafting(true);
     setAiError(null);
+    setAiOverloaded(false);
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token;
@@ -104,7 +106,11 @@ export default function NewPlanModal({ practiceId, userId, onClose, onCreated })
         body: JSON.stringify({ enrollment_id: enrollmentId }),
       });
       const body = await res.json();
-      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+      if (!res.ok || body.error) {
+        const err = new Error(body.error || "HTTP " + res.status);
+        err.overloaded = body.overloaded === true;
+        throw err;
+      }
 
       // Populate structuredGoals directly from the AI output. normalizeGoals
       // handles the legacy {text, ...} shape from cmp-draft-care-plan v1 by
@@ -128,6 +134,7 @@ export default function NewPlanModal({ practiceId, userId, onClose, onCreated })
       }
     } catch (e) {
       setAiError(e.message || "AI draft failed");
+      setAiOverloaded(e.overloaded === true);
     } finally {
       setAiDrafting(false);
     }
@@ -228,8 +235,13 @@ export default function NewPlanModal({ practiceId, userId, onClose, onCreated })
               </Btn>
             </div>
             {aiError && (
-              <div style={{ marginTop: 8, fontSize: 12, color: C.red, background: C.redBg, padding: "6px 10px", borderRadius: 6, border: "0.5px solid " + C.redBorder }}>
-                {aiError}
+              <div style={{
+                marginTop: 8, fontSize: 12, padding: "6px 10px", borderRadius: 6,
+                color:      aiOverloaded ? "#854F0B" : C.red,
+                background: aiOverloaded ? "#FEF3C7" : C.redBg,
+                border:     "0.5px solid " + (aiOverloaded ? "#F59E0B" : C.redBorder),
+              }}>
+                {aiOverloaded ? "\u26A0 " : ""}{aiError}
               </div>
             )}
           </div>
