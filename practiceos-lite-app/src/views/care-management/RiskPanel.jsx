@@ -24,7 +24,7 @@ import { inputStyle } from "./shared";
 // Actions: Re-assess (any role), Acknowledge + Dismiss (non-CHW only).
 // ---------------------------------------------------------------------------
 export default function RiskPanel({
-  risk, history, loading, busy, error,
+  risk, history, loading, busy, error, overloaded,
   canReassess, canAckDismiss,
   onReassess, onAcknowledge,
   showDismiss, setShowDismiss,
@@ -63,8 +63,13 @@ export default function RiskPanel({
           )}
         </div>
         {error && (
-          <div style={{ marginTop: 10, fontSize: 12, color: C.red, background: C.redBg, padding: 8, borderRadius: 6, border: "0.5px solid " + C.redBorder }}>
-            {error}
+          <div style={{
+            marginTop: 10, fontSize: 12, padding: 8, borderRadius: 6,
+            color:      overloaded ? "#854F0B" : C.red,
+            background: overloaded ? "#FEF3C7" : C.redBg,
+            border:     "0.5px solid " + (overloaded ? "#F59E0B" : C.redBorder),
+          }}>
+            {overloaded ? "\u26A0 " : ""}{error}
           </div>
         )}
       </div>
@@ -158,8 +163,13 @@ export default function RiskPanel({
 
       {/* Error */}
       {error && (
-        <div style={{ marginBottom: 10, fontSize: 12, color: C.red, background: C.redBg, padding: 8, borderRadius: 6, border: "0.5px solid " + C.redBorder }}>
-          {error}
+        <div style={{
+          marginBottom: 10, fontSize: 12, padding: 8, borderRadius: 6,
+          color:      overloaded ? "#854F0B" : C.red,
+          background: overloaded ? "#FEF3C7" : C.redBg,
+          border:     "0.5px solid " + (overloaded ? "#F59E0B" : C.redBorder),
+        }}>
+          {overloaded ? "\u26A0 " : ""}{error}
         </div>
       )}
 
