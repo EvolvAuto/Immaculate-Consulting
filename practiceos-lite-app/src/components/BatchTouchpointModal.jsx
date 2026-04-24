@@ -405,7 +405,16 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
         </div>
         <div style={{ gridColumn: "1 / -1" }}>
           <FL>Activity category</FL>
-          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: -4, marginBottom: 6 }}>
+          <div style={{
+            fontSize: 11,
+            color: "#b45309",
+            background: "#fffbeb",
+            border: "0.5px solid #fcd34d",
+            borderRadius: 6,
+            padding: "6px 10px",
+            marginTop: -2,
+            marginBottom: 8,
+          }}>
             All touchpoints in this batch share one activity. For mixed activities, run separate batches.
           </div>
           <select value={activityCode} onChange={e => setActivityCode(e.target.value)} style={selectStyle}>
