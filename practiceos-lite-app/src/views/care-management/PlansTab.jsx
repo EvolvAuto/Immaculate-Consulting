@@ -5,6 +5,7 @@ import { Badge, Btn, Card, Loader, EmptyState, ErrorBanner } from "../../compone
 import { KpiCard, PlanStatusBadge, Th, Td, selectStyle } from "./shared";
 import PlanDetailModal from "./PlanDetailModal";
 import NewPlanModal from "./NewPlanModal";
+import ReviewsDueSection from "./ReviewsDueSection";
 
 // ===============================================================================
 // PlansTab - manages cm_care_plans (formal care plans linked to enrollments).
@@ -104,6 +105,8 @@ export default function PlansTab({ practiceId, profile }) {
           <Btn variant="outline" size="sm" onClick={load}>Refresh</Btn>
         </div>
       </Card>
+
+      <ReviewsDueSection plans={plans} onSelectPlan={setSelected} />
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
