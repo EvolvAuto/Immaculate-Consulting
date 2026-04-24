@@ -23,6 +23,7 @@ import PortalDocuments     from "./portal/PortalDocuments.jsx";
 import PatientProxyManager from "./portal/PatientProxyManager.jsx";
 import AccountSwitcher     from "./portal/AccountSwitcher.jsx";
 import PortalHRSNView      from "./portal/PortalHRSNView.jsx";
+import PortalCarePlan      from "./portal/PortalCarePlan.jsx";
 
 const C = {
   teal:"#0F6E56", tealMid:"#1D9E75", tealBg:"#E1F5EE", tealBorder:"#9FE1CB", tealDark:"#085041",
@@ -37,6 +38,7 @@ const PORTAL_NAV = [
   { id:"dashboard",    label:"Dashboard"       },
   { id:"appointments", label:"Appointments"    },
   { id:"messages",     label:"Messages"        },
+  { id:"carePlan",     label:"My Care Plan"    },
   { id:"visits",       label:"Visit Summaries" },
   { id:"labs",         label:"Lab Results"     },
   { id:"trends",       label:"My Trends"       },
@@ -54,7 +56,7 @@ export default function PortalShell() {
   const [patient, setPatient] = useState(null);
   const [practice, setPractice] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [badges, setBadges] = useState({ messages:0, forms:0 });
+  const [badges, setBadges] = useState({ messages:0, forms:0, carePlan:0 });
   const [homePatientId, setHomePatientId] = useState(patientId);
 
   // Read home_patient_id from the JWT claims so we know where "switch back"
@@ -105,7 +107,7 @@ export default function PortalShell() {
   const refreshBadges = useCallback(async () => {
     if (!patientId) return;
     try {
-      const [msgCount, formCount] = await Promise.all([
+      const [msgCount, formCount, planCount] = await Promise.all([
         // Unread messages FROM staff = direction 'Outbound', is_read=false
         supabase.from("messages")
           .select("id", { count:"exact", head:true })
@@ -116,10 +118,18 @@ export default function PortalShell() {
           .select("id", { count:"exact", head:true })
           .eq("patient_id", patientId)
           .eq("status", "Draft"),
+        // Shared, Active care plans that patient hasn't yet acknowledged
+        supabase.from("cm_care_plans")
+          .select("id", { count:"exact", head:true })
+          .eq("patient_id", patientId)
+          .eq("plan_status", "Active")
+          .not("portal_shared_at", "is", null)
+          .is("member_ack_at", null),
       ]);
       setBadges({
         messages: msgCount.count || 0,
         forms:    formCount.count || 0,
+        carePlan: planCount.count || 0,
       });
     } catch (_e) { /* silent */ }
   }, [patientId]);
@@ -153,6 +163,7 @@ export default function PortalShell() {
     dashboard:    PortalDashboard,
     appointments: PortalAppointments,
     messages:     PortalMessages,
+    carePlan:     PortalCarePlan,
     visits:       PortalVisits,
     labs:         PortalLabs,
     trends:       PortalTrends,
@@ -168,7 +179,8 @@ export default function PortalShell() {
   const initials = ((patient.first_name || "")[0] || "") + ((patient.last_name || "")[0] || "");
   const activeBadge = (id) => {
     if (id === "messages" && badges.messages > 0) return badges.messages;
-    if (id === "forms" && badges.forms > 0) return badges.forms;
+    if (id === "forms"    && badges.forms    > 0) return badges.forms;
+    if (id === "carePlan" && badges.carePlan > 0) return badges.carePlan;
     return null;
   };
 
