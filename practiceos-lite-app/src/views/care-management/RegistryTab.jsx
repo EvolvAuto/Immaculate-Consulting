@@ -24,6 +24,33 @@ import NewEnrollmentModal from "./NewEnrollmentModal";
 // parallel, then composes the row model used by the table and KPIs.
 // ===============================================================================
 
+// SortableTh - clickable header that participates in client-side sort state.
+// Shows an arrow indicator on the active column; dim double-arrow on inactive
+// sortable columns to hint clickability. Non-sortable headers still render
+// as plain <Th>.
+function SortableTh({ children, sortKey, sortState, onSort, align }) {
+  const isActive = sortState.key === sortKey;
+  return (
+    <Th align={align}>
+      <span
+        onClick={() => onSort(sortKey)}
+        style={{ cursor: "pointer", userSelect: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+        title="Click to sort"
+      >
+        {children}
+        <span style={{
+          fontSize: 9,
+          color: isActive ? C.teal : C.textTertiary,
+          opacity: isActive ? 1 : 0.5,
+          minWidth: 10,
+        }}>
+          {isActive ? (sortState.dir === "asc" ? "▲" : "▼") : "⇅"}
+        </span>
+      </span>
+    </Th>
+  );
+}
+
 // PlanRiskBadge - renders the plan's PRL risk score (H/M/L/N) as a compact
 // badge. Distinct from our own AcuityBadge (acuity_tier) and RiskBadge (AI
 // cm_enrollment_risk_assessments). Null/empty renders nothing.
@@ -69,6 +96,15 @@ export default function RegistryTab() {
   const [rows, setRows]         = useState([]);
   const [adtCounts, setAdtCounts] = useState({}); // enrollment_id -> count in last 90d
   const [priorityPopLabels, setPriorityPopLabels] = useState({});
+  // sortState: { key, dir }. key null = default sort (status rank, acuity, enrolled_at desc).
+  const [sortState, setSortState] = useState({ key: null, dir: null });
+  const handleSort = (key) => {
+    setSortState(prev => {
+      if (prev.key !== key)     return { key, dir: "asc" };
+      if (prev.dir === "asc")   return { key, dir: "desc" };
+      return { key: null, dir: null }; // 3rd click returns to default
+    });
+  };
   const [acuityFilter, setAcuityFilter]   = useState("all");
   const [programFilter, setProgramFilter] = useState("all");
   const [statusFilter, setStatusFilter]   = useState("Active");
@@ -246,6 +282,87 @@ export default function RegistryTab() {
     });
   }, [rows, statusFilter, acuityFilter, programFilter, riskFilter]);
 
+  // Sort the filtered set. Default (sortState.key === null) preserves the
+  // original status-rank + acuity-rank + enrolled_at desc ordering. Each
+  // sortable column has its own comparator; ranks are used for categorical
+  // columns so "High > Moderate > Low" behaves intuitively. Nulls last.
+  const sorted = useMemo(() => {
+    const DEFAULT_STATUS_RANK = { Active: 4, Pending: 3, "On Hold": 2, Disenrolled: 1, Deceased: 0, Transferred: 0 };
+    const DEFAULT_ACUITY_RANK = { High: 3, Moderate: 2, Low: 1 };
+
+    if (!sortState.key) {
+      return [...filtered].sort((a, b) => {
+        const sa = DEFAULT_STATUS_RANK[a.enrollment_status] || 0;
+        const sb = DEFAULT_STATUS_RANK[b.enrollment_status] || 0;
+        if (sa !== sb) return sb - sa;
+        const aa = DEFAULT_ACUITY_RANK[a.acuity_tier] || 0;
+        const ab = DEFAULT_ACUITY_RANK[b.acuity_tier] || 0;
+        if (aa !== ab) return ab - aa;
+        const ta = a.enrolled_at ? new Date(a.enrolled_at).getTime() : 0;
+        const tb = b.enrolled_at ? new Date(b.enrolled_at).getTime() : 0;
+        return tb - ta;
+      });
+    }
+
+    const RISK_RANK   = { critical: 4, high: 3, medium: 2, low: 1 };
+    const PLAN_RISK_RANK = { H: 4, M: 3, L: 2, N: 1 };
+
+    // Nulls last, regardless of direction. Return 0 when both sides present
+    // so the caller can fall through to the real comparator.
+    const nullsLast = (av, bv) => {
+      if (av === null || av === undefined) return bv === null || bv === undefined ? 0 : 1;
+      if (bv === null || bv === undefined) return -1;
+      return 0;
+    };
+
+    const cmp = (a, b) => {
+      let r = 0;
+      switch (sortState.key) {
+        case "patient": {
+          const an = ((a.patients?.last_name || "") + ", " + (a.patients?.first_name || "")).toLowerCase();
+          const bn = ((b.patients?.last_name || "") + ", " + (b.patients?.first_name || "")).toLowerCase();
+          r = an.localeCompare(bn);
+          break;
+        }
+        case "plan":    r = (a.health_plan_type || "").localeCompare(b.health_plan_type || ""); break;
+        case "program": r = (a.program_type       || "").localeCompare(b.program_type       || ""); break;
+        case "acuity":  r = (DEFAULT_ACUITY_RANK[a.acuity_tier]       || 0) - (DEFAULT_ACUITY_RANK[b.acuity_tier]       || 0); break;
+        case "status":  r = (DEFAULT_STATUS_RANK[a.enrollment_status] || 0) - (DEFAULT_STATUS_RANK[b.enrollment_status] || 0); break;
+        case "risk": {
+          const ar = a.risk && !a.risk.dismissed_at ? (RISK_RANK[a.risk.risk_level] || 0) : 0;
+          const br = b.risk && !b.risk.dismissed_at ? (RISK_RANK[b.risk.risk_level] || 0) : 0;
+          r = ar - br;
+          break;
+        }
+        case "payer":   r = (a.payer_name || "").localeCompare(b.payer_name || ""); break;
+        case "last_contact": {
+          const n = nullsLast(a.last_touchpoint_at, b.last_touchpoint_at);
+          if (n !== 0) return n;
+          r = new Date(a.last_touchpoint_at).getTime() - new Date(b.last_touchpoint_at).getTime();
+          break;
+        }
+        case "days": {
+          const n = nullsLast(a.days_since_contact, b.days_since_contact);
+          if (n !== 0) return n;
+          r = a.days_since_contact - b.days_since_contact;
+          break;
+        }
+        case "next_contact": {
+          const av = a.risk?.suggested_next_contact_by || null;
+          const bv = b.risk?.suggested_next_contact_by || null;
+          const n = nullsLast(av, bv);
+          if (n !== 0) return n;
+          r = new Date(av).getTime() - new Date(bv).getTime();
+          break;
+        }
+        case "plan_risk": r = (PLAN_RISK_RANK[a.php_risk_score_category] || 0) - (PLAN_RISK_RANK[b.php_risk_score_category] || 0); break;
+      }
+      return sortState.dir === "desc" ? -r : r;
+    };
+
+    return [...filtered].sort(cmp);
+  }, [filtered, sortState]);
+
   const kpis = useMemo(() => {
     const active  = rows.filter(r => r.enrollment_status === "Active");
     const pending = rows.filter(r => r.enrollment_status === "Pending");
@@ -369,24 +486,24 @@ export default function RegistryTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead style={{ background: C.bgSecondary, borderBottom: "0.5px solid " + C.borderLight }}>
               <tr>
-                <Th>Patient</Th>
-                <Th>Plan</Th>
-                <Th>Program</Th>
-                <Th>Acuity</Th>
-                <Th>Status</Th>
-                <Th>Risk</Th>
-                <Th>Payer</Th>
-                <Th align="right">Last contact</Th>
-                <Th align="right">Days</Th>
-                <Th align="right">Next contact</Th>
+                <SortableTh sortKey="patient"      sortState={sortState} onSort={handleSort}>Patient</SortableTh>
+                <SortableTh sortKey="plan"         sortState={sortState} onSort={handleSort}>Plan</SortableTh>
+                <SortableTh sortKey="program"      sortState={sortState} onSort={handleSort}>Program</SortableTh>
+                <SortableTh sortKey="acuity"       sortState={sortState} onSort={handleSort}>Acuity</SortableTh>
+                <SortableTh sortKey="status"       sortState={sortState} onSort={handleSort}>Status</SortableTh>
+                <SortableTh sortKey="risk"         sortState={sortState} onSort={handleSort}>Risk</SortableTh>
+                <SortableTh sortKey="payer"        sortState={sortState} onSort={handleSort}>Payer</SortableTh>
+                <SortableTh sortKey="last_contact" sortState={sortState} onSort={handleSort} align="right">Last contact</SortableTh>
+                <SortableTh sortKey="days"         sortState={sortState} onSort={handleSort} align="right">Days</SortableTh>
+                <SortableTh sortKey="next_contact" sortState={sortState} onSort={handleSort} align="right">Next contact</SortableTh>
                 <Th>Flags</Th>
-                <Th>Plan view</Th>
+                <SortableTh sortKey="plan_risk"    sortState={sortState} onSort={handleSort}>Plan view</SortableTh>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, idx) => (
+              {sorted.map((r, idx) => (
                 <tr key={r.id} onClick={() => setSelected(r)} style={{
-                  borderBottom: idx < filtered.length - 1 ? "0.5px solid " + C.borderLight : "none",
+                  borderBottom: idx < sorted.length - 1 ? "0.5px solid " + C.borderLight : "none",
                   cursor: "pointer",
                   background: selected?.id === r.id ? C.tealBg : "transparent",
                 }}>
