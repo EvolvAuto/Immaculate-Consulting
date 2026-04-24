@@ -88,6 +88,7 @@ export default function LogTouchpointModal({ practiceId, userId, userRole, onClo
   // didn't actually keep.
   const [aiPolishing, setAiPolishing]   = useState(false);
   const [aiError, setAiError]           = useState(null);
+  const [aiOverloaded, setAiOverloaded] = useState(false);
   const [aiResult, setAiResult]         = useState(null);
   const [aiMeta, setAiMeta]             = useState(null);
   const [notesBaseline, setNotesBaseline] = useState("");
@@ -186,6 +187,7 @@ export default function LogTouchpointModal({ practiceId, userId, userRole, onClo
 
     setAiPolishing(true);
     setAiError(null);
+    setAiOverloaded(false);
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token;
@@ -206,7 +208,11 @@ export default function LogTouchpointModal({ practiceId, userId, userRole, onClo
         }),
       });
       const body = await res.json();
-      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+      if (!res.ok || body.error) {
+        const err = new Error(body.error || "HTTP " + res.status);
+        err.overloaded = body.overloaded === true;
+        throw err;
+      }
 
       // Replace notes textarea with polished version, record baseline so we
       // can detect later edits. Suggest activity code only if user hadn't
@@ -235,6 +241,7 @@ export default function LogTouchpointModal({ practiceId, userId, userRole, onClo
       });
     } catch (e) {
       setAiError(e.message || "AI polish failed");
+      setAiOverloaded(e.overloaded === true);
     } finally {
       setAiPolishing(false);
     }
@@ -438,8 +445,13 @@ export default function LogTouchpointModal({ practiceId, userId, userRole, onClo
             style={{ ...inputStyle, resize: "vertical" }}
           />
           {aiError && (
-            <div style={{ marginTop: 6, fontSize: 12, color: C.red, background: C.redBg, padding: "6px 10px", borderRadius: 6, border: "0.5px solid " + C.redBorder }}>
-              {aiError}
+            <div style={{
+              marginTop: 6, fontSize: 12, padding: "6px 10px", borderRadius: 6,
+              color:      aiOverloaded ? "#854F0B" : C.red,
+              background: aiOverloaded ? "#FEF3C7" : C.redBg,
+              border:     "0.5px solid " + (aiOverloaded ? "#F59E0B" : C.redBorder),
+            }}>
+              {aiOverloaded ? "\u26A0 " : ""}{aiError}
             </div>
           )}
           {aiResult && (
