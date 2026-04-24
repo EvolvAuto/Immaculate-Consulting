@@ -27,6 +27,10 @@ export default function EnrollmentDetail({ enrollment, onClose, onUpdated, onRis
   const { profile } = useAuth();
   const [touchpoints, setTouchpoints] = useState([]);
   const [loading, setLoading]         = useState(true);
+  const [adtEvents, setAdtEvents]     = useState([]);
+  const [refLabels, setRefLabels]     = useState({
+    priority_population: {}, adt_reason: {}, population_segment: {}, waiver_service: {},
+  });
   // Sub-mode: view (default) | edit | disenroll | activate
   const [mode, setMode] = useState("view");
 
@@ -73,6 +77,30 @@ export default function EnrollmentDetail({ enrollment, onClose, onUpdated, onRis
       .limit(50)
       .then(({ data }) => { setTouchpoints(data || []); setLoading(false); });
     loadRisk();
+
+    // ADT events from PRL history - time series, newest first.
+    supabase
+      .from("cm_enrollment_adt_events")
+      .select("id, adt_reason_code, adt_reason_slot, reported_in_reporting_month, import_id, created_at")
+      .eq("enrollment_id", enrollment.id)
+      .order("reported_in_reporting_month", { ascending: false })
+      .order("adt_reason_slot", { ascending: true })
+      .then(({ data }) => setAdtEvents(data || []));
+
+    // Reference labels for the categories this panel renders. Small static
+    // data; cached in component state.
+    supabase
+      .from("cm_reference_codes")
+      .select("category, code, label")
+      .in("category", ["priority_population", "adt_reason", "population_segment", "waiver_service"])
+      .eq("is_active", true)
+      .then(({ data }) => {
+        const m = { priority_population: {}, adt_reason: {}, population_segment: {}, waiver_service: {} };
+        for (const r of data || []) {
+          if (m[r.category]) m[r.category][r.code] = r.label;
+        }
+        setRefLabels(m);
+      });
   }, [enrollment.id, loadRisk]);
 
   // Re-assess: call cmp-risk-assess-enrollment edge fn. Supersedes current
@@ -255,6 +283,88 @@ export default function EnrollmentDetail({ enrollment, onClose, onUpdated, onRis
         </div>
       )}
 
+      {/* Plan perspective - PRL-sourced data from health plan monthly file */}
+      <div style={{ padding: 12, marginBottom: 16, background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary }}>
+            Plan perspective (from PRL)
+          </div>
+          {enrollment.prl_last_synced_at && (
+            <div style={{ fontSize: 11, color: C.textTertiary }}>
+              Synced {new Date(enrollment.prl_last_synced_at).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+        {!enrollment.prl_last_synced_at ? (
+          <div style={{ fontSize: 12, color: C.textTertiary, fontStyle: "italic" }}>
+            No PRL data applied yet. Ingest a monthly file from the plan in the PRL tab to populate.
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+              <DetailField
+                label="Plan risk"
+                value={
+                  enrollment.php_risk_score_category
+                    ? (refLabels.prl_risk_category?.[enrollment.php_risk_score_category] || enrollment.php_risk_score_category)
+                    : "-"
+                }
+              />
+              <DetailField
+                label="Priority populations"
+                value={
+                  Array.isArray(enrollment.priority_populations) && enrollment.priority_populations.length > 0
+                    ? enrollment.priority_populations.map(c => refLabels.priority_population[c] || c).join(", ")
+                    : "-"
+                }
+              />
+              <DetailField
+                label="Plan says UTR"
+                value={
+                  enrollment.plan_unable_to_reach === null || enrollment.plan_unable_to_reach === undefined
+                    ? "-"
+                    : enrollment.plan_unable_to_reach ? "Yes" : "No"
+                }
+              />
+              <DetailField
+                label="Plan last unsuccessful contact"
+                value={
+                  enrollment.plan_last_unsuccessful_contact_date
+                    ? new Date(enrollment.plan_last_unsuccessful_contact_date + "T12:00:00Z").toLocaleDateString()
+                    : "-"
+                }
+              />
+              {enrollment.health_plan_type === "Tailored" && (
+                <>
+                  <DetailField
+                    label="Population segment"
+                    value={refLabels.population_segment[enrollment.population_segment] || enrollment.population_segment || "-"}
+                  />
+                  <DetailField
+                    label="Waiver service"
+                    value={refLabels.waiver_service[enrollment.waiver_service] || enrollment.waiver_service || "-"}
+                  />
+                  <DetailField
+                    label="TCL status"
+                    value={
+                      enrollment.tcl_member_status === null || enrollment.tcl_member_status === undefined
+                        ? "-"
+                        : enrollment.tcl_member_status ? "Active" : "Not active"
+                    }
+                  />
+                </>
+              )}
+            </div>
+            {enrollment.php_risk_evidence && (
+              <div style={{ marginTop: 10, padding: "8px 10px", background: "white", borderRadius: 6, fontSize: 12, color: C.textSecondary, borderLeft: "3px solid " + C.borderLight }}>
+                <span style={{ fontWeight: 600, color: C.textTertiary }}>Plan evidence: </span>
+                {enrollment.php_risk_evidence}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       {/* AI clinical risk panel */}
       <RiskPanel
         risk={risk}
@@ -273,6 +383,38 @@ export default function EnrollmentDetail({ enrollment, onClose, onUpdated, onRis
         setDismissReason={setDismissReason}
         onDismiss={handleDismiss}
       />
+
+      {/* Hospital events (ADT) from PRL history */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: C.textSecondary, marginBottom: 8 }}>
+          Hospital events (ADT) ({adtEvents.length})
+        </div>
+        {adtEvents.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.textTertiary, fontStyle: "italic" }}>
+            No ADT events reported by the plan in any received PRL.
+          </div>
+        ) : (
+          <div style={{ border: "0.5px solid " + C.borderLight, borderRadius: 8, maxHeight: 200, overflow: "auto" }}>
+            {adtEvents.map((ev, i) => (
+              <div key={ev.id} style={{
+                padding: "8px 12px",
+                borderBottom: i < adtEvents.length - 1 ? "0.5px solid " + C.borderLight : "none",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>
+                    {refLabels.adt_reason[ev.adt_reason_code] || ("Code " + ev.adt_reason_code)}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textTertiary }}>
+                    Reported in {new Date(ev.reported_in_reporting_month + "T12:00:00Z").toLocaleDateString(undefined, { year: "numeric", month: "long" })}
+                  </div>
+                </div>
+                <Badge label={"Slot " + ev.adt_reason_slot} variant="neutral" size="xs" />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Touchpoint history */}
       <div>
