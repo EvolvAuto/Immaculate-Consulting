@@ -128,7 +128,6 @@ export default function DashboardView({ onNav }) {
 
       <ProChartPrepCard practiceId={practiceId} tier={tier} onNav={onNav} />
 
-      {hasAiUsage && <AiUsageCard practiceId={practiceId} tier={tier} />}
 
       {data.insights && (
         <Card style={{ borderLeft: `3px solid ${C.teal}` }}>
@@ -286,6 +285,8 @@ export default function DashboardView({ onNav }) {
           </Card>
         )}
       </div>
+
+      {hasAiUsage && <AiUsageCard practiceId={practiceId} tier={tier} />}
     </div>
   );
 }
