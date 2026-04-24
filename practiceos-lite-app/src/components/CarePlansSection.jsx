@@ -47,8 +47,8 @@ export default function CarePlansSection({ patientId }) {
 
   if (loading) {
     return (
-      <div style={{ marginTop: 20 }}>
-        <SectionHead title="My Care Plans" />
+    <div id="portal-care-plans-anchor" style={{ marginTop: 20, scrollMarginTop: 80 }}>
+      <SectionHead title="My Care Plans" sub="Plans your care team has shared with you" />
         <Card>
           <div style={{ fontSize: 12, color: C.textTertiary, padding: 8, textAlign: "center" }}>
             Loading your care plans...
