@@ -261,3 +261,25 @@ export const selectStyle = {
   WebkitAppearance: "none",
   paddingRight: 32,
 };
+
+// ----- Enrollment domain constants ------------------------------------------
+// These are the complete option sets for program_type and cm_provider_type
+// used when the validation matrix is overridden (or as the default for the
+// "Other" plan type). They live here rather than in a specific modal file
+// because EditEnrollmentForm and NewEnrollmentModal both need them and
+// neither owns the other.
+
+export const ALL_PROGRAM_TYPES = [
+  "TCM",
+  "AMH",
+  "General Engagement",
+  "Other",
+];
+
+export const ALL_PROVIDER_TYPES = [
+  "AMH+",
+  "AMH Tier 3",
+  "CMA",
+  "CIN",
+  "Other",
+];
