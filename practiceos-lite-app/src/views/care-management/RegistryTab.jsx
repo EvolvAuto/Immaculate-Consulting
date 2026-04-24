@@ -24,6 +24,27 @@ import NewEnrollmentModal from "./NewEnrollmentModal";
 // parallel, then composes the row model used by the table and KPIs.
 // ===============================================================================
 
+// NextContactCell - formats suggested_next_contact_by from the latest risk
+// assessment. Color-codes by urgency: past-due red, <=7d amber, else neutral.
+// Renders a dash when no active risk assessment exists on the enrollment.
+function NextContactCell({ dateStr }) {
+  if (!dateStr) return <span style={{ color: C.textTertiary, fontSize: 12 }}>-</span>;
+  const due = new Date(dateStr + "T12:00:00Z");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysUntil = Math.floor((due - today) / (1000 * 60 * 60 * 24));
+  let color = C.textSecondary;
+  if (daysUntil < 0) color = "#DC2626";
+  else if (daysUntil <= 7) color = "#854F0B";
+  const weight = (daysUntil < 0 || daysUntil <= 7) ? 600 : 400;
+  return (
+    <span style={{ color, fontSize: 12, fontWeight: weight }}>
+      {due.toLocaleDateString()}
+      {daysUntil < 0 && <span style={{ fontSize: 10, marginLeft: 4 }}> ({Math.abs(daysUntil)}d over)</span>}
+    </span>
+  );
+}
+
 export default function RegistryTab() {
   const { profile } = useAuth();
   const practiceId = profile?.practice_id;
@@ -309,6 +330,8 @@ export default function RegistryTab() {
                 <Th>Payer</Th>
                 <Th align="right">Last contact</Th>
                 <Th align="right">Days</Th>
+                <Th align="right">Next contact</Th>
+                <Th>Flags</Th>
                 <Th>Flags</Th>
               </tr>
             </thead>
@@ -337,6 +360,9 @@ export default function RegistryTab() {
                   </Td>
                   <Td align="right">
                     <StaleDaysBadge days={r.days_since_contact} status={r.enrollment_status} acuity={r.acuity_tier} planType={r.health_plan_type} />
+                  </Td>
+                  <Td align="right">
+                    <NextContactCell dateStr={r.risk?.suggested_next_contact_by} />
                   </Td>
                   <Td>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
