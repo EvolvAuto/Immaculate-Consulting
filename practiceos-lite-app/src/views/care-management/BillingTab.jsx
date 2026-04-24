@@ -4,6 +4,7 @@ import { C } from "../../lib/tokens";
 import { Badge, Btn, Card, Loader, EmptyState, ErrorBanner } from "../../components/ui";
 import { KpiCard, ClaimStatusBadge, VerificationBadge, FilterPill, Th, Td } from "./shared";
 import BillingPeriodDetailModal from "./BillingPeriodDetailModal";
+import BillingProjectionSection from "./BillingProjectionSection";
 
 // ===============================================================================
 // BillingTab - displays cm_billing_periods (one row per enrollment x month).
@@ -125,6 +126,8 @@ export default function BillingTab({ practiceId, profile }) {
           <Btn variant="outline" size="sm" onClick={load}>Refresh</Btn>
         </div>
       </Card>
+
+      <BillingProjectionSection practiceId={practiceId} viewedMonth={month} />
 
       {/* KPI strip */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 20 }}>
