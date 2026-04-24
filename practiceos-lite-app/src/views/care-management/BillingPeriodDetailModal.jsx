@@ -37,6 +37,7 @@ export default function BillingPeriodDetailModal({ period, userId, canSubmitClai
   const [aiAnalysis, setAiAnalysis]   = useState(null);
   const [aiContext, setAiContext]     = useState(null);
   const [aiError, setAiError]         = useState(null);
+  const [aiOverloaded, setAiOverloaded] = useState(false);
 
   const title = (period.patients?.first_name || "") + " " + (period.patients?.last_name || "")
     + " - " + new Date(period.billing_month + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -103,6 +104,7 @@ export default function BillingPeriodDetailModal({ period, userId, canSubmitClai
   const handleAiAnalyze = async () => {
     setAiAnalyzing(true);
     setAiError(null);
+    setAiOverloaded(false);
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess?.session?.access_token;
@@ -118,12 +120,17 @@ export default function BillingPeriodDetailModal({ period, userId, canSubmitClai
         body: JSON.stringify({ billing_period_id: period.id }),
       });
       const body = await res.json();
-      if (!res.ok || body.error) throw new Error(body.error || "HTTP " + res.status);
+      if (!res.ok || body.error) {
+        const err = new Error(body.error || "HTTP " + res.status);
+        err.overloaded = body.overloaded === true;
+        throw err;
+      }
 
       setAiAnalysis(body.analysis || null);
       setAiContext(body.context || null);
     } catch (e) {
       setAiError(e.message || "AI analysis failed");
+      setAiOverloaded(e.overloaded === true);
     } finally {
       setAiAnalyzing(false);
     }
@@ -182,8 +189,13 @@ export default function BillingPeriodDetailModal({ period, userId, canSubmitClai
 
       {/* AI analysis error + result */}
       {aiError && (
-        <div style={{ marginBottom: 16, fontSize: 12, color: C.red, background: C.redBg, padding: "10px 12px", borderRadius: 8, border: "0.5px solid " + C.redBorder }}>
-          {aiError}
+        <div style={{
+          marginBottom: 16, fontSize: 12, padding: "10px 12px", borderRadius: 8,
+          color:      aiOverloaded ? "#854F0B" : C.red,
+          background: aiOverloaded ? "#FEF3C7" : C.redBg,
+          border:     "0.5px solid " + (aiOverloaded ? "#F59E0B" : C.redBorder),
+        }}>
+          {aiOverloaded ? "\u26A0 " : ""}{aiError}
         </div>
       )}
       {aiAnalysis && (
