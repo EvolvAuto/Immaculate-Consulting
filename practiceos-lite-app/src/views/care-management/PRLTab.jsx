@@ -77,7 +77,7 @@ function PRLInbound({ practiceId }) {
   useEffect(() => { load(); }, [load]);
 
   const runEdge = async (slug, payload) => {
-    setRunning(slug === "prl-parse" ? "parse" : "match");
+    setRunning(slug === "prl-parse" ? "parse" : slug === "prl-match" ? "match" : "apply");
     try {
       const { data, error } = await supabase.functions.invoke(slug, { body: payload });
       if (error) throw error;
@@ -115,6 +115,12 @@ function PRLInbound({ practiceId }) {
           label="Ready to validate"
           value={imports.filter(i => i.status === "Parsed").length}
           hint="Awaiting prl-match run"
+          variant="blue"
+        />
+        <KpiCard
+          label="Ready to apply"
+          value={imports.filter(i => i.status === "Validated").length}
+          hint="Awaiting prl-apply run"
           variant="blue"
         />
       </div>
@@ -175,6 +181,11 @@ function PRLInbound({ practiceId }) {
                     {imp.status === "Parsed" && (
                       <Btn size="sm" variant="outline" disabled={running === "match"} onClick={e => { e.stopPropagation(); runEdge("prl-match", { import_id: imp.id }); }}>
                         {running === "match" ? "Matching..." : "Match"}
+                      </Btn>
+                    )}
+                    {imp.status === "Validated" && (
+                      <Btn size="sm" variant="primary" disabled={running === "apply"} onClick={e => { e.stopPropagation(); runEdge("prl-apply", { import_id: imp.id }); }}>
+                        {running === "apply" ? "Applying..." : "Apply"}
                       </Btn>
                     )}
                   </Td>
