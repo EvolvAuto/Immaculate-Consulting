@@ -285,7 +285,7 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
 
   if (loading) {
     return (
-      <Modal title="Batch log touchpoints" onClose={onClose} width={900}>
+      <Modal title="Batch log touchpoints" onClose={onClose} width={1120}>
         <Loader label="Loading caseload..." />
       </Modal>
     );
@@ -325,7 +325,7 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
   const allFilteredSelected = filtered.length > 0 && filtered.every(e => selectedIds.has(e.id));
 
   return (
-    <Modal title={"Batch log touchpoints" + (selectedIds.size > 0 ? " (" + selectedIds.size + " selected)" : "")} onClose={onClose} width={900}>
+    <Modal title={"Batch log touchpoints" + (selectedIds.size > 0 ? " (" + selectedIds.size + " selected)" : "")} onClose={onClose} width={1120}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       {/* Section 1: Member picker */}
@@ -338,14 +338,10 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
           placeholder="Search by name or MRN..."
           style={{ ...inputStyle, flex: "1 1 220px", minWidth: 220, width: "auto" }}
         />
-        <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} style={{ ...selectStyle, width: "auto", minWidth: 150 }}>
-          <option value="all">All programs</option>
-          <option value="TCM">TCM</option>
-          <option value="AMH">AMH</option>
-          <option value="AMH Plus">AMH Plus</option>
-          <option value="AMH Tier 3">AMH Tier 3</option>
-          <option value="CMA">CMA</option>
-          <option value="CIN CM">CIN CM</option>
+        <select value={programFilter} onChange={e => setProgramFilter(e.target.value)} style={{ ...selectStyle, width: "auto", minWidth: 180 }}>
+          <option value="all">All caseloads</option>
+          <option value="TCM">TCM (Tailored Plan)</option>
+          <option value="AMH">AMH (Standard Plan)</option>
           <option value="General Engagement">General Engagement</option>
         </select>
         <Btn size="sm" variant="outline" onClick={allFilteredSelected ? clearAll : selectAllFiltered}>
@@ -409,6 +405,9 @@ export default function BatchTouchpointModal({ practiceId, userId, userRole, onC
         </div>
         <div style={{ gridColumn: "1 / -1" }}>
           <FL>Activity category</FL>
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: -4, marginBottom: 6 }}>
+            All touchpoints in this batch share one activity. For mixed activities, run separate batches.
+          </div>
           <select value={activityCode} onChange={e => setActivityCode(e.target.value)} style={selectStyle}>
             <option value="">-- Select activity --</option>
             {groupedActivities.hasGrouping
