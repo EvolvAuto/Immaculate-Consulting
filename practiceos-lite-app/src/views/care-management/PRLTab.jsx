@@ -201,7 +201,25 @@ function PRLOutbound({ practiceId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
   const [showNew, setShowNew] = useState(false);
-  const [generating, setGenerating] = useState(null); // export id currently generating
+  const [showTransmit, setShowTransmit] = useState(null); // export row or null
+  const [generating, setGenerating] = useState(null);     // export id currently generating
+  const [downloading, setDownloading] = useState(null);   // export id currently downloading
+
+  const download = async (ex) => {
+    if (!ex.file_path) { setError("No file to download - regenerate the export first."); return; }
+    setDownloading(ex.id);
+    try {
+      const { data, error } = await supabase.storage
+        .from("prl-exports")
+        .createSignedUrl(ex.file_path, 60 * 60 * 24, { download: ex.file_name || "prl.txt" });
+      if (error) throw error;
+      if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+    } catch (e) {
+      setError(e.message || "Download failed");
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!practiceId) return;
@@ -210,7 +228,7 @@ function PRLOutbound({ practiceId }) {
     try {
       const { data, error } = await supabase
         .from("cm_prl_exports")
-        .select("id, file_type, reporting_month, target_plan_short_name, target_php_name, status, record_count, version_release, file_name, generated_at, transmitted_at, notes")
+        .select("id, file_type, reporting_month, target_plan_short_name, target_php_name, status, record_count, version_release, file_name, file_path, file_size_bytes, generated_at, transmitted_at, transmission_method, notes")
         .eq("practice_id", practiceId)
         .order("reporting_month", { ascending: false })
         .order("created_at", { ascending: false })
@@ -283,9 +301,19 @@ function PRLOutbound({ practiceId }) {
                   <Td align="right">{ex.record_count || 0}</Td>
                   <Td>{ex.generated_at ? new Date(ex.generated_at).toLocaleString() : "-"}</Td>
                   <Td align="right">
-                    {(ex.status === "Draft" || ex.status === "Ready") && (
+                    {(ex.status === "Draft" || ex.status === "Rejected") && (
                       <Btn size="sm" variant="outline" disabled={generating === ex.id} onClick={() => generate(ex.id)}>
-                        {generating === ex.id ? "Generating..." : (ex.status === "Draft" ? "Generate" : "Regenerate")}
+                        {generating === ex.id ? "Generating..." : (ex.status === "Rejected" ? "Regenerate" : "Generate")}
+                      </Btn>
+                    )}
+                    {(ex.status === "Generated" || ex.status === "Transmitted" || ex.status === "Acknowledged") && ex.file_path && (
+                      <Btn size="sm" variant="outline" disabled={downloading === ex.id} onClick={() => download(ex)} style={{ marginRight: 4 }}>
+                        {downloading === ex.id ? "..." : "Download"}
+                      </Btn>
+                    )}
+                    {ex.status === "Generated" && (
+                      <Btn size="sm" variant="primary" onClick={() => setShowTransmit(ex)}>
+                        Mark as Transmitted
                       </Btn>
                     )}
                   </Td>
@@ -299,7 +327,75 @@ function PRLOutbound({ practiceId }) {
       {showNew && (
         <NewExportModal practiceId={practiceId} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); }} />
       )}
+      {showTransmit && (
+        <TransmitModal exportRow={showTransmit} onClose={() => setShowTransmit(null)} onTransmitted={() => { setShowTransmit(null); load(); }} />
+      )}
     </div>
+  );
+}
+
+// --- Transmit Modal (Mark as Transmitted) ------------------------------------
+function TransmitModal({ exportRow, onClose, onTransmitted }) {
+  const [method, setMethod] = useState("SFTP");
+  const [notes, setNotes]   = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState(null);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const userId = authData?.user?.id || null;
+      const { error } = await supabase
+        .from("cm_prl_exports")
+        .update({
+          status:              "Transmitted",
+          transmission_method: method,
+          transmission_notes:  notes.trim() || null,
+          transmitted_at:      new Date().toISOString(),
+          transmitted_by:      userId,
+        })
+        .eq("id", exportRow.id);
+      if (error) throw error;
+      onTransmitted();
+    } catch (e) {
+      setError(e.message || "Failed to mark as transmitted");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={"Mark as Transmitted: " + (exportRow.file_name || exportRow.target_plan_short_name)} onClose={onClose} width={520}>
+      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+      <div style={{ marginBottom: 12 }}>
+        <FL>Transmission method</FL>
+        <select value={method} onChange={e => setMethod(e.target.value)} style={selectStyle}>
+          <option value="SFTP">SFTP</option>
+          <option value="Plan Portal">Plan Portal</option>
+          <option value="Email">Email</option>
+          <option value="Manual Upload">Manual Upload</option>
+        </select>
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <FL>Notes (optional)</FL>
+        <textarea
+          value={notes}
+          onChange={e => setNotes(e.target.value)}
+          rows={3}
+          placeholder="e.g., SFTP server hostname, portal confirmation number, recipient email"
+          style={{ ...inputStyle, resize: "vertical" }}
+        />
+      </div>
+      <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: 16 }}>
+        This logs the transmission for your audit trail. It does not send the file - you must upload it to the plan's SFTP/portal separately.
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+        <Btn variant="primary" disabled={saving} onClick={save}>{saving ? "Saving..." : "Mark as Transmitted"}</Btn>
+      </div>
+    </Modal>
   );
 }
 
