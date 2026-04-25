@@ -955,10 +955,10 @@ function CareManagementStrip({ enrollments, popLabels }) {
 function CareManagementStripRow({ enrollment, popLabels, isPrimary }) {
   const e = enrollment;
   const planRiskMap = {
-    H: { label: "Plan: H",   color: C.red,           bg: "#FEE2E2" },
-    M: { label: "Plan: M",   color: "#854F0B",       bg: "#FEF3C7" },
-    L: { label: "Plan: L",   color: C.textSecondary, bg: C.bgSecondary },
-    N: { label: "Plan: N/A", color: C.textTertiary,  bg: C.bgSecondary },
+    H: { label: "Plan risk: High",     color: C.red,           bg: "#FEE2E2" },
+    M: { label: "Plan risk: Moderate", color: "#854F0B",       bg: "#FEF3C7" },
+    L: { label: "Plan risk: Low",      color: C.textSecondary, bg: C.bgSecondary },
+    N: { label: "Plan risk: Unscored", color: C.textTertiary,  bg: C.bgSecondary },
   };
   const planRisk = e.php_risk_score_category ? planRiskMap[e.php_risk_score_category] : null;
 
@@ -1075,11 +1075,24 @@ function CareManagementStripDetail({ enrollment, popLabels }) {
       padding: "10px 14px",
       background: "#fff",
       borderTop: "0.5px solid " + C.borderLight,
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-      gap: 12,
       fontSize: 11,
     }}>
+      <div style={{
+        fontSize: 10,
+        color: C.textTertiary,
+        fontStyle: "italic",
+        marginBottom: 10,
+        paddingBottom: 8,
+        borderBottom: "0.5px solid " + C.borderLight,
+        lineHeight: 1.5,
+      }}>
+        Two risk scores are tracked. Acuity is your practice's clinical assessment from touchpoints and assessment. Plan risk is the health plan's claims-based stratification, refreshed monthly via the inbound PRL.
+      </div>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+        gap: 12,
+      }}>
       <DetailMicro label="Plan view synced" value={new Date(e.prl_last_synced_at).toLocaleDateString()} />
       <DetailMicro
         label="Priority populations"
@@ -1123,6 +1136,7 @@ function CareManagementStripDetail({ enrollment, popLabels }) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
