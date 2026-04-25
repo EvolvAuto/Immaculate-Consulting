@@ -201,12 +201,27 @@ function NewEncounterModal({ onClose, onCreated, practiceId, profile }) {
 function EncounterEditor({ encounter, profile, tier, onClose, onSaved }) {
   const [panelValues, setPanelValues] = useState({});
   const [patient, setPatient] = useState(null);
+  const [hasAIDraft, setHasAIDraft] = useState(false);
 
   useEffect(() => {
   if (!encounter?.patient_id) return;
   supabase.from("patients").select("*").eq("id", encounter.patient_id).single()
     .then(({ data }) => setPatient(data));
 }, [encounter?.patient_id]);
+
+  // Detect whether any AI Scribe content has been inserted into this encounter.
+  // Drives the "AI draft" badge until the encounter is signed/amended.
+  useEffect(() => {
+    if (!encounter?.id) return;
+    supabase.from("cmd_scribe_sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("encounter_id", encounter.id)
+      .eq("status", "inserted")
+      .then(({ count, error }) => {
+        if (error) { console.warn("[Scribe] AI-source check failed:", error.message); return; }
+        if ((count || 0) > 0) setHasAIDraft(true);
+      });
+  }, [encounter?.id]);
   const [e, setE] = useState(encounter);
   const [codeModal, setCodeModal] = useState(null);
   const [scribeOpen, setScribeOpen] = useState(false);
@@ -330,7 +345,12 @@ function EncounterEditor({ encounter, profile, tier, onClose, onSaved }) {
         ))}
       </div>
 
-      <SectionHead title="SOAP Note" action={!locked && tier === "Command" ? <Btn size="sm" variant="outline" onClick={() => setScribeOpen(true)}>AI Scribe</Btn> : null} />
+      <SectionHead title="SOAP Note" action={
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {hasAIDraft && (e.status === "Draft" || e.status === "In Progress") && <Badge label="AI draft" variant="teal" size="xs" />}
+          {!locked && tier === "Command" && <Btn size="sm" variant="outline" onClick={() => setScribeOpen(true)}>AI Scribe</Btn>}
+        </div>
+      } />
       <div style={{ opacity: locked ? 0.7 : 1 }}>
         <Input label="Chief Complaint" value={e.chief_complaint} onChange={locked ? () => {} : set("chief_complaint")} />
         <Textarea label="Subjective" value={e.subjective} onChange={locked ? () => {} : set("subjective")} rows={3} />
@@ -396,10 +416,25 @@ function EncounterEditor({ encounter, profile, tier, onClose, onSaved }) {
           practiceId={e.practice_id}
           profile={profile}
           onClose={() => setScribeOpen(false)}
-         onInsert={(patch) => {
-            // ScribeModal resolved per-section decisions and returned a final patch.
+         onInsert={async (patch) => {
+            // ScribeModal returned a resolved patch from its per-section decisions.
+            // Optimistic local update so the merge is visible immediately.
             setE((prev) => ({ ...prev, ...patch }));
+            setHasAIDraft(true);
             setScribeOpen(false);
+            // Auto-save the AI-merged fields so they can't be lost by a closed tab
+            // or browser crash. Status stays whatever it was (Draft / In Progress).
+            // Other fields the provider may have typed (vitals, codes, etc.) are
+            // not part of this patch and still need a manual Save Draft to persist.
+            try {
+              const u = await updateRow("encounters", e.id, patch, {
+                audit: { entityType: "encounters", patientId: e.patient_id, details: { source: "ai_scribe_apply" } },
+              });
+              onSaved(u);
+            } catch (err) {
+              console.warn("[Scribe] auto-save after Apply failed:", err.message);
+              alert("AI content was applied to this view but did not save to the server: " + err.message + "\nClick Save Draft when ready.");
+            }
           }}
         />
       )}
