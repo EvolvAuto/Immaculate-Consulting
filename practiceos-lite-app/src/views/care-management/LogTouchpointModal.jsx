@@ -56,6 +56,7 @@ const HOP_DOMAINS = [
 export default function LogTouchpointModal({ practiceId, userId, userRole, onClose, onLogged }) {
   const [enrolledPatients, setEnrolledPatients] = useState([]);
   const [activityCodes, setActivityCodes]       = useState([]);
+  const [adtReasonCodes, setAdtReasonCodes]     = useState([]);
   // HRSN domains are hardcoded from HOP spec, not fetched (no reference_codes category for them).
   const hrsnDomains = HOP_DOMAINS;
 
@@ -71,6 +72,7 @@ export default function LogTouchpointModal({ practiceId, userId, userRole, onClo
   const [contactMethod, setContactMethod]   = useState("Telephonic");
   const [activityCode, setActivityCode]     = useState("");
   const [selectedHrsn, setSelectedHrsn]     = useState([]);
+  const [adtReasonCode, setAdtReasonCode]   = useState("");
   const [notes, setNotes]                   = useState("");
   const [successful, setSuccessful]         = useState(true);
 
@@ -122,6 +124,21 @@ export default function LogTouchpointModal({ practiceId, userId, userRole, onClo
       .order("sort_order", { ascending: true })
       .then(({ data, error }) => {
         if (!error && data) setActivityCodes(data);
+      });
+  }, []);
+
+  // Load ADT reason codes for the optional "ADT event addressed" picker.
+  // Filters out the "000" Null code - in UI terms "no ADT event" means
+  // "don't pick one", not an explicit null selection.
+  useEffect(() => {
+    supabase
+      .from("cm_reference_codes")
+      .select("code, label, sort_order")
+      .eq("category", "adt_reason")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .then(({ data, error }) => {
+        if (!error && data) setAdtReasonCodes(data.filter(c => c.code !== "000"));
       });
   }, []);
 
@@ -300,6 +317,7 @@ export default function LogTouchpointModal({ practiceId, userId, userRole, onClo
       counts_toward_tcm_contact: countsTowardTcm,
       delivered_by_role:         deliveredByRole,
       activity_category_code:    activityCode,
+      adt_reason_code:           adtReasonCode || null,
       hrsn_domains_addressed:    selectedHrsn,
       notes:                     notes.trim() || null,
       source:                    "Manual",
@@ -392,6 +410,19 @@ export default function LogTouchpointModal({ practiceId, userId, userRole, onClo
               Warning: no activity codes loaded. Check that cm_reference_codes has category='activity_category' rows.
             </div>
           )}
+        </div>
+
+        <div style={{ gridColumn: "1 / -1" }}>
+          <FL>ADT event addressed (optional)</FL>
+          <select value={adtReasonCode} onChange={e => setAdtReasonCode(e.target.value)} style={selectStyle}>
+            <option value="">-- None / routine engagement --</option>
+            {adtReasonCodes.map(c => (
+              <option key={c.code} value={c.code}>{c.label}</option>
+            ))}
+          </select>
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>
+            Tag a hospital event this contact addresses (post-discharge outreach, ED follow-up, BH crisis, transfer). Flows into the next AMH PRL v7.0 outbound file as Section D reason codes.
+          </div>
         </div>
 
         {hrsnDomains.length > 0 && (
