@@ -396,15 +396,9 @@ function EncounterEditor({ encounter, profile, tier, onClose, onSaved }) {
           practiceId={e.practice_id}
           profile={profile}
           onClose={() => setScribeOpen(false)}
-          onInsert={(draft) => {
-            // Append-if-existing, replace-if-empty. Provider can edit before signing.
-            setE((prev) => ({
-              ...prev,
-              subjective: prev.subjective ? prev.subjective + "\n\n" + draft.subjective : draft.subjective,
-              objective:  prev.objective  ? prev.objective  + "\n\n" + draft.objective  : draft.objective,
-              assessment: prev.assessment ? prev.assessment + "\n\n" + draft.assessment : draft.assessment,
-              plan:       prev.plan       ? prev.plan       + "\n\n" + draft.plan       : draft.plan,
-            }));
+         onInsert={(patch) => {
+            // ScribeModal resolved per-section decisions and returned a final patch.
+            setE((prev) => ({ ...prev, ...patch }));
             setScribeOpen(false);
           }}
         />
