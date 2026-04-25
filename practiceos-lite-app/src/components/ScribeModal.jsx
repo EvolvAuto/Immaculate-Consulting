@@ -68,12 +68,19 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
   const startTimeRef     = useRef(0);   // start of the CURRENT recording segment
   const accumulatedRef   = useRef(0);   // total seconds across all segments before current
 
+  // VU meter wiring
+  const audioCtxRef       = useRef(null);
+  const analyserRef       = useRef(null);
+  const meterFrameRef     = useRef(0);
+  const [levels, setLevels] = useState(() => new Array(32).fill(0));
+
   useEffect(() => {
     return () => {
       if (tickRef.current) clearInterval(tickRef.current);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
+      teardownMeter();
     };
   }, []);
 
@@ -103,6 +110,62 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
+    teardownMeter();
+  }
+
+  function teardownMeter() {
+    if (meterFrameRef.current) {
+      cancelAnimationFrame(meterFrameRef.current);
+      meterFrameRef.current = 0;
+    }
+    if (analyserRef.current) {
+      try { analyserRef.current.disconnect(); } catch (e) { /* ignore */ }
+      analyserRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      try { audioCtxRef.current.close(); } catch (e) { /* ignore */ }
+      audioCtxRef.current = null;
+    }
+    setLevels(new Array(32).fill(0));
+  }
+
+  function startMeter(stream) {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = new Ctx();
+      const source = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.6;
+      source.connect(analyser);
+      audioCtxRef.current = ctx;
+      analyserRef.current = analyser;
+
+      const buf = new Uint8Array(analyser.fftSize);
+      const tick = () => {
+        if (!analyserRef.current) return;
+        analyserRef.current.getByteTimeDomainData(buf);
+        // RMS amplitude over the buffer, normalized to 0..1
+        let sumSq = 0;
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128; // -1..1
+          sumSq += v * v;
+        }
+        const rms = Math.sqrt(sumSq / buf.length);
+        // Boost so quiet speech reads visibly; clamp to 1.
+        const level = Math.min(1, rms * 2.4);
+        setLevels((prev) => {
+          const next = prev.slice(1);
+          next.push(level);
+          return next;
+        });
+        meterFrameRef.current = requestAnimationFrame(tick);
+      };
+      meterFrameRef.current = requestAnimationFrame(tick);
+    } catch (e) {
+      console.warn("[Scribe] VU meter init failed:", e?.message || e);
+    }
   }
 
   async function startRecording() {
@@ -129,6 +192,7 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
       };
       recorder.onstop = handleRecorderStop;
       recorder.start();
+      startMeter(stream);
 
       startTimeRef.current = Date.now();
       accumulatedRef.current = 0;
@@ -406,6 +470,24 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
               )}
             </div>
             <div style={{ fontSize: 28, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: C.textPrimary, marginBottom: 6 }}>{fmtTime(elapsedSec)}</div>
+
+            {/* VU meter: 32 bars, rolling ~1s window. Color matches recording state. */}
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 36, marginBottom: 8, padding: "0 2px" }}>
+              {levels.map((lv, i) => {
+                const h = Math.max(2, Math.round(lv * 36));
+                return (
+                  <div key={i} style={{
+                    width: 5,
+                    height: h,
+                    borderRadius: 1,
+                    background: paused ? C.borderMid : C.red,
+                    opacity: paused ? 0.5 : (0.45 + (i / levels.length) * 0.55), // fade older samples
+                    transition: "height 60ms linear",
+                  }} />
+                );
+              })}
+            </div>
+
             <div style={{ fontSize: 11, color: paused ? C.amber : C.textTertiary, fontWeight: paused ? 700 : 400 }}>
               {paused ? "Paused" : "Recording. Max " + MAX_RECORDING_MIN + " minutes."}
             </div>
