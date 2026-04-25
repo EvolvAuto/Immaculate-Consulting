@@ -215,7 +215,21 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
   }
 
   function handleInsert() {
+    async function handleInsert() {
     if (!draft) return;
+    if (sessionId) {
+      // Mark the session as inserted so the audit trigger fires server-side.
+      // Failure is non-blocking - we don't want an audit hiccup to keep
+      // the provider from finishing their note.
+      try {
+        await supabase
+          .from("cmd_scribe_sessions")
+          .update({ status: "inserted", inserted_into_encounter_at: new Date().toISOString() })
+          .eq("id", sessionId);
+      } catch (e) {
+        console.warn("[ScribeModal] could not mark session inserted:", e?.message || e);
+      }
+    }
     onInsert(draft, sessionId);
   }
 
