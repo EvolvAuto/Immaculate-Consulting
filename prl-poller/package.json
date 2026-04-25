@@ -1,0 +1,22 @@
+{
+  "name": "prl-poller",
+  "version": "1.0.0",
+  "description": "External SFTP poller for NC Medicaid PRL (Patient Risk List) bidirectional exchange. Runs on Leonard's DigitalOcean droplet under PM2. Pulls inbound files from health plan / NC DHHS SFTP servers and POSTs them to PracticeOS prl-ingest-from-sftp webhook; pushes outbound generated files from cm_prl_exports to plan SFTP servers.",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "node-cron": "^3.0.3",
+    "ssh2-sftp-client": "^11.0.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}
