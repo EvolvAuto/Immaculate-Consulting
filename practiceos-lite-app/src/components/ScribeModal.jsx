@@ -100,7 +100,21 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
       setPhase("recording");
     } catch (e) {
       stopStream();
-      setErrorMsg("Could not start recording: " + (e.message || String(e)));
+      const name = e && e.name ? e.name : "";
+      const rawMsg = e && e.message ? e.message : String(e);
+      let msg;
+      if (name === "NotAllowedError" || rawMsg.includes("Permission denied")) {
+        msg = "Microphone access is blocked for this site. Click the lock icon in the address bar, set Microphone to Allow, then reload the page and try again.";
+      } else if (name === "NotFoundError") {
+        msg = "No microphone detected on this device. Plug in a mic or check your audio hardware.";
+      } else if (name === "NotReadableError") {
+        msg = "The microphone is being used by another app. Close other apps using the mic (Zoom, Meet, etc.) and try again.";
+      } else if (name === "SecurityError") {
+        msg = "Recording requires a secure (HTTPS) connection.";
+      } else {
+        msg = "Could not start recording: " + rawMsg;
+      }
+      setErrorMsg(msg);
       setPhase("error");
     }
   }
