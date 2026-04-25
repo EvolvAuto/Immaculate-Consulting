@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { C } from "../../lib/tokens";
 import { Badge, Btn, ErrorBanner, FL } from "../../components/ui";
@@ -61,6 +61,17 @@ export default function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSav
   const [overallAssessment, setOverallAssessment] = useState("");
   const [reviewerNotes, setReviewerNotes]         = useState("");
   const [nextReviewDue, setNextReviewDue]         = useState("");
+
+  // Auto-resize the overall assessment textarea to fit its content. Fires
+  // whenever the AI populates it on draft load OR the reviewer edits it.
+  // Resets height to auto first so the box can shrink as well as grow.
+  const overallRef = useRef(null);
+  useEffect(() => {
+    const el = overallRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [overallAssessment]);
 
   const handleDraft = async () => {
     setDrafting(true);
@@ -218,10 +229,11 @@ export default function AnnualReviewDrafter({ priorPlan, userId, onCancel, onSav
       <div style={{ marginBottom: 16 }}>
         <FL>Overall assessment</FL>
         <textarea
+          ref={overallRef}
           value={overallAssessment}
           onChange={e => setOverallAssessment(e.target.value)}
-          rows={3}
-          style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }}
+          rows={1}
+          style={{ ...inputStyle, fontFamily: "inherit", overflow: "hidden", minHeight: 60, lineHeight: 1.5 }}
         />
       </div>
 
