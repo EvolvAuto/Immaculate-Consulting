@@ -15,7 +15,7 @@ import ScribeModal from "../components/ScribeModal";
 const STATUSES = ["Draft", "In Progress", "Signed", "Amended"];
 
 export default function ClinicalView() {
-  const { practiceId, profile } = useAuth();
+ const { practiceId, profile, tier } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [encounters, setEncounters] = useState([]);
@@ -128,7 +128,7 @@ export default function ClinicalView() {
       </div>
 
       {creating && <NewEncounterModal practiceId={practiceId} profile={profile} onClose={() => setCreating(false)} onCreated={(e) => { setEncounters((prev) => [e, ...prev]); setCreating(false); setEditing(e); }} />}
-      {editing && <EncounterEditor encounter={editing} profile={profile} onClose={() => setEditing(null)}
+      {editing && <EncounterEditor encounter={editing} profile={profile} tier={tier} onClose={() => setEditing(null)}
         onSaved={(u) => { setEncounters((prev) => prev.map((x) => x.id === u.id ? { ...x, ...u } : x)); setEditing({ ...editing, ...u }); }} />}
     </div>
   );
@@ -198,7 +198,7 @@ function NewEncounterModal({ onClose, onCreated, practiceId, profile }) {
 }
 
 // ─── Encounter Editor (unchanged from prior version, SOAP + sign/amend) ──────
-function EncounterEditor({ encounter, profile, onClose, onSaved }) {
+function EncounterEditor({ encounter, profile, tier, onClose, onSaved }) {
   const [panelValues, setPanelValues] = useState({});
   const [patient, setPatient] = useState(null);
 
@@ -330,7 +330,7 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
         ))}
       </div>
 
-      <SectionHead title="SOAP Note" action={!locked ? <Btn size="sm" variant="outline" onClick={() => setScribeOpen(true)}>AI Scribe</Btn> : null} />
+      <SectionHead title="SOAP Note" action={!locked && tier === "Command" ? <Btn size="sm" variant="outline" onClick={() => setScribeOpen(true)}>AI Scribe</Btn> : null} />
       <div style={{ opacity: locked ? 0.7 : 1 }}>
         <Input label="Chief Complaint" value={e.chief_complaint} onChange={locked ? () => {} : set("chief_complaint")} />
         <Textarea label="Subjective" value={e.subjective} onChange={locked ? () => {} : set("subjective")} rows={3} />
