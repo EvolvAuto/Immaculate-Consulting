@@ -10,6 +10,7 @@ import { C } from "../lib/tokens";
 import { insertRow, updateRow } from "../lib/db";
 import { ICD10_COMMON, CPT_COMMON, toISODate } from "../components/constants";
 import { Badge, Btn, Card, Modal, Input, Textarea, Select, TopBar, TabBar, FL, SectionHead, Loader, ErrorBanner, EmptyState, CodeSearchModal } from "../components/ui";
+import ScribeModal from "../components/ScribeModal";
 
 const STATUSES = ["Draft", "In Progress", "Signed", "Amended"];
 
@@ -208,6 +209,7 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
 }, [encounter?.patient_id]);
   const [e, setE] = useState(encounter);
   const [codeModal, setCodeModal] = useState(null);
+  const [scribeOpen, setScribeOpen] = useState(false);
   const [amending, setAmending] = useState(false);
   const [amendReason, setAmendReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -328,7 +330,7 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
         ))}
       </div>
 
-      <SectionHead title="SOAP Note" />
+      <SectionHead title="SOAP Note" action={!locked ? <Btn size="sm" variant="outline" onClick={() => setScribeOpen(true)}>AI Scribe</Btn> : null} />
       <div style={{ opacity: locked ? 0.7 : 1 }}>
         <Input label="Chief Complaint" value={e.chief_complaint} onChange={locked ? () => {} : set("chief_complaint")} />
         <Textarea label="Subjective" value={e.subjective} onChange={locked ? () => {} : set("subjective")} rows={3} />
@@ -388,6 +390,25 @@ function EncounterEditor({ encounter, profile, onClose, onSaved }) {
 
       {codeModal === "diagnoses" && <CodeSearchModal title="Add ICD-10" codes={ICD10_COMMON} onAdd={(c) => addCode("diagnoses", c)} onClose={() => setCodeModal(null)} />}
       {codeModal === "cpt_codes" && <CodeSearchModal title="Add CPT" codes={CPT_COMMON} onAdd={(c) => addCode("cpt_codes", c)} onClose={() => setCodeModal(null)} />}
+      {scribeOpen && (
+        <ScribeModal
+          encounter={e}
+          practiceId={e.practice_id}
+          profile={profile}
+          onClose={() => setScribeOpen(false)}
+          onInsert={(draft) => {
+            // Append-if-existing, replace-if-empty. Provider can edit before signing.
+            setE((prev) => ({
+              ...prev,
+              subjective: prev.subjective ? prev.subjective + "\n\n" + draft.subjective : draft.subjective,
+              objective:  prev.objective  ? prev.objective  + "\n\n" + draft.objective  : draft.objective,
+              assessment: prev.assessment ? prev.assessment + "\n\n" + draft.assessment : draft.assessment,
+              plan:       prev.plan       ? prev.plan       + "\n\n" + draft.plan       : draft.plan,
+            }));
+            setScribeOpen(false);
+          }}
+        />
+      )}
     </Modal>
   );
 }
