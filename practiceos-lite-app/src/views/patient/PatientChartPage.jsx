@@ -1043,18 +1043,16 @@ function CareManagementStripRow({ enrollment, popLabels, isPrimary }) {
       )}
 
       
-        href={`/care-management?enrollment=${e.id}`}
+        href={"/care-management?enrollment=" + e.id}
         style={{
           marginLeft: "auto",
           fontSize: 11,
           color: C.teal,
           fontWeight: 600,
-          textDecoration: "none",
+          textDecoration: "underline",
         }}
-        onMouseEnter={(ev) => (ev.currentTarget.style.textDecoration = "underline")}
-        onMouseLeave={(ev) => (ev.currentTarget.style.textDecoration = "none")}
       >
-        Open in Care Mgmt →
+        Open in Care Mgmt &gt;
       </a>
     </div>
   );
