@@ -1,0 +1,32 @@
+{
+  "_README": [
+    "This file maps credential_ref values (set in cm_sftp_endpoints.credential_ref",
+    "in the PracticeOS database) to actual SFTP credentials.",
+    "",
+    "Copy this file to config.json and fill in real credentials.",
+    "Never commit config.json to git.",
+    "On the droplet, restrict permissions: chmod 600 config.json",
+    "",
+    "Each credential_ref entry supports either password OR privateKey auth.",
+    "If both are provided, privateKey takes precedence.",
+    "Keys can be PEM-encoded RSA, ed25519, or ECDSA. Paste the literal key contents",
+    "as a JSON-escaped multiline string OR provide privateKeyPath pointing to a file.",
+    "",
+    "Example credential_ref convention: <practice>_<plan>_<direction>",
+    "  pilot_trib_inbound      - Trillium inbound for pilot practice",
+    "  pilot_trib_outbound     - Trillium outbound for pilot practice",
+    "  pilot_trib_bidirectional - both directions on one credential",
+    "  pilot_ncdhhs_inbound    - NC DHHS state file drops"
+  ],
+  "pilot_trib_bidirectional": {
+    "password": "REPLACE_ME_TRIB_PASSWORD"
+  },
+  "pilot_ncdhhs_inbound": {
+    "privateKeyPath": "/opt/prl-poller/keys/ncdhhs_pilot_id_rsa",
+    "passphrase": ""
+  },
+  "EXAMPLE_with_inline_key": {
+    "privateKey": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAA...\n-----END OPENSSH PRIVATE KEY-----\n",
+    "passphrase": "optional-passphrase-or-empty-string"
+  }
+}
