@@ -4,6 +4,7 @@ import { C } from "../lib/tokens";
 import { Card, SectionHead } from "../components/ui";
 import CHWTab from "./CHWTab";
 import PRLTab from "./care-management/PRLTab";
+import HEDISTab from "./care-management/HEDISTab";
 import RegistryTab from "./care-management/RegistryTab";
 import TouchpointsTab from "./care-management/TouchpointsTab";
 import PlansTab from "./care-management/PlansTab";
@@ -12,13 +13,14 @@ import BillingTab from "./care-management/BillingTab";
 // ===============================================================================
 // CareManagementView - entry point for the Care Management Console (Command tier)
 //
-// Six tabs:
+// Seven tabs:
 //   1. Registry            - enrollments list, acuity filter, program breakdown
 //   2. Touchpoints         - contact log, role-aware activity filter
 //   3. Plans               - care plans with AI-draft review gate indicator
 //   4. Billing Readiness   - monthly billing_periods with readiness status
 //   5. CHW Coordination    - CHW-to-CM assignments, FTE gauge
 //   6. PRL                 - inbound reconciliation queue + outbound builder
+//   7. HEDIS               - plan gap-list ingestion, member gaps, closure tracking
 //
 // This file is the router shell. Each tab lives in its own module under
 // ./care-management/. Role-based tab visibility is computed here and the
@@ -26,7 +28,7 @@ import BillingTab from "./care-management/BillingTab";
 // React hooks-order error #310 when auth loads asynchronously.
 // ===============================================================================
 
-const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl"];
+const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis"];
 const TAB_META = {
   registry:    { label: "Registry",           icon: "\u25A3" },
   touchpoints: { label: "Touchpoints",        icon: "\u25C9" },
@@ -34,6 +36,7 @@ const TAB_META = {
   billing:     { label: "Billing Readiness",  icon: "\u25A5" },
   chw:         { label: "CHW Coordination",   icon: "\u25C8" },
   prl:         { label: "PRL",                icon: "\u25A6" },
+  hedis:       { label: "HEDIS",              icon: "\u25A7" },
 };
 
 const CM_ROLES = new Set([
@@ -66,7 +69,7 @@ export default function CareManagementView() {
     ? ["registry", "touchpoints", "chw"]
     : isAdmin
       ? TAB_KEYS
-      : ["registry", "touchpoints", "plans", "billing", "chw"];
+      : ["registry", "touchpoints", "plans", "billing", "chw", "hedis"];
 
   // Keep tab valid for role. MUST run before any conditional return below,
   // or React's hook-ordering check will fire error #310 when auth loads
@@ -125,6 +128,7 @@ export default function CareManagementView() {
         {tab === "billing"     && <BillingTab practiceId={profile?.practice_id} profile={profile} />}
         {tab === "chw"         && <CHWTab practiceId={profile?.practice_id} profile={profile} />}
         {tab === "prl"         && <PRLTab />}
+        {tab === "hedis"       && <HEDISTab practiceId={profile?.practice_id} profile={profile} isAdmin={isAdmin} />}
       </div>
     </div>
   );
