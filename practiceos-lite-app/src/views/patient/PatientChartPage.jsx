@@ -950,12 +950,16 @@ function CareManagementStrip({ enrollments, popLabels }) {
 
 // One-line summary row for a single enrollment. Used both for the primary
 // (always shown) and any additional active enrollments (shown when expanded).
+// ASCII-only: no middle dots, em dashes, or arrows. The Chromebook + GitHub
+// web editor paste path mangles non-ASCII characters and breaks esbuild.
 function CareManagementStripRow({ enrollment, popLabels, isPrimary }) {
   const e = enrollment;
-  const planRiskMap = { H: { label: "Plan: H", color: C.red, bg: "#FEE2E2" },
-                        M: { label: "Plan: M", color: "#854F0B", bg: "#FEF3C7" },
-                        L: { label: "Plan: L", color: C.textSecondary, bg: C.bgSecondary },
-                        N: { label: "Plan: N/A", color: C.textTertiary, bg: C.bgSecondary } };
+  const planRiskMap = {
+    H: { label: "Plan: H",   color: C.red,           bg: "#FEE2E2" },
+    M: { label: "Plan: M",   color: "#854F0B",       bg: "#FEF3C7" },
+    L: { label: "Plan: L",   color: C.textSecondary, bg: C.bgSecondary },
+    N: { label: "Plan: N/A", color: C.textTertiary,  bg: C.bgSecondary },
+  };
   const planRisk = e.php_risk_score_category ? planRiskMap[e.php_risk_score_category] : null;
 
   const acuityColor = e.acuity_tier === "High" ? C.red
@@ -989,9 +993,6 @@ function CareManagementStripRow({ enrollment, popLabels, isPrimary }) {
       <span style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>
         {e.program_type}
       </span>
-      <span style={{ fontSize: 11, color: C.textSecondary }}>
-        ·
-      </span>
       <span style={{ fontSize: 12, color: acuityColor, fontWeight: 600 }}>
         {e.acuity_tier || "Unscored"} acuity
       </span>
@@ -1018,7 +1019,7 @@ function CareManagementStripRow({ enrollment, popLabels, isPrimary }) {
           fontSize: 10,
           padding: "2px 8px",
           background: "#fff",
-          border: `0.5px solid ${C.borderLight}`,
+          border: "0.5px solid " + C.borderLight,
           borderRadius: 10,
           color: C.textSecondary,
           fontWeight: 600,
@@ -1041,19 +1042,6 @@ function CareManagementStripRow({ enrollment, popLabels, isPrimary }) {
           <Badge label="Plan UTR" variant="amber" size="xs" />
         </span>
       )}
-
-      
-        href={"/care-management?enrollment=" + e.id}
-        style={{
-          marginLeft: "auto",
-          fontSize: 11,
-          color: C.teal,
-          fontWeight: 600,
-          textDecoration: "underline",
-        }}
-      >
-        Open in Care Mgmt &gt;
-      </a>
     </div>
   );
 }
@@ -1068,12 +1056,12 @@ function CareManagementStripDetail({ enrollment, popLabels }) {
       <div style={{
         padding: "8px 14px",
         background: "#fff",
-        borderTop: `0.5px solid ${C.borderLight}`,
+        borderTop: "0.5px solid " + C.borderLight,
         fontSize: 11,
         color: C.textTertiary,
         fontStyle: "italic",
       }}>
-        No plan PRL data applied yet for this enrollment. Plan risk + priority populations will appear here once an inbound PRL is reconciled.
+        No plan PRL data applied yet for this enrollment. Plan risk and priority populations will appear here once an inbound PRL is reconciled.
       </div>
     );
   }
@@ -1086,7 +1074,7 @@ function CareManagementStripDetail({ enrollment, popLabels }) {
     <div style={{
       padding: "10px 14px",
       background: "#fff",
-      borderTop: `0.5px solid ${C.borderLight}`,
+      borderTop: "0.5px solid " + C.borderLight,
       display: "grid",
       gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
       gap: 12,
@@ -1098,15 +1086,15 @@ function CareManagementStripDetail({ enrollment, popLabels }) {
         value={populationLabels.length > 0 ? populationLabels.join(", ") : "None reported"}
         span={2}
       />
-      <DetailMicro label="Payer" value={e.payer_name || "—"} />
+      <DetailMicro label="Payer" value={e.payer_name || "Not on file"} />
       {isTailored && (
         <>
-          <DetailMicro label="Population segment" value={e.population_segment || "—"} />
-          <DetailMicro label="Waiver service" value={e.waiver_service || "—"} />
+          <DetailMicro label="Population segment" value={e.population_segment || "Not set"} />
+          <DetailMicro label="Waiver service" value={e.waiver_service || "None"} />
           <DetailMicro
             label="TCL status"
             value={e.tcl_member_status === null || e.tcl_member_status === undefined
-              ? "—"
+              ? "Unknown"
               : e.tcl_member_status ? "Active" : "Not active"}
           />
         </>
@@ -1129,7 +1117,7 @@ function CareManagementStripDetail({ enrollment, popLabels }) {
             background: C.bgSecondary,
             padding: "6px 10px",
             borderRadius: 6,
-            borderLeft: `2px solid ${C.borderLight}`,
+            borderLeft: "2px solid " + C.borderLight,
           }}>
             {e.php_risk_evidence}
           </div>
