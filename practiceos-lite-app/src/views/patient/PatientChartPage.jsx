@@ -64,6 +64,10 @@ export default function PatientChartPage() {
   const [encounters, setEncounters] = useState([]);
   const [insurance, setInsurance] = useState([]);
   const [screeners, setScreeners] = useState([]);
+  // Care Management enrollments + reference labels for the chart strip.
+  // Loaded alongside the patient so the strip renders on first paint.
+  const [enrollments, setEnrollments] = useState([]);
+  const [popLabels, setPopLabels] = useState({});
   const [editing, setEditing] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showAssignForms, setShowAssignForms] = useState(false);
@@ -121,18 +125,39 @@ export default function PatientChartPage() {
   // Load related data once patient is loaded.
   const reload = async () => {
     if (!patientId) return;
-    const [a, e, i, s] = await Promise.all([
+    const [a, e, i, s, enr] = await Promise.all([
       supabase.from("appointments").select("id, appt_date, start_slot, appt_type, status, providers(last_name)").eq("patient_id", patientId).order("appt_date", { ascending: false }).limit(30),
       supabase.from("encounters").select("id, encounter_date, status, appt_type, chief_complaint, assessment, provider_id, providers(first_name, last_name)").eq("patient_id", patientId).order("encounter_date", { ascending: false }).limit(20),
       supabase.from("insurance_policies").select("*").eq("patient_id", patientId).order("rank"),
       supabase.from("screener_responses").select("*").eq("patient_id", patientId).order("completed_at", { ascending: false }).limit(20),
+      supabase.from("cm_enrollments")
+        .select("id, program_type, health_plan_type, cm_provider_type, acuity_tier, enrollment_status, payer_name, hop_active, priority_populations, php_risk_score_category, php_risk_evidence, population_segment, waiver_service, tcl_member_status, plan_unable_to_reach, prl_last_synced_at")
+        .eq("patient_id", patientId)
+        .neq("enrollment_status", "Disenrolled")
+        .order("enrolled_at", { ascending: false }),
     ]);
     setAppts(a.data || []);
     setEncounters(e.data || []);
     setInsurance(i.data || []);
     setScreeners(s.data || []);
+    setEnrollments(enr.data || []);
   };
   useEffect(() => { if (patient) reload(); }, [patient?.id]);
+
+  // Load priority population labels once. Small static set; cached in state
+  // so the strip can render "CMARC" not "001".
+  useEffect(() => {
+    supabase
+      .from("cm_reference_codes")
+      .select("code, label")
+      .eq("category", "priority_population")
+      .eq("is_active", true)
+      .then(({ data }) => {
+        const m = {};
+        for (const r of data || []) m[r.code] = r.label;
+        setPopLabels(m);
+      });
+  }, []);
 
   const onUpdate = (u) => { setPatient((prev) => ({ ...prev, ...u })); };
 
@@ -195,6 +220,10 @@ export default function PatientChartPage() {
         </div>
         <Badge label={patient.status} variant={patient.status === "Active" ? "green" : "neutral"} />
       </div>
+
+      {enrollments.length > 0 && (
+        <CareManagementStrip enrollments={enrollments} popLabels={popLabels} />
+      )}
 
       <div style={{ marginBottom: 16 }}>
         <TabBar
@@ -844,6 +873,293 @@ const Field = ({ label, value, span = 1 }) => (
     <div style={{ fontSize: 13, color: value ? C.textPrimary : C.textTertiary }}>{value || "—"}</div>
   </div>
 );
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CareManagementStrip - compact provider-facing summary of the patient's
+// active CM enrollments. Renders above the chart tabs so providers see CM
+// context on every tab open.
+//
+// Layout:
+//   - One-line summary always visible: program + acuity + plan-risk pill +
+//     priority population pills + HOP/UTR flags + "Open in CM" link
+//   - "More" toggle reveals plan perspective panel: PRL sync date, plan UTR,
+//     plan risk evidence, population segment, waiver, plus per-enrollment
+//     drilldown if there's more than one active.
+//
+// Hidden when patient has no Active/Pending enrollments (caller-side guard).
+// ═══════════════════════════════════════════════════════════════════════════════
+function CareManagementStrip({ enrollments, popLabels }) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Pick the primary enrollment by status rank (Active > Pending > On Hold).
+  // Show others below in expanded view if any.
+  const STATUS_RANK = { Active: 3, Pending: 2, "On Hold": 1 };
+  const ranked = [...enrollments].sort(
+    (a, b) => (STATUS_RANK[b.enrollment_status] || 0) - (STATUS_RANK[a.enrollment_status] || 0)
+  );
+  const primary = ranked[0];
+  const others = ranked.slice(1);
+
+  return (
+    <div style={{
+      marginBottom: 14,
+      border: `0.5px solid ${C.borderLight}`,
+      borderRadius: 8,
+      background: "#FAFAFA",
+      overflow: "hidden",
+    }}>
+      <CareManagementStripRow enrollment={primary} popLabels={popLabels} isPrimary={true} />
+
+      {expanded && (
+        <CareManagementStripDetail enrollment={primary} popLabels={popLabels} />
+      )}
+
+      {expanded && others.map(e => (
+        <div key={e.id} style={{ borderTop: `0.5px solid ${C.borderLight}` }}>
+          <CareManagementStripRow enrollment={e} popLabels={popLabels} isPrimary={false} />
+          <CareManagementStripDetail enrollment={e} popLabels={popLabels} />
+        </div>
+      ))}
+
+      <div style={{
+        borderTop: `0.5px solid ${C.borderLight}`,
+        padding: "4px 12px",
+        textAlign: "center",
+      }}>
+        <button
+          onClick={() => setExpanded(v => !v)}
+          style={{
+            background: "transparent",
+            border: "none",
+            fontSize: 11,
+            fontWeight: 600,
+            color: C.textSecondary,
+            cursor: "pointer",
+            padding: "2px 8px",
+            fontFamily: "inherit",
+          }}
+        >
+          {expanded
+            ? "Collapse"
+            : (others.length > 0 ? `More (${others.length + 1} enrollments)` : "More plan detail")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// One-line summary row for a single enrollment. Used both for the primary
+// (always shown) and any additional active enrollments (shown when expanded).
+function CareManagementStripRow({ enrollment, popLabels, isPrimary }) {
+  const e = enrollment;
+  const planRiskMap = { H: { label: "Plan: H", color: C.red, bg: "#FEE2E2" },
+                        M: { label: "Plan: M", color: "#854F0B", bg: "#FEF3C7" },
+                        L: { label: "Plan: L", color: C.textSecondary, bg: C.bgSecondary },
+                        N: { label: "Plan: N/A", color: C.textTertiary, bg: C.bgSecondary } };
+  const planRisk = e.php_risk_score_category ? planRiskMap[e.php_risk_score_category] : null;
+
+  const acuityColor = e.acuity_tier === "High" ? C.red
+                    : e.acuity_tier === "Moderate" ? "#854F0B"
+                    : e.acuity_tier === "Low" ? C.textSecondary
+                    : C.textTertiary;
+
+  const populations = Array.isArray(e.priority_populations) ? e.priority_populations : [];
+
+  return (
+    <div style={{
+      padding: "10px 14px",
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      flexWrap: "wrap",
+    }}>
+      <span style={{
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        color: C.teal,
+        background: C.tealBg,
+        padding: "3px 8px",
+        borderRadius: 3,
+      }}>
+        Care Mgmt
+      </span>
+
+      <span style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>
+        {e.program_type}
+      </span>
+      <span style={{ fontSize: 11, color: C.textSecondary }}>
+        ·
+      </span>
+      <span style={{ fontSize: 12, color: acuityColor, fontWeight: 600 }}>
+        {e.acuity_tier || "Unscored"} acuity
+      </span>
+      {!isPrimary && (
+        <Badge label={e.enrollment_status} variant={e.enrollment_status === "Active" ? "green" : "neutral"} size="xs" />
+      )}
+
+      {planRisk && (
+        <span style={{
+          fontSize: 10,
+          fontWeight: 700,
+          color: planRisk.color,
+          background: planRisk.bg,
+          padding: "2px 7px",
+          borderRadius: 3,
+          letterSpacing: "0.04em",
+        }}>
+          {planRisk.label}
+        </span>
+      )}
+
+      {populations.slice(0, 4).map(code => (
+        <span key={code} style={{
+          fontSize: 10,
+          padding: "2px 8px",
+          background: "#fff",
+          border: `0.5px solid ${C.borderLight}`,
+          borderRadius: 10,
+          color: C.textSecondary,
+          fontWeight: 600,
+          whiteSpace: "nowrap",
+        }}>
+          {popLabels[code] || code}
+        </span>
+      ))}
+      {populations.length > 4 && (
+        <span style={{ fontSize: 10, color: C.textTertiary }}>
+          +{populations.length - 4}
+        </span>
+      )}
+
+      {e.hop_active && (
+        <Badge label="HOP" variant="blue" size="xs" />
+      )}
+      {e.plan_unable_to_reach && (
+        <span title="Health plan reports member as Unable to Reach in their last PRL">
+          <Badge label="Plan UTR" variant="amber" size="xs" />
+        </span>
+      )}
+
+      
+        href={`/care-management?enrollment=${e.id}`}
+        style={{
+          marginLeft: "auto",
+          fontSize: 11,
+          color: C.teal,
+          fontWeight: 600,
+          textDecoration: "none",
+        }}
+        onMouseEnter={(ev) => (ev.currentTarget.style.textDecoration = "underline")}
+        onMouseLeave={(ev) => (ev.currentTarget.style.textDecoration = "none")}
+      >
+        Open in Care Mgmt →
+      </a>
+    </div>
+  );
+}
+
+// Expanded detail panel for a single enrollment - shows plan-perspective
+// data sourced from the most recent inbound PRL. Only useful info; if nothing
+// has synced yet, says so.
+function CareManagementStripDetail({ enrollment, popLabels }) {
+  const e = enrollment;
+  if (!e.prl_last_synced_at) {
+    return (
+      <div style={{
+        padding: "8px 14px",
+        background: "#fff",
+        borderTop: `0.5px solid ${C.borderLight}`,
+        fontSize: 11,
+        color: C.textTertiary,
+        fontStyle: "italic",
+      }}>
+        No plan PRL data applied yet for this enrollment. Plan risk + priority populations will appear here once an inbound PRL is reconciled.
+      </div>
+    );
+  }
+
+  const isTailored = e.health_plan_type === "Tailored";
+  const populations = Array.isArray(e.priority_populations) ? e.priority_populations : [];
+  const populationLabels = populations.map(c => popLabels[c] || c);
+
+  return (
+    <div style={{
+      padding: "10px 14px",
+      background: "#fff",
+      borderTop: `0.5px solid ${C.borderLight}`,
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+      gap: 12,
+      fontSize: 11,
+    }}>
+      <DetailMicro label="Plan view synced" value={new Date(e.prl_last_synced_at).toLocaleDateString()} />
+      <DetailMicro
+        label="Priority populations"
+        value={populationLabels.length > 0 ? populationLabels.join(", ") : "None reported"}
+        span={2}
+      />
+      <DetailMicro label="Payer" value={e.payer_name || "—"} />
+      {isTailored && (
+        <>
+          <DetailMicro label="Population segment" value={e.population_segment || "—"} />
+          <DetailMicro label="Waiver service" value={e.waiver_service || "—"} />
+          <DetailMicro
+            label="TCL status"
+            value={e.tcl_member_status === null || e.tcl_member_status === undefined
+              ? "—"
+              : e.tcl_member_status ? "Active" : "Not active"}
+          />
+        </>
+      )}
+      {e.php_risk_evidence && (
+        <div style={{ gridColumn: "1 / -1", marginTop: 4 }}>
+          <div style={{
+            fontSize: 9,
+            fontWeight: 700,
+            letterSpacing: "0.05em",
+            textTransform: "uppercase",
+            color: C.textTertiary,
+            marginBottom: 3,
+          }}>
+            Plan risk evidence
+          </div>
+          <div style={{
+            fontSize: 11,
+            color: C.textSecondary,
+            background: C.bgSecondary,
+            padding: "6px 10px",
+            borderRadius: 6,
+            borderLeft: `2px solid ${C.borderLight}`,
+          }}>
+            {e.php_risk_evidence}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailMicro({ label, value, span = 1 }) {
+  return (
+    <div style={{ gridColumn: `span ${span}` }}>
+      <div style={{
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: "0.05em",
+        textTransform: "uppercase",
+        color: C.textTertiary,
+        marginBottom: 2,
+      }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 12, color: C.textPrimary }}>
+        {value}
+      </div>
+    </div>
+  );
+}
 
 function PatientEditForm({ patient, onSave, onCancel }) {
   const [f, setF] = useState({ ...patient });
