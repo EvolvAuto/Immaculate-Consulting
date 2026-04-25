@@ -36,7 +36,7 @@ const SCREENER_SEVERITY_COLORS = {
   "Low Risk": C.green, "Moderate Risk": C.amber, "High Risk": C.red,
 };
 
-const VALID_TABS = ["info", "appts", "notes", "trends", "meds", "screening", "clinical", "insurance"];
+const VALID_TABS = ["info", "appts", "notes", "trends", "meds", "screening", "clinical", "insurance", "plan"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -49,12 +49,8 @@ export default function PatientChartPage() {
   const { profile, practiceId, tier } = useAuth();
   const isProTier = ["Pro", "Command"].includes(tier);
 
-  // Derive current tab from URL. /patients/:id -> default to 'info'.
-  // /patients/:id/screening -> 'screening'. Invalid segment falls back to 'info'.
   const urlTab = location.pathname.split("/")[3] || "info";
   const tab = VALID_TABS.includes(urlTab) ? urlTab : "info";
-  // Preserve location.state across tab changes so the Back button's returnTo
-  // survives when the user clicks through multiple tabs.
   const setTab = (t) => navigate(`/patients/${patientId}/${t}`, { state: location.state });
 
   const [patient, setPatient] = useState(null);
@@ -68,17 +64,14 @@ export default function PatientChartPage() {
   // Loaded alongside the patient so the strip renders on first paint.
   const [enrollments, setEnrollments] = useState([]);
   const [popLabels, setPopLabels] = useState({});
+  // Active care plans for this patient. Drives the Care Plan tab content.
+  const [carePlans, setCarePlans] = useState([]);
   const [editing, setEditing] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showAssignForms, setShowAssignForms] = useState(false);
   const [showGrantAccess, setShowGrantAccess] = useState(false);
   const [showStartScreening, setShowStartScreening] = useState(false);
 
-  // Back navigation: use the explicit returnTo stamped on location.state by
-  // whichever view sent us here (PatientsView, DashboardView, ScheduleView,
-  // etc). Deep-link entries don't have state, so fall back to /patients.
-  // Reliable under auth redirects, unlike useNavigationType (which gets
-  // clobbered by post-login navigate() calls).
   const handleBack = () => {
     const returnTo = location.state?.returnTo;
     if (returnTo) {
@@ -88,11 +81,8 @@ export default function PatientChartPage() {
     }
   };
 
-  // Load the patient when the URL :id changes.
   useEffect(() => {
     if (!patientId || !practiceId) return;
-    // Short-circuit on malformed UUIDs to avoid raw Postgres "invalid input
-    // syntax" errors. Treated the same as not-found.
     if (!UUID_RE.test(patientId)) {
       setPatient(null);
       setLoadError(null);
@@ -122,10 +112,9 @@ export default function PatientChartPage() {
     return () => { cancelled = true; };
   }, [patientId, practiceId]);
 
-  // Load related data once patient is loaded.
   const reload = async () => {
     if (!patientId) return;
-    const [a, e, i, s, enr] = await Promise.all([
+    const [a, e, i, s, enr, plans] = await Promise.all([
       supabase.from("appointments").select("id, appt_date, start_slot, appt_type, status, providers(last_name)").eq("patient_id", patientId).order("appt_date", { ascending: false }).limit(30),
       supabase.from("encounters").select("id, encounter_date, status, appt_type, chief_complaint, assessment, provider_id, providers(first_name, last_name)").eq("patient_id", patientId).order("encounter_date", { ascending: false }).limit(20),
       supabase.from("insurance_policies").select("*").eq("patient_id", patientId).order("rank"),
@@ -135,17 +124,21 @@ export default function PatientChartPage() {
         .eq("patient_id", patientId)
         .neq("enrollment_status", "Disenrolled")
         .order("enrolled_at", { ascending: false }),
+      supabase.from("cm_care_plans")
+        .select("id, enrollment_id, plan_type, plan_status, version, assessment_date, last_reviewed_at, next_review_due, goals, interventions, unmet_needs, risk_factors, strengths, supports, priority_populations_addressed, ai_drafted, ai_draft_at, created_at")
+        .eq("patient_id", patientId)
+        .eq("plan_status", "Active")
+        .order("assessment_date", { ascending: false }),
     ]);
     setAppts(a.data || []);
     setEncounters(e.data || []);
     setInsurance(i.data || []);
     setScreeners(s.data || []);
     setEnrollments(enr.data || []);
+    setCarePlans(plans.data || []);
   };
   useEffect(() => { if (patient) reload(); }, [patient?.id]);
 
-  // Load priority population labels once. Small static set; cached in state
-  // so the strip can render "CMARC" not "001".
   useEffect(() => {
     supabase
       .from("cm_reference_codes")
@@ -161,7 +154,6 @@ export default function PatientChartPage() {
 
   const onUpdate = (u) => { setPatient((prev) => ({ ...prev, ...u })); };
 
-  // ── Loading / error states ──────────────────────────────────────────────────
   if (loadingPatient) {
     return (
       <div style={{ padding: 40, display: "flex", justifyContent: "center" }}>
@@ -196,13 +188,10 @@ export default function PatientChartPage() {
 
   return (
     <div style={{ padding: "20px 24px", maxWidth: 1280, margin: "0 auto", width: "100%" }}>
-      {/* Back link - stays on grey page background */}
       <div style={{ marginBottom: 14 }}>
         <Btn variant="ghost" size="sm" onClick={handleBack}>← Back</Btn>
       </div>
 
-      {/* White chart surface - gives inner borders + grey panels contrast against the grey page.
-          Before this, the chart lived inside a <Modal> which supplied the white bg. */}
       <div style={{
         background: "#fff",
         borderRadius: 12,
@@ -321,9 +310,6 @@ export default function PatientChartPage() {
           <div style={{ marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 6 }}>
             {(patient.allergies || []).length === 0 ? <div style={{ fontSize: 12, color: C.textTertiary }}>None on file</div>
               : (patient.allergies || []).map((a, i) => {
-                  // Supports string entries, legacy {substance, name} shapes, and the
-                  // current {allergen, reaction, severity} shape. Render reaction/severity
-                  // inline so provider sees the clinically-relevant detail at a glance.
                   const label = typeof a === "string"
                     ? a
                     : (a.allergen || a.substance || a.name || "Unknown allergen");
@@ -390,8 +376,8 @@ export default function PatientChartPage() {
       )}
       {tab === "trends" && <TrendsTab patient={patient} />}
       {tab === "meds" && <MedicationsTab patient={patient} />}
+      {tab === "plan" && <CarePlanTab carePlans={carePlans} popLabels={popLabels} />}
       </div>
-      {/* end white chart surface */}
 
       {showInvite && (
         <InvitePatientModal
@@ -877,23 +863,11 @@ const Field = ({ label, value, span = 1 }) => (
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CareManagementStrip - compact provider-facing summary of the patient's
-// active CM enrollments. Renders above the chart tabs so providers see CM
-// context on every tab open.
-//
-// Layout:
-//   - One-line summary always visible: program + acuity + plan-risk pill +
-//     priority population pills + HOP/UTR flags + "Open in CM" link
-//   - "More" toggle reveals plan perspective panel: PRL sync date, plan UTR,
-//     plan risk evidence, population segment, waiver, plus per-enrollment
-//     drilldown if there's more than one active.
-//
-// Hidden when patient has no Active/Pending enrollments (caller-side guard).
+// active CM enrollments. Renders above the chart tabs.
 // ═══════════════════════════════════════════════════════════════════════════════
 function CareManagementStrip({ enrollments, popLabels }) {
   const [expanded, setExpanded] = useState(false);
 
-  // Pick the primary enrollment by status rank (Active > Pending > On Hold).
-  // Show others below in expanded view if any.
   const STATUS_RANK = { Active: 3, Pending: 2, "On Hold": 1 };
   const ranked = [...enrollments].sort(
     (a, b) => (STATUS_RANK[b.enrollment_status] || 0) - (STATUS_RANK[a.enrollment_status] || 0)
@@ -904,7 +878,7 @@ function CareManagementStrip({ enrollments, popLabels }) {
   return (
     <div style={{
       marginBottom: 14,
-      border: `0.5px solid ${C.borderLight}`,
+      border: "0.5px solid " + C.borderLight,
       borderRadius: 8,
       background: "#FAFAFA",
       overflow: "hidden",
@@ -916,14 +890,14 @@ function CareManagementStrip({ enrollments, popLabels }) {
       )}
 
       {expanded && others.map(e => (
-        <div key={e.id} style={{ borderTop: `0.5px solid ${C.borderLight}` }}>
+        <div key={e.id} style={{ borderTop: "0.5px solid " + C.borderLight }}>
           <CareManagementStripRow enrollment={e} popLabels={popLabels} isPrimary={false} />
           <CareManagementStripDetail enrollment={e} popLabels={popLabels} />
         </div>
       ))}
 
       <div style={{
-        borderTop: `0.5px solid ${C.borderLight}`,
+        borderTop: "0.5px solid " + C.borderLight,
         padding: "4px 12px",
         textAlign: "center",
       }}>
@@ -942,17 +916,13 @@ function CareManagementStrip({ enrollments, popLabels }) {
         >
           {expanded
             ? "Collapse"
-            : (others.length > 0 ? `More (${others.length + 1} enrollments)` : "More plan detail")}
+            : (others.length > 0 ? "More (" + (others.length + 1) + " enrollments)" : "More plan detail")}
         </button>
       </div>
     </div>
   );
 }
 
-// One-line summary row for a single enrollment. Used both for the primary
-// (always shown) and any additional active enrollments (shown when expanded).
-// ASCII-only: no middle dots, em dashes, or arrows. The Chromebook + GitHub
-// web editor paste path mangles non-ASCII characters and breaks esbuild.
 function CareManagementStripRow({ enrollment, popLabels, isPrimary }) {
   const e = enrollment;
   const planRiskMap = {
@@ -1047,9 +1017,6 @@ function CareManagementStripRow({ enrollment, popLabels, isPrimary }) {
   );
 }
 
-// Expanded detail panel for a single enrollment - shows plan-perspective
-// data sourced from the most recent inbound PRL. Only useful info; if nothing
-// has synced yet, says so.
 function CareManagementStripDetail({ enrollment, popLabels }) {
   const e = enrollment;
   if (!e.prl_last_synced_at) {
@@ -1160,6 +1127,239 @@ function DetailMicro({ label, value, span = 1 }) {
       </div>
     </div>
   );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CarePlanTab - read-only view of the patient's active care plan(s).
+// Providers see this tab on the chart for clinical context. Editing happens
+// in the Care Management module.
+// ═══════════════════════════════════════════════════════════════════════════════
+function CarePlanTab({ carePlans, popLabels }) {
+  if (!carePlans || carePlans.length === 0) {
+    return (
+      <EmptyState
+        icon="📋"
+        title="No active care plan"
+        sub="When this patient is enrolled in care management and a plan is activated, it will appear here."
+      />
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {carePlans.map(plan => (
+        <CarePlanCard key={plan.id} plan={plan} popLabels={popLabels} />
+      ))}
+    </div>
+  );
+}
+
+function CarePlanCard({ plan, popLabels }) {
+  const goals          = Array.isArray(plan.goals) ? plan.goals : [];
+  const interventions  = Array.isArray(plan.interventions) ? plan.interventions : [];
+  const unmetNeeds     = Array.isArray(plan.unmet_needs) ? plan.unmet_needs : [];
+  const riskFactors    = Array.isArray(plan.risk_factors) ? plan.risk_factors : [];
+  const strengths      = Array.isArray(plan.strengths) ? plan.strengths : [];
+  const supports       = Array.isArray(plan.supports) ? plan.supports : [];
+  const populations    = Array.isArray(plan.priority_populations_addressed) ? plan.priority_populations_addressed : [];
+
+  return (
+    <div style={{
+      border: "0.5px solid " + C.borderLight,
+      borderRadius: 10,
+      overflow: "hidden",
+    }}>
+      <div style={{
+        padding: "12px 16px",
+        background: C.bgSecondary,
+        borderBottom: "0.5px solid " + C.borderLight,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+      }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary }}>
+            {plan_safe(plan.plan_type)} {plan.version ? "v" + plan.version : ""}
+          </div>
+          <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
+            Assessed {plan.assessment_date ? new Date(plan.assessment_date).toLocaleDateString() : "Unknown"}
+            {plan.last_reviewed_at ? "  Reviewed " + new Date(plan.last_reviewed_at).toLocaleDateString() : ""}
+            {plan.next_review_due ? "  Next review " + new Date(plan.next_review_due).toLocaleDateString() : ""}
+          </div>
+        </div>
+        <Badge label="Active" variant="green" size="xs" />
+        {plan.ai_drafted && <Badge label="AI drafted" variant="teal" size="xs" />}
+      </div>
+
+      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
+        {populations.length > 0 && (
+          <PlanSection title="Priority populations addressed">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {populations.map((p, i) => {
+                const label = p.label || popLabels[p.code] || p.code;
+                const isGap = (p.addressed_in_goal_index === null || p.addressed_in_goal_index === undefined) &&
+                              (p.addressed_in_intervention_index === null || p.addressed_in_intervention_index === undefined);
+                return (
+                  <span key={i} style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: "3px 10px",
+                    borderRadius: 12,
+                    background: isGap ? C.amberBg : "#dcfce7",
+                    color: isGap ? "#854F0B" : "#166534",
+                    border: "0.5px solid " + (isGap ? C.amberBorder : "#bbf7d0"),
+                  }}>
+                    {plan_safe(label)}{isGap ? " (gap)" : ""}
+                  </span>
+                );
+              })}
+            </div>
+          </PlanSection>
+        )}
+
+        {goals.length > 0 && (
+          <PlanSection title={"Goals (" + goals.length + ")"}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {goals.map((g, i) => (
+                <div key={i} style={{
+                  padding: "10px 12px",
+                  background: "#fff",
+                  border: "0.5px solid " + C.borderLight,
+                  borderRadius: 6,
+                }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "baseline", flexWrap: "wrap", marginBottom: 4 }}>
+                    {g.priority && <Badge label={String(plan_safe(g.priority)).toUpperCase()} variant={g.priority === "high" ? "red" : g.priority === "medium" ? "amber" : "neutral"} size="xs" />}
+                    {g.domain && <span style={{ fontSize: 10, color: C.textTertiary }}>{plan_safe(g.domain).replace(/_/g, " ")}</span>}
+                    {g.target_date && <span style={{ fontSize: 10, color: C.textTertiary }}>Target: {plan_safe(g.target_date)}</span>}
+                  </div>
+                  <div style={{ fontSize: 13, color: C.textPrimary, fontWeight: 500, marginBottom: 4 }}>
+                    {plan_safe(g.text || g.goal)}
+                  </div>
+                  {g.measure && (
+                    <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 2 }}>
+                      <strong>Measure:</strong> {plan_safe(g.measure)}
+                    </div>
+                  )}
+                  {g.rationale && (
+                    <div style={{ fontSize: 11, color: C.textTertiary }}>
+                      {plan_safe(g.rationale)}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </PlanSection>
+        )}
+
+        {interventions.length > 0 && (
+          <PlanSection title={"Interventions (" + interventions.length + ")"}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {interventions.map((iv, i) => (
+                <div key={i} style={{ padding: "8px 12px", background: "#fff", border: "0.5px solid " + C.borderLight, borderRadius: 6 }}>
+                  <div style={{ fontSize: 13, color: C.textPrimary }}>{plan_safe(iv.description || iv.intervention)}</div>
+                  <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>
+                    {[iv.cadence || iv.frequency, iv.responsible_party || iv.owner].filter(Boolean).map(plan_safe).join(" / ")}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </PlanSection>
+        )}
+
+        {unmetNeeds.length > 0 && (
+          <PlanSection title={"Unmet needs (" + unmetNeeds.length + ")"}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {unmetNeeds.map((n, i) => (
+                <div key={i} style={{ padding: "8px 12px", background: "#fff", border: "0.5px solid " + C.borderLight, borderRadius: 6 }}>
+                  <div style={{ display: "flex", gap: 6, alignItems: "baseline", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, color: C.textPrimary }}>{plan_safe(n.description || n.need)}</span>
+                    {n.urgency && <Badge label={String(plan_safe(n.urgency)).toUpperCase()} variant={n.urgency === "urgent" ? "red" : n.urgency === "high" ? "amber" : "neutral"} size="xs" />}
+                  </div>
+                  {(n.mitigation_idea || n.plan_to_address) && (
+                    <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{plan_safe(n.mitigation_idea || n.plan_to_address)}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </PlanSection>
+        )}
+
+        {riskFactors.length > 0 && (
+          <PlanSection title="Risk factors">
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.textPrimary }}>
+              {riskFactors.map((r, i) => <li key={i}>{plan_safe(r.description || r)}</li>)}
+            </ul>
+          </PlanSection>
+        )}
+
+        {strengths.length > 0 && (
+          <PlanSection title="Strengths">
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: C.textPrimary }}>
+              {strengths.map((s, i) => <li key={i}>{plan_safe(typeof s === "string" ? s : s.text || s.description || s)}</li>)}
+            </ul>
+          </PlanSection>
+        )}
+
+        {supports.length > 0 && (
+          <PlanSection title="Supports">
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {supports.map((s, i) => (
+                <div key={i} style={{ fontSize: 12, color: C.textPrimary }}>
+                  <strong>{plan_safe(s.name)}</strong>
+                  {s.relationship && <span style={{ color: C.textTertiary }}> ({plan_safe(s.relationship)})</span>}
+                  {s.role && <span style={{ color: C.textTertiary }}> - {plan_safe(s.role)}</span>}
+                </div>
+              ))}
+            </div>
+          </PlanSection>
+        )}
+
+        <div style={{ paddingTop: 10, borderTop: "0.5px solid " + C.borderLight, fontSize: 11, color: C.textTertiary, fontStyle: "italic" }}>
+          Read-only view. Editing happens in Care Management.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlanSection({ title, children }) {
+  return (
+    <div>
+      <div style={{
+        fontSize: 10,
+        fontWeight: 700,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+        color: C.textSecondary,
+        marginBottom: 6,
+      }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Defends against AI-emitted object values where strings are expected.
+function plan_safe(v) {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return v.map(plan_safe).filter(Boolean).join(", ");
+  if (typeof v === "object") {
+    const keys = ["text", "goal", "description", "name", "label", "title", "value"];
+    for (const k of keys) {
+      if (typeof v[k] === "string" && v[k].trim()) return v[k];
+    }
+    try {
+      const s = JSON.stringify(v);
+      return s.length > 200 ? s.slice(0, 200) + "..." : s;
+    } catch {
+      return "[unrenderable]";
+    }
+  }
+  return String(v);
 }
 
 function PatientEditForm({ patient, onSave, onCancel }) {
