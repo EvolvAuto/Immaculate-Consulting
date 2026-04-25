@@ -55,16 +55,18 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
   const [phase, setPhase]           = useState("idle");
   const [errorMsg, setErrorMsg]     = useState(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [paused, setPaused]         = useState(false);
   const [transcript, setTranscript] = useState("");
   const [draft, setDraft]           = useState(null);
   const [decisions, setDecisions]   = useState({});
   const [sessionId, setSessionId]   = useState(null);
 
-  const mediaRecorderRef = useRef(null);
+ const mediaRecorderRef = useRef(null);
   const audioChunksRef   = useRef([]);
   const streamRef        = useRef(null);
   const tickRef          = useRef(null);
-  const startTimeRef     = useRef(0);
+  const startTimeRef     = useRef(0);   // start of the CURRENT recording segment
+  const accumulatedRef   = useRef(0);   // total seconds across all segments before current
 
   useEffect(() => {
     return () => {
@@ -129,9 +131,11 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
       recorder.start();
 
       startTimeRef.current = Date.now();
+      accumulatedRef.current = 0;
       setElapsedSec(0);
+      setPaused(false);
       tickRef.current = setInterval(() => {
-        const sec = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        const sec = accumulatedRef.current + Math.floor((Date.now() - startTimeRef.current) / 1000);
         setElapsedSec(sec);
         if (sec >= MAX_RECORDING_MIN * 60) stopRecording();
       }, 250);
@@ -158,17 +162,62 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
     }
   }
 
+  function pauseRecording() {
+    try {
+      const r = mediaRecorderRef.current;
+      if (r && r.state === "recording") {
+        r.pause();
+        // Bank the current segment's elapsed time and stop ticking the timer.
+        accumulatedRef.current += Math.floor((Date.now() - startTimeRef.current) / 1000);
+        stopTimer();
+        setPaused(true);
+      }
+    } catch (e) {
+      console.warn("[Scribe] pause failed:", e?.message || e);
+    }
+  }
+
+  function resumeRecording() {
+    try {
+      const r = mediaRecorderRef.current;
+      if (r && r.state === "paused") {
+        r.resume();
+        // New segment starts now; timer ticks from the banked accumulator.
+        startTimeRef.current = Date.now();
+        setPaused(false);
+        tickRef.current = setInterval(() => {
+          const sec = accumulatedRef.current + Math.floor((Date.now() - startTimeRef.current) / 1000);
+          setElapsedSec(sec);
+          if (sec >= MAX_RECORDING_MIN * 60) stopRecording();
+        }, 250);
+      }
+    } catch (e) {
+      console.warn("[Scribe] resume failed:", e?.message || e);
+    }
+  }
+
   function stopRecording() {
     try {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
+      const r = mediaRecorderRef.current;
+      if (r && r.state !== "inactive") {
+        // .stop() works from both 'recording' and 'paused' states.
+        r.stop();
       }
     } catch (e) { /* fall through to cleanup */ }
     stopTimer();
+    setPaused(false);
   }
 
-  async function handleRecorderStop() {
-    const durationSec = Math.max(1, Math.floor((Date.now() - startTimeRef.current) / 1000));
+ async function handleRecorderStop() {
+    // Use accumulated recording time (excludes pauses) so Whisper cost is accurate.
+    // If currently paused at stop time, accumulator already has the full total.
+    // If currently recording at stop time, add the in-flight segment.
+    const durationSec = Math.max(
+      1,
+      paused
+        ? accumulatedRef.current
+        : accumulatedRef.current + Math.floor((Date.now() - startTimeRef.current) / 1000)
+    );
     const recorder = mediaRecorderRef.current;
     const mimeType = recorder ? (recorder.mimeType || "audio/webm") : "audio/webm";
     const blob = new Blob(audioChunksRef.current, { type: mimeType });
@@ -339,14 +388,34 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
       {phase === "recording" && (
         <div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 16px", background: C.bgSecondary, borderRadius: 8, marginBottom: 16 }}>
-            <div style={{ width: 72, height: 72, borderRadius: 36, background: C.red, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, boxShadow: "0 0 0 8px rgba(220,38,38,0.15)", animation: "scribePulse 1.6s ease-in-out infinite" }}>
-              <div style={{ width: 14, height: 14, borderRadius: "50%", background: "white" }} />
+            <div style={{
+              width: 72, height: 72, borderRadius: 36,
+              background: paused ? C.amber : C.red,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              marginBottom: 16,
+              boxShadow: paused ? "0 0 0 8px rgba(133,79,11,0.15)" : "0 0 0 8px rgba(220,38,38,0.15)",
+              animation: paused ? "none" : "scribePulse 1.6s ease-in-out infinite",
+            }}>
+              {paused ? (
+                <div style={{ display: "flex", gap: 4 }}>
+                  <div style={{ width: 5, height: 18, background: "white", borderRadius: 1 }} />
+                  <div style={{ width: 5, height: 18, background: "white", borderRadius: 1 }} />
+                </div>
+              ) : (
+                <div style={{ width: 14, height: 14, borderRadius: "50%", background: "white" }} />
+              )}
             </div>
             <div style={{ fontSize: 28, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: C.textPrimary, marginBottom: 6 }}>{fmtTime(elapsedSec)}</div>
-            <div style={{ fontSize: 11, color: C.textTertiary }}>Recording. Max {MAX_RECORDING_MIN} minutes.</div>
+            <div style={{ fontSize: 11, color: paused ? C.amber : C.textTertiary, fontWeight: paused ? 700 : 400 }}>
+              {paused ? "Paused" : "Recording. Max " + MAX_RECORDING_MIN + " minutes."}
+            </div>
             <style>{"@keyframes scribePulse { 0%, 100% { box-shadow: 0 0 0 8px rgba(220,38,38,0.15); } 50% { box-shadow: 0 0 0 14px rgba(220,38,38,0.05); } }"}</style>
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            {paused
+              ? <Btn variant="outline" onClick={resumeRecording}>Resume</Btn>
+              : <Btn variant="outline" onClick={pauseRecording}>Pause</Btn>
+            }
             <Btn onClick={stopRecording}>Stop and Process</Btn>
           </div>
         </div>
