@@ -1,15 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════════════════
-// ScribeModal - AI Scribe V1 (Command tier, Shallow Scribe)
-// Audio capture -> Whisper transcription -> Claude SOAP draft -> insert into encounter.
-// Opens from EncounterEditor (ClinicalView).
+// ScribeModal v2 - AI Scribe with smart per-section Insert decisions.
+//
+// v2 (Apr 2026): Per-section decisions (Insert/Replace/Append/Skip) for CC + SOAP.
+//                Modal returns a resolved patch instead of a raw draft.
+// v1: Blind append into existing fields.
+//
+// Audio capture -> Whisper transcription -> Claude draft (CC + SOAP) ->
+// per-section apply -> patch returned to encounter editor.
 //
 // Phases:
 //   idle         - initial state; user clicks "Start recording"
 //   recording    - actively capturing via MediaRecorder
 //   uploading    - audio blob uploading to Storage
 //   transcribing - Whisper running
-//   drafting     - Claude generating SOAP draft
-//   ready        - draft ready for review and insert
+//   drafting     - Claude generating CC + SOAP draft
+//   ready        - draft ready for review and per-section apply
 //   error        - something failed; user can retry or close
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -18,8 +23,17 @@ import { supabase } from "../lib/supabaseClient";
 import { C } from "../lib/tokens";
 import { Btn, Modal, Textarea } from "./ui";
 
-// Cap recording length to avoid huge uploads. Whisper accepts up to 25MB raw.
 const MAX_RECORDING_MIN = 30;
+
+// CC has Replace/Skip when populated, Insert/Skip when empty (no Append - one-line field).
+// SOAP fields have Replace/Append/Skip when populated, Insert/Skip when empty.
+const SECTIONS = [
+  { key: "chief_complaint", label: "Chief Complaint", rows: 2, allowAppend: false, defaultIfBoth: "replace" },
+  { key: "subjective",      label: "Subjective",      rows: 3, allowAppend: true,  defaultIfBoth: "append" },
+  { key: "objective",       label: "Objective",       rows: 3, allowAppend: true,  defaultIfBoth: "append" },
+  { key: "assessment",      label: "Assessment",      rows: 3, allowAppend: true,  defaultIfBoth: "append" },
+  { key: "plan",            label: "Plan",            rows: 3, allowAppend: true,  defaultIfBoth: "append" },
+];
 
 function fmtTime(sec) {
   if (!sec || sec < 0) sec = 0;
@@ -28,15 +42,24 @@ function fmtTime(sec) {
   return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
 }
 
+function wordCount(text) {
+  if (!text) return 0;
+  return String(text).trim().split(/\s+/).filter(Boolean).length;
+}
+
+function hasContent(text) {
+  return !!(text && String(text).trim() !== "");
+}
+
 export default function ScribeModal({ encounter, practiceId, profile, onClose, onInsert }) {
   const [phase, setPhase]           = useState("idle");
   const [errorMsg, setErrorMsg]     = useState(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [draft, setDraft]           = useState(null);
+  const [decisions, setDecisions]   = useState({});
   const [sessionId, setSessionId]   = useState(null);
 
-  // Refs for media capture
   const mediaRecorderRef = useRef(null);
   const audioChunksRef   = useRef([]);
   const streamRef        = useRef(null);
@@ -45,13 +68,30 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
 
   useEffect(() => {
     return () => {
-      // Cleanup on unmount
       if (tickRef.current) clearInterval(tickRef.current);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
       }
     };
   }, []);
+
+  // When the draft arrives, compute sensible default decisions per section.
+  useEffect(() => {
+    if (!draft) return;
+    const defaults = {};
+    for (const s of SECTIONS) {
+      const aiHas      = hasContent(draft[s.key]);
+      const currentHas = hasContent(encounter[s.key]);
+      if (!aiHas) {
+        defaults[s.key] = "skip";          // AI returned nothing for this section
+      } else if (!currentHas) {
+        defaults[s.key] = "insert";        // Empty target - auto-fill
+      } else {
+        defaults[s.key] = s.defaultIfBoth; // Both populated - per-field default
+      }
+    }
+    setDecisions(defaults);
+  }, [draft, encounter]);
 
   function stopTimer() {
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
@@ -73,7 +113,6 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
       streamRef.current = stream;
       audioChunksRef.current = [];
 
-      // Pick a mime that Whisper accepts and the browser supports
       let mimeType = "audio/webm";
       if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
         mimeType = "audio/webm;codecs=opus";
@@ -146,7 +185,6 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
     try {
       const ext = mimeType.includes("mp4") ? "mp4" : mimeType.includes("ogg") ? "ogg" : "webm";
 
-      // 1. Insert session row first so we have a stable id for the storage path.
       const { data: row, error: insErr } = await supabase
         .from("cmd_scribe_sessions")
         .insert({
@@ -165,7 +203,6 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
       const sid = row.id;
       setSessionId(sid);
 
-      // 2. Upload audio to Storage at {practice_id}/{session_id}.{ext}
       const path = practiceId + "/" + sid + "." + ext;
       const { error: upErr } = await supabase.storage
         .from("cmd-scribe-audio")
@@ -178,7 +215,6 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
         .eq("id", sid);
       if (pathErr) throw new Error("Could not save audio path: " + pathErr.message);
 
-      // 3. Transcribe
       setPhase("transcribing");
       const transcribeRes = await invokeFn("cmd-scribe-transcribe", { sessionId: sid });
       if (transcribeRes.error) throw new Error(transcribeRes.error);
@@ -187,7 +223,6 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
         throw new Error("Transcript came back empty. Audio may have been silent or unclear.");
       }
 
-      // 4. SOAP draft
       setPhase("drafting");
       const draftRes = await invokeFn("cmd-scribe-soap-draft", { sessionId: sid });
       if (draftRes.error) throw new Error(draftRes.error);
@@ -214,13 +249,31 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
     }
   }
 
-  function handleInsert() {
-    async function handleInsert() {
+  // Resolve per-section decisions into a single patch the encounter editor
+  // can shallow-merge into its state.
+  function buildPatch() {
+    if (!draft) return {};
+    const patch = {};
+    for (const s of SECTIONS) {
+      const decision = decisions[s.key] || "skip";
+      if (decision === "skip") continue;
+      const aiVal = String(draft[s.key] || "");
+      const currentVal = String(encounter[s.key] || "");
+      if (decision === "insert" || decision === "replace") {
+        patch[s.key] = aiVal;
+      } else if (decision === "append") {
+        patch[s.key] = currentVal ? currentVal + "\n\n" + aiVal : aiVal;
+      }
+    }
+    return patch;
+  }
+
+  async function handleApply() {
     if (!draft) return;
+    const patch = buildPatch();
+
     if (sessionId) {
-      // Mark the session as inserted so the audit trigger fires server-side.
-      // Failure is non-blocking - we don't want an audit hiccup to keep
-      // the provider from finishing their note.
+      // Mark the session as inserted; the audit trigger fires server-side.
       try {
         await supabase
           .from("cmd_scribe_sessions")
@@ -230,7 +283,8 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
         console.warn("[ScribeModal] could not mark session inserted:", e?.message || e);
       }
     }
-    onInsert(draft, sessionId);
+
+    onInsert(patch, sessionId);
   }
 
   async function handleDiscard() {
@@ -248,21 +302,29 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
     setErrorMsg(null);
     setSessionId(null);
     setDraft(null);
+    setDecisions({});
     setTranscript("");
     setElapsedSec(0);
     setPhase("idle");
   }
 
   const isBusy = phase === "uploading" || phase === "transcribing" || phase === "drafting";
-  const closeHandler = isBusy ? () => {} : (phase === "ready" ? handleDiscard : (phase === "recording" ? () => { stopRecording(); onClose(); } : onClose));
+  const closeHandler = isBusy
+    ? () => {}
+    : (phase === "ready"
+        ? handleDiscard
+        : (phase === "recording" ? () => { stopRecording(); onClose(); } : onClose));
+
+  // Apply enabled when at least one section has a non-skip decision.
+  const anyNonSkip = SECTIONS.some((s) => decisions[s.key] && decisions[s.key] !== "skip");
 
   return (
-    <Modal title="AI Scribe" onClose={closeHandler} maxWidth={680}>
+    <Modal title="AI Scribe" onClose={closeHandler} maxWidth={720}>
       {phase === "idle" && (
         <div>
           <div style={{ padding: 16, background: C.tealBg, border: "1px solid " + C.tealBorder, borderRadius: 8, marginBottom: 12, fontSize: 12, color: C.textSecondary, lineHeight: 1.5 }}>
             <div style={{ fontWeight: 700, color: C.textPrimary, marginBottom: 6 }}>How this works</div>
-            Record yourself dictating the encounter. Whisper transcribes the audio, then Claude drafts a SOAP note. You review, edit, and insert it into the encounter. Audio is stored encrypted and purged automatically.
+            Record yourself dictating the encounter. Whisper transcribes the audio, then Claude drafts a Chief Complaint and SOAP note. You decide per section whether to insert, replace, append, or skip. Audio is stored encrypted and purged automatically.
           </div>
           <div style={{ padding: 12, background: C.amberBg, borderRadius: 8, marginBottom: 16, fontSize: 11, color: C.textSecondary, lineHeight: 1.5 }}>
             <b>HIPAA reminder:</b> Audio leaves Supabase to OpenAI Whisper and Anthropic Claude. Both vendors must have signed BAAs before this is used on real patients.
@@ -295,12 +357,12 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
           <div style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>
             {phase === "uploading"    && "Uploading audio..."}
             {phase === "transcribing" && "Transcribing with Whisper..."}
-            {phase === "drafting"     && "Generating SOAP draft..."}
+            {phase === "drafting"     && "Generating draft..."}
           </div>
           <div style={{ fontSize: 11, color: C.textTertiary }}>
             {phase === "uploading"    && "Securing the recording in encrypted storage."}
             {phase === "transcribing" && "Usually a few seconds per minute of audio."}
-            {phase === "drafting"     && "Claude is structuring the transcript into SOAP format."}
+            {phase === "drafting"     && "Claude is structuring the transcript into Chief Complaint and SOAP."}
           </div>
           <div style={{ marginTop: 24, height: 4, background: C.borderLight, borderRadius: 2, overflow: "hidden", position: "relative" }}>
             <div style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", background: C.teal, animation: "scribeBar 1.4s ease-in-out infinite" }} />
@@ -312,14 +374,75 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
       {phase === "ready" && draft && (
         <div>
           {draft.note && (
-            <div style={{ padding: 10, background: C.amberBg, borderRadius: 8, marginBottom: 12, fontSize: 12, color: C.textPrimary, lineHeight: 1.5 }}>
+            <div style={{ padding: 10, background: C.amberBg, borderRadius: 8, marginBottom: 14, fontSize: 12, color: C.textPrimary, lineHeight: 1.5 }}>
               <b>Reviewer note:</b> {draft.note}
             </div>
           )}
-          <Textarea label="Subjective" value={draft.subjective} onChange={(v) => setDraft({ ...draft, subjective: v })} rows={3} />
-          <Textarea label="Objective"  value={draft.objective}  onChange={(v) => setDraft({ ...draft, objective:  v })} rows={3} />
-          <Textarea label="Assessment" value={draft.assessment} onChange={(v) => setDraft({ ...draft, assessment: v })} rows={3} />
-          <Textarea label="Plan"       value={draft.plan}       onChange={(v) => setDraft({ ...draft, plan:       v })} rows={3} />
+
+          {SECTIONS.map((s) => {
+            const aiVal      = String(draft[s.key] || "");
+            const aiHas      = hasContent(aiVal);
+            const currentVal = String(encounter[s.key] || "");
+            const currentHas = hasContent(currentVal);
+            const decision   = decisions[s.key] || "skip";
+
+            // AI returned nothing for this section: compact "skipped" row, no textarea.
+            if (!aiHas) {
+              return (
+                <div key={s.key} style={{ padding: "8px 10px", marginBottom: 10, background: C.bgSecondary, borderRadius: 6, fontSize: 11, color: C.textTertiary }}>
+                  <b style={{ color: C.textSecondary }}>{s.label}:</b> AI did not generate content for this section.
+                </div>
+              );
+            }
+
+            const options = currentHas
+              ? (s.allowAppend ? ["replace", "append", "skip"] : ["replace", "skip"])
+              : ["insert", "skip"];
+
+            const cw = wordCount(currentVal);
+            const contextMsg = currentHas
+              ? "Encounter has " + cw + " word" + (cw === 1 ? "" : "s") + " in " + s.label + "."
+              : "Encounter " + s.label + " is empty.";
+
+            return (
+              <div key={s.key} style={{ marginBottom: 14 }}>
+                <Textarea
+                  label={s.label}
+                  value={aiVal}
+                  onChange={(v) => setDraft({ ...draft, [s.key]: v })}
+                  rows={s.rows}
+                />
+                <div style={{
+                  marginTop: -6,
+                  padding: "6px 10px",
+                  background: currentHas ? C.amberBg : C.tealBg,
+                  borderRadius: 6,
+                  fontSize: 11,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}>
+                  <span style={{ color: C.textSecondary, flex: "1 1 auto", minWidth: 200 }}>
+                    {contextMsg}
+                  </span>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {options.map((opt) => (
+                      <label key={opt} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", fontSize: 11, color: C.textPrimary, textTransform: "capitalize" }}>
+                        <input
+                          type="radio"
+                          name={"decision-" + s.key}
+                          checked={decision === opt}
+                          onChange={() => setDecisions({ ...decisions, [s.key]: opt })}
+                        />
+                        {opt}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
 
           <details style={{ marginTop: 4, marginBottom: 12 }}>
             <summary style={{ cursor: "pointer", fontSize: 11, color: C.textTertiary, padding: "4px 0" }}>View transcript</summary>
@@ -330,7 +453,7 @@ export default function ScribeModal({ encounter, practiceId, profile, onClose, o
 
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8, borderTop: "0.5px solid " + C.borderLight, paddingTop: 12 }}>
             <Btn variant="outline" onClick={handleDiscard}>Discard</Btn>
-            <Btn onClick={handleInsert}>Insert into Encounter</Btn>
+            <Btn onClick={handleApply} disabled={!anyNonSkip}>Apply</Btn>
           </div>
         </div>
       )}
