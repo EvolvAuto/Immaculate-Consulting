@@ -236,6 +236,7 @@ export default function PatientChartPage() {
             ["screening", `Screenings (${hrsnScreeners.length + mentalHealthScreeners.length})`],
             ["clinical", "Clinical"],
             ["insurance", `Insurance (${insurance.length})`],
+            ["plan", carePlans.length > 0 ? `Care Plan (${carePlans.length})` : "Care Plan"],
           ]}
           active={tab} onChange={setTab} />
       </div>
