@@ -5,9 +5,10 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import ProtectedRoute from "./auth/ProtectedRoute";
-import ActivatePortal from "./auth/ActivatePortal";
-import Layout         from "./Layout";
+import ProtectedRoute  from "./auth/ProtectedRoute";
+import SuperAdminRoute from "./auth/SuperAdminRoute";
+import ActivatePortal  from "./auth/ActivatePortal";
+import Layout          from "./Layout";
 
 // Views -----------------------------------------------------------------------
 import DashboardView        from "./views/DashboardView";
@@ -30,6 +31,9 @@ import PortalView           from "./views/PortalView";
 
 // Command tier views (tier + role gate is inside each view)
 import CareManagementView   from "./views/CareManagementView";
+
+// Super admin (Administrator) section
+import AdministratorView    from "./views/admin/AdministratorView";
 
 // Pro tier views (tier gate is inside each view)
 import ProAssistantView        from "./views/pro/AssistantView";
@@ -85,6 +89,11 @@ export default function App() {
 
           {/* Command tier */}
           <Route path="/care-management" element={<CareManagementView />} />
+
+          {/* Super admin section. Splat catches sub-tabs (subscriptions, practices, health, flags, audit, settings).
+              SuperAdminRoute redirects non-super-admins to /dashboard before AdministratorView mounts.
+              Defense-in-depth: rail item is conditional (Layout), route is gated (here), and DB has RLS. */}
+          <Route path="/admin/*" element={<SuperAdminRoute><AdministratorView /></SuperAdminRoute>} />
 
           {/* Any unknown protected URL falls back to dashboard. */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
