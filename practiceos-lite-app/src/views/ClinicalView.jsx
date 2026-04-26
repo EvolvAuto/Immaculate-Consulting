@@ -15,7 +15,7 @@ import ScribeModal from "../components/ScribeModal";
 const STATUSES = ["Draft", "In Progress", "Signed", "Amended"];
 
 export default function ClinicalView() {
- const { practiceId, profile, tier } = useAuth();
+ const { practiceId, profile, tier, capabilities } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [encounters, setEncounters] = useState([]);
@@ -348,7 +348,9 @@ function EncounterEditor({ encounter, profile, tier, onClose, onSaved }) {
       <SectionHead title="SOAP Note" action={
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {hasAIDraft && (e.status === "Draft" || e.status === "In Progress") && <Badge label="AI draft" variant="teal" size="xs" />}
-          {!locked && tier === "Command" && <Btn size="sm" variant="outline" onClick={() => setScribeOpen(true)}>AI Scribe</Btn>}
+          {!locked && tier === "Command" && (capabilities?.addons || []).some(a => a.sku === "ai_scribe") && (
+            <Btn size="sm" variant="outline" onClick={() => setScribeOpen(true)}>AI Scribe</Btn>
+          )}
         </div>
       } />
       <div style={{ opacity: locked ? 0.7 : 1 }}>
