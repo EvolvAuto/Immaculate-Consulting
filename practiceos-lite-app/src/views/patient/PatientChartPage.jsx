@@ -150,7 +150,7 @@ export default function PatientChartPage() {
       // empty array on other tiers so the rest of the destructure stays clean.
       isCommandTier
         ? supabase.from("cm_hedis_member_gaps")
-            .select("id, source_plan_short_name, measure_code, submeasure, compliant, bucket, measure_anchor_date, date_of_last_service, base_event_date, reporting_period_start, reporting_period_end, closed_at, closed_reason, match_status, cm_hedis_uploads(file_name, received_at), cm_hedis_measures(measure_name, measure_category)")
+            .select("id, source_plan_short_name, measure_code, submeasure, compliant, bucket, measure_anchor_date, date_of_last_service, base_event_date, reporting_period_start, reporting_period_end, closed_at, closure_method, match_status, cm_hedis_uploads(file_name, received_at), cm_hedis_measures(measure_name, measure_category)")
             .eq("patient_id", patientId)
             .neq("match_status", "Skipped")
             .order("compliant", { ascending: true, nullsFirst: true })
@@ -1544,8 +1544,8 @@ function HEDISGapRow({ gap }) {
         {gap.reporting_period_start && gap.reporting_period_end && (
           <span><strong>Period:</strong> {gap.reporting_period_start} to {gap.reporting_period_end}</span>
         )}
-        {gap.closed_reason && (
-          <span><strong>Closed via:</strong> {gap.closed_reason}</span>
+        {gap.closure_method && (
+          <span><strong>Closed via:</strong> {gap.closure_method}</span>
         )}
         {sourceFile && runDate && (
           <span style={{ color: C.textTertiary }}>From {sourceFile} ({runDate})</span>
