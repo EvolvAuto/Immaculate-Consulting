@@ -43,8 +43,29 @@ export const listRows = async (table, { select = "*", filters = {}, order = null
   return data || [];
 };
 
+// ─── Spectator mode write guard ──────────────────────────────────────────────
+// Throws when a super admin is in "View as Owner" mode. All writes blocked.
+const SPECTATOR_KEY = "practiceos.spectator";
+const assertNotSpectating = () => {
+  try {
+    const raw = sessionStorage.getItem(SPECTATOR_KEY);
+    if (raw) {
+      const sess = JSON.parse(raw);
+      if (sess && sess.practice_id) {
+        throw new Error(
+          "Spectator mode is read-only. Exit spectator mode (banner at top) before making changes."
+        );
+      }
+    }
+  } catch (e) {
+    if (e?.message?.includes("Spectator mode")) throw e;
+    // sessionStorage parse errors are not write blockers
+  }
+};
+
 // ─── Insert with practice_id injected ─────────────────────────────────────────
 export const insertRow = async (table, row, practiceId, { audit = null } = {}) => {
+  assertNotSpectating();
   const payload = { ...row };
   if (practiceId && !payload.practice_id) payload.practice_id = practiceId;
   const { data, error } = await supabase.from(table).insert(payload).select().single();
@@ -55,6 +76,7 @@ export const insertRow = async (table, row, practiceId, { audit = null } = {}) =
 
 // ─── Update by id ─────────────────────────────────────────────────────────────
 export const updateRow = async (table, id, patch, { audit = null } = {}) => {
+  assertNotSpectating();
   const { data, error } = await supabase.from(table).update(patch).eq("id", id).select().single();
   if (error) throw error;
   if (audit) await logAudit({ action: "Update", entityType: audit.entityType, entityId: id, patientId: audit.patientId || null, details: audit.details || patch });
@@ -63,6 +85,7 @@ export const updateRow = async (table, id, patch, { audit = null } = {}) => {
 
 // ─── Soft / hard delete ───────────────────────────────────────────────────────
 export const deleteRow = async (table, id, { audit = null } = {}) => {
+  assertNotSpectating();
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
   if (audit) await logAudit({ action: "Delete", entityType: audit.entityType, entityId: id, patientId: audit.patientId || null });
