@@ -61,7 +61,26 @@ const MEASURE_STATUSES = [
   { value: "Excluded_Other",        label: "Excluded - other" },
 ];
 
-const STATUS_OPTIONS = ["Active", "Draft", "Archived"];
+const STATUS_OPTIONS = ["Draft", "Active", "Expired", "Cancelled", "Archived"];
+
+// HCP-LAN APM Framework categories. Industry-standard taxonomy from the
+// Health Care Payment Learning & Action Network. Practices use this for
+// portfolio reporting and to align with HCPLAN's 2030 goal of more two-sided
+// risk contracts (3B + Category 4). See https://hcp-lan.org/apm-framework/
+const HCP_LAN_CATEGORIES = [
+  { value: "",   label: "Not classified" },
+  { value: "1",  label: "1 - FFS, no link to quality" },
+  { value: "2A", label: "2A - Foundational payments (infrastructure)" },
+  { value: "2B", label: "2B - Pay for reporting" },
+  { value: "2C", label: "2C - Pay-for-performance" },
+  { value: "3A", label: "3A - Shared savings (upside only)" },
+  { value: "3B", label: "3B - Shared savings + risk (upside + downside)" },
+  { value: "3N", label: "3N - Risk-based, not linked to quality" },
+  { value: "4A", label: "4A - Condition-specific population-based payment" },
+  { value: "4B", label: "4B - Comprehensive population-based payment" },
+  { value: "4C", label: "4C - Integrated finance + delivery system" },
+  { value: "4N", label: "4N - Capitated, not linked to quality" },
+];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Top-level page component
@@ -169,6 +188,7 @@ export default function VBPContractFormPage() {
         contract_label:            contract.contract_label.trim(),
         contract_type:             contract.contract_type?.trim() || null,
         program_type:              contract.program_type || null,
+        hcp_lan_category:          contract.hcp_lan_category || null,
         effective_start:           contract.effective_start || null,
         effective_end:             contract.effective_end || null,
         status:                    contract.status,
@@ -435,6 +455,21 @@ function IdentitySection({ contract, setContract }) {
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
         <Input label="Contract type (free text)" value={contract.contract_type || ""} onChange={set("contract_type")} placeholder='e.g. AMH P4Q, "Behavioral Health Pay-For-Value"' />
         <Select label="Status *" value={contract.status} onChange={set("status")} options={STATUS_OPTIONS} />
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <FL>HCP-LAN APM Framework category</FL>
+        <select
+          value={contract.hcp_lan_category || ""}
+          onChange={e => set("hcp_lan_category")(e.target.value || null)}
+          style={selectStyle}
+        >
+          {HCP_LAN_CATEGORIES.map(c => (
+            <option key={c.value || "none"} value={c.value}>{c.label}</option>
+          ))}
+        </select>
+        <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4, lineHeight: 1.5 }}>
+          Industry-standard taxonomy. 2B+ is the meaningful VBP range. HCPLAN's 2030 goal targets more 3B and Category 4 contracts (two-sided risk).
+        </div>
       </div>
       <Textarea label="Contract notes" value={contract.notes || ""} onChange={set("notes")} rows={2} placeholder="Anything contextual: who signed, where the executed PDF lives, key dates outside the form..." />
     </div>
@@ -1175,6 +1210,7 @@ function emptyContract() {
     contract_label: "",
     contract_type: "",
     program_type: null,
+    hcp_lan_category: null,
     effective_start: "",
     effective_end: "",
     status: "Draft",
