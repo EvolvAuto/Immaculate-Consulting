@@ -1,23 +1,45 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // src/views/admin/PracticesView.jsx
-// Operational view of all practices. Different lens from Subscriptions
-// (which is billing-focused). Shows operational metadata: patient count,
-// last activity, staff roster size, onboarding completeness signal.
+// Operational view of all practices + new-practice creation flow.
+//
+// New practice flow (4 steps):
+//   1. Identity        - name + full address
+//   2. Subscription    - tier + lifecycle + add-ons
+//   3. Provider seats  - number of NPI-billable clinicians + cost preview
+//   4. Owner / Manager - first user account + optional provider record
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthProvider";
 import { C } from "../../lib/tokens";
 import { Badge, Btn, Card, Modal, Input, Select, Loader, ErrorBanner } from "../../components/ui";
 
-const TIER_VARIANTS = { Lite: "neutral", Pro: "violet", Command: "teal" };
+// ── Tier base prices in cents (kept in sync with the catalog UI labels) ─────
+const TIER_BASE_CENTS = { Lite: 39900, Pro: 89900, Command: 179900 };
+const TIER_VARIANTS   = { Lite: "neutral", Pro: "violet", Command: "teal" };
+
+// Seat SKUs per tier - mirrors what the edge function expects
+const SEAT_SKU_BY_TIER = {
+  Lite:    "provider_seat_lite",
+  Pro:     "provider_seat_pro",
+  Command: "provider_seat_command",
+};
 
 const LIFECYCLE_OPTIONS = [
   { value: "pending_activation", label: "Pending Activation (default — waiting for go-live)" },
   { value: "trial",              label: "Trial (free trial period)" },
   { value: "active",             label: "Active (paying immediately)" },
 ];
+
+// Credentials that count as billable providers (per IC policy)
+const BILLABLE_CREDENTIALS = [
+  "MD", "DO", "NP", "PA", "CNM",
+  "Psychiatrist", "Psychologist",
+  "LCSW", "LCMHC", "LMFT",
+];
+
+const fmtMoney = (cents) => "$" + (cents / 100).toFixed(2);
 
 function fmtRelative(ts) {
   if (!ts) return "—";
@@ -49,7 +71,6 @@ export default function PracticesView() {
         .order("name");
       if (pErr) throw pErr;
 
-      // Pull aggregate counts for each practice in parallel.
       const enriched = await Promise.all((practices || []).map(async (p) => {
         const [patientsRes, staffRes, lastEncRes] = await Promise.all([
           supabase.from("patients").select("id", { count: "exact", head: true }).eq("practice_id", p.id),
@@ -148,9 +169,7 @@ export default function PracticesView() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// New practice creation modal - 3 steps: identity, subscription, owner
-// Calls the admin-create-practice edge function which handles auth user
-// creation + practice insert + add-on grants + history write atomically.
+// New practice creation modal
 // ═══════════════════════════════════════════════════════════════════════════════
 function NewPracticeModal({ onClose, onSuccess }) {
   const { session } = useAuth();
@@ -161,31 +180,51 @@ function NewPracticeModal({ onClose, onSuccess }) {
 
   const [form, setForm] = useState({
     practice_name:     "",
+    address_line_1:    "",
+    address_line_2:    "",
     city:              "",
     state:             "",
+    zip:               "",
     subscription_tier: "Pro",
     lifecycle_status:  "pending_activation",
     go_live_date:      "",
     trial_ends_at:     "",
+    addon_skus:        [],
+    provider_seat_count: 1,
     owner_email:       "",
     owner_full_name:   "",
     owner_role:        "Owner",
-    addon_skus:        [],
-    send_setup_email:  true,
+    owner_is_provider: false,
+    owner_provider_credential: "MD",
+    owner_provider_npi:        "",
+    owner_provider_specialty:  "",
   });
   const set = (k) => (v) => setForm(p => ({ ...p, [k]: v }));
 
-  // Load addon catalog so we can show eligible add-ons in step 2
+  // Load addon catalog so step 2 can show non-seat add-ons. Filter out
+  // seat SKUs since those are handled in their own step with quantity input.
   useEffect(() => {
     supabase.from("subscription_addons")
       .select("id, sku, name, eligible_tiers, monthly_price_cents, status")
       .neq("status", "deprecated")
-      .then(({ data }) => setCatalog(data || []));
+      .then(({ data }) => setCatalog((data || []).filter(c => !c.sku.startsWith("provider_seat_"))));
   }, []);
 
   const eligibleAddons = catalog.filter(c =>
     c.eligible_tiers.includes(form.subscription_tier) && c.status === "live"
   );
+
+  // Live cost preview
+  const seatPriceCents = (() => {
+    const t = form.subscription_tier;
+    return t === "Lite" ? 9900 : t === "Pro" ? 19900 : 44900;
+  })();
+  const baseCents       = TIER_BASE_CENTS[form.subscription_tier] || 0;
+  const seatTotalCents  = seatPriceCents * (form.provider_seat_count || 0);
+  const addonTotalCents = eligibleAddons
+    .filter(a => form.addon_skus.includes(a.sku))
+    .reduce((sum, a) => sum + (a.monthly_price_cents || 0), 0);
+  const monthlyTotalCents = baseCents + seatTotalCents + addonTotalCents;
 
   const toggleAddon = (sku) => {
     setForm(p => ({
@@ -202,10 +241,13 @@ function NewPracticeModal({ onClose, onSuccess }) {
       if (form.lifecycle_status === "trial" && !form.trial_ends_at) return false;
       return true;
     }
-    if (step === 3) {
-      return form.owner_email.includes("@") &&
-             form.owner_full_name.trim().length > 0 &&
-             ["Owner", "Manager"].includes(form.owner_role);
+    if (step === 3) return form.provider_seat_count >= 0 && form.provider_seat_count <= 100;
+    if (step === 4) {
+      if (!form.owner_email.includes("@")) return false;
+      if (!form.owner_full_name.trim())    return false;
+      if (!["Owner", "Manager"].includes(form.owner_role)) return false;
+      if (form.owner_is_provider && !form.owner_provider_credential) return false;
+      return true;
     }
     return false;
   };
@@ -238,9 +280,9 @@ function NewPracticeModal({ onClose, onSuccess }) {
   };
 
   return (
-    <Modal title={"Create new practice · Step " + step + " of 3"} onClose={onClose} maxWidth={560}>
+    <Modal title={"Create new practice · Step " + step + " of 4"} onClose={onClose} maxWidth={620}>
       <div style={{ display: "flex", gap: 4, marginBottom: 18 }}>
-        {[1, 2, 3].map(s => (
+        {[1, 2, 3, 4].map(s => (
           <div key={s} style={{
             flex: 1, height: 3, borderRadius: 2,
             background: s <= step ? C.teal : C.borderLight,
@@ -248,23 +290,28 @@ function NewPracticeModal({ onClose, onSuccess }) {
         ))}
       </div>
 
+      {/* STEP 1: identity + address */}
       {step === 1 && (
         <>
           <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 14 }}>
-            Practice identity. Name is required; address fields help operationally but can be filled in later.
+            Practice identity. Name is required; address can be filled in later. Multi-location practices: enter the primary address here, additional locations can be added later.
           </div>
-          <Input label="Practice name *" value={form.practice_name} onChange={set("practice_name")} placeholder="e.g. Maple Family Medicine" />
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10 }}>
+          <Input label="Practice name *" value={form.practice_name} onChange={set("practice_name")} placeholder="Maple Family Medicine" />
+          <Input label="Address line 1" value={form.address_line_1} onChange={set("address_line_1")} placeholder="100 Main Street" />
+          <Input label="Address line 2 (suite, floor, etc.)" value={form.address_line_2} onChange={set("address_line_2")} placeholder="Suite 200" />
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10 }}>
             <Input label="City" value={form.city} onChange={set("city")} placeholder="Durham" />
             <Input label="State" value={form.state} onChange={set("state")} placeholder="NC" />
+            <Input label="ZIP" value={form.zip} onChange={set("zip")} placeholder="27701" />
           </div>
         </>
       )}
 
+      {/* STEP 2: subscription */}
       {step === 2 && (
         <>
           <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 14 }}>
-            Choose tier, starting lifecycle state, and any add-ons. Add-ons can be granted now or activated later via the Subscriptions panel.
+            Choose tier, starting lifecycle state, and any add-ons. The base tier fee covers system access for the practice; provider seats are separate (next step).
           </div>
 
           <div style={{ marginBottom: 14 }}>
@@ -285,7 +332,10 @@ function NewPracticeModal({ onClose, onSuccess }) {
                   >
                     <div style={{ fontSize: 13, fontWeight: 700, color: sel ? C.teal : C.textPrimary }}>{t}</div>
                     <div style={{ fontSize: 10, color: C.textTertiary, marginTop: 2 }}>
-                      {t === "Lite" ? "$399/mo" : t === "Pro" ? "$899/mo" : "$1,799/mo"}
+                      {fmtMoney(TIER_BASE_CENTS[t])}/mo base
+                    </div>
+                    <div style={{ fontSize: 9, color: C.textTertiary, marginTop: 1 }}>
+                      + {t === "Lite" ? "$99" : t === "Pro" ? "$199" : "$449"}/seat
                     </div>
                   </button>
                 );
@@ -312,7 +362,7 @@ function NewPracticeModal({ onClose, onSuccess }) {
           {eligibleAddons.length > 0 && (
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Add-ons eligible for {form.subscription_tier} (optional)
+                Optional add-ons for {form.subscription_tier}
               </div>
               {eligibleAddons.map(a => {
                 const checked = form.addon_skus.includes(a.sku);
@@ -325,17 +375,10 @@ function NewPracticeModal({ onClose, onSuccess }) {
                     background: checked ? C.tealBg : "transparent",
                     marginBottom: 6,
                   }}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleAddon(a.sku)}
-                      style={{ accentColor: C.teal }}
-                    />
+                    <input type="checkbox" checked={checked} onChange={() => toggleAddon(a.sku)} style={{ accentColor: C.teal }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, fontWeight: 500, color: C.textPrimary }}>{a.name}</div>
-                      <div style={{ fontSize: 10, color: C.textTertiary, marginTop: 1 }}>
-                        ${(a.monthly_price_cents / 100).toFixed(2)}/mo
-                      </div>
+                      <div style={{ fontSize: 10, color: C.textTertiary, marginTop: 1 }}>{fmtMoney(a.monthly_price_cents)}/mo</div>
                     </div>
                   </label>
                 );
@@ -345,10 +388,86 @@ function NewPracticeModal({ onClose, onSuccess }) {
         </>
       )}
 
+      {/* STEP 3: provider seats */}
       {step === 3 && (
         <>
+          <div style={{ padding: 14, background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8, marginBottom: 16, fontSize: 12, color: C.textPrimary, lineHeight: 1.6 }}>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>What counts as a billable provider?</div>
+            <div style={{ color: C.textSecondary }}>
+              Each <b>NPI-credentialed clinician</b> who creates billable encounters under their own NPI requires a paid seat: MD, DO, NP, PA, CNM, psychiatrist, psychologist, LCSW, LCMHC, LMFT.
+            </div>
+            <div style={{ color: C.textSecondary, marginTop: 8 }}>
+              <b>No seat needed for:</b> RNs, LPNs, MAs, care managers, care coordinators, CHWs, scribes, billers, and admin staff. They get free PracticeOS accounts as part of the practice subscription.
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.textSecondary, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Number of billable providers</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Btn size="sm" variant="outline"
+                disabled={form.provider_seat_count <= 0}
+                onClick={() => set("provider_seat_count")(Math.max(0, form.provider_seat_count - 1))}>−</Btn>
+              <input
+                type="number"
+                min="0" max="100"
+                value={form.provider_seat_count}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  set("provider_seat_count")(Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0);
+                }}
+                style={{
+                  width: 80, textAlign: "center",
+                  padding: "8px 10px",
+                  border: "0.5px solid " + C.borderMid,
+                  borderRadius: 6,
+                  fontSize: 16, fontWeight: 700,
+                  fontFamily: "inherit",
+                  color: C.textPrimary,
+                }}
+              />
+              <Btn size="sm" variant="outline"
+                onClick={() => set("provider_seat_count")(Math.min(100, form.provider_seat_count + 1))}>+</Btn>
+              <span style={{ fontSize: 12, color: C.textTertiary }}>
+                × {fmtMoney(seatPriceCents)}/mo each ({form.subscription_tier})
+              </span>
+            </div>
+            {form.provider_seat_count === 0 && (
+              <div style={{ fontSize: 11, color: C.amber, marginTop: 8 }}>
+                Note: 0 seats means no providers can create encounters yet. You can add seats later via the Subscriptions panel.
+              </div>
+            )}
+          </div>
+
+          {/* Live cost preview */}
+          <div style={{ padding: 14, background: C.tealBg, border: "0.5px solid " + C.tealBorder, borderRadius: 8 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: C.teal, marginBottom: 8 }}>Monthly cost preview</div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", color: C.textSecondary }}>
+              <span>{form.subscription_tier} base</span>
+              <span style={{ color: C.textPrimary, fontWeight: 600 }}>{fmtMoney(baseCents)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", color: C.textSecondary }}>
+              <span>{form.provider_seat_count} provider seat{form.provider_seat_count === 1 ? "" : "s"} × {fmtMoney(seatPriceCents)}</span>
+              <span style={{ color: C.textPrimary, fontWeight: 600 }}>{fmtMoney(seatTotalCents)}</span>
+            </div>
+            {addonTotalCents > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", color: C.textSecondary }}>
+                <span>{form.addon_skus.length} additional add-on{form.addon_skus.length === 1 ? "" : "s"}</span>
+                <span style={{ color: C.textPrimary, fontWeight: 600 }}>{fmtMoney(addonTotalCents)}</span>
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, padding: "8px 0 0", marginTop: 4, borderTop: "0.5px solid " + C.tealBorder, color: C.textPrimary, fontWeight: 700 }}>
+              <span>Total</span>
+              <span>{fmtMoney(monthlyTotalCents)}/mo</span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* STEP 4: owner */}
+      {step === 4 && (
+        <>
           <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 14 }}>
-            Create the first user account for this practice. They will receive a password setup email and choose their own password on first login.
+            Create the first user account. They'll receive an invite email with a link to set their password and log in.
           </div>
 
           <div style={{ marginBottom: 14 }}>
@@ -380,17 +499,42 @@ function NewPracticeModal({ onClose, onSuccess }) {
           </div>
 
           <Input label="Full name *" value={form.owner_full_name} onChange={set("owner_full_name")} placeholder="Dr. Sarah Patel" />
-          <Input label="Email * (password setup link goes here)" value={form.owner_email} onChange={set("owner_email")} placeholder="sarah@maplefamilymed.com" />
+          <Input label="Email * (invite link goes here)" value={form.owner_email} onChange={set("owner_email")} placeholder="sarah@maplefamilymed.com" />
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", border: "0.5px solid " + C.borderLight, borderRadius: 7, marginTop: 6 }}>
-            <input
-              type="checkbox"
-              checked={form.send_setup_email}
-              onChange={(e) => set("send_setup_email")(e.target.checked)}
-              style={{ accentColor: C.teal }}
-            />
-            <span style={{ fontSize: 12, color: C.textPrimary }}>Send password setup email immediately</span>
+          <label style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "12px 14px",
+            border: "0.5px solid " + (form.owner_is_provider ? C.tealBorder : C.borderLight),
+            borderRadius: 8,
+            background: form.owner_is_provider ? C.tealBg : "transparent",
+            marginTop: 10, cursor: "pointer",
+          }}>
+            <input type="checkbox" checked={form.owner_is_provider}
+              onChange={(e) => set("owner_is_provider")(e.target.checked)}
+              style={{ accentColor: C.teal }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.textPrimary }}>This user is also a billable provider</div>
+              <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2, lineHeight: 1.4 }}>
+                Check this if the user creates encounters under their own NPI (MD/DO/NP/PA, etc). A provider record will be created and counted against your {form.provider_seat_count} purchased seat{form.provider_seat_count === 1 ? "" : "s"}.
+              </div>
+            </div>
           </label>
+
+          {form.owner_is_provider && (
+            <div style={{ marginTop: 12, padding: 14, background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Select label="Credential *" value={form.owner_provider_credential} onChange={set("owner_provider_credential")}
+                  options={BILLABLE_CREDENTIALS} />
+                <Input label="NPI (optional)" value={form.owner_provider_npi} onChange={set("owner_provider_npi")} placeholder="1234567890" />
+              </div>
+              <Input label="Specialty (optional)" value={form.owner_provider_specialty} onChange={set("owner_provider_specialty")} placeholder="Family Medicine" />
+              {form.provider_seat_count === 0 && (
+                <div style={{ fontSize: 11, color: C.amber, marginTop: 8 }}>
+                  Heads up: you set provider seats to 0 in the previous step. The owner is being marked as a provider but won't have a seat allocated. Go back and bump seats to ≥1 if needed.
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -402,7 +546,7 @@ function NewPracticeModal({ onClose, onSuccess }) {
           {step > 1 && (
             <Btn variant="outline" onClick={() => setStep(s => s - 1)} disabled={busy}>← Back</Btn>
           )}
-          {step < 3 ? (
+          {step < 4 ? (
             <Btn onClick={() => setStep(s => s + 1)} disabled={!canAdvance() || busy}>Next →</Btn>
           ) : (
             <Btn onClick={submit} disabled={!canAdvance() || busy}>
@@ -416,11 +560,11 @@ function NewPracticeModal({ onClose, onSuccess }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Success modal shown after creation
+// Success modal
 // ═══════════════════════════════════════════════════════════════════════════════
 function SuccessModal({ info, onClose }) {
   return (
-    <Modal title="Practice created successfully" onClose={onClose} maxWidth={500}>
+    <Modal title="Practice created successfully" onClose={onClose} maxWidth={520}>
       <div style={{ padding: 14, background: C.tealBg, border: "0.5px solid " + C.tealBorder, borderRadius: 8, marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary, marginBottom: 8 }}>
           ✓ {info.practice.name} is ready
@@ -429,34 +573,20 @@ function SuccessModal({ info, onClose }) {
           <div><b>Tier:</b> {info.practice.subscription_tier}</div>
           <div><b>Lifecycle:</b> {info.practice.lifecycle_status}</div>
           <div><b>Owner:</b> {info.owner.email} ({info.owner.role})</div>
+          {info.owner.provider_id && <div><b>Provider record:</b> created and linked to user account</div>}
+          <div><b>Provider seats granted:</b> {info.provider_seats_granted}</div>
           {info.addons_granted?.length > 0 && (
-            <div><b>Add-ons granted:</b> {info.addons_granted.join(", ")}</div>
+            <div><b>Add-ons:</b> {info.addons_granted.map(a => a.sku + (a.quantity > 1 ? ` (×${a.quantity})` : "")).join(", ")}</div>
           )}
         </div>
       </div>
 
-      {info.setup_email_sent ? (
-        <div style={{ padding: 12, background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8, marginBottom: 14, fontSize: 12 }}>
-          <div style={{ fontWeight: 600, color: C.textPrimary, marginBottom: 4 }}>📧 Password setup email sent</div>
-          <div style={{ color: C.textSecondary, lineHeight: 1.5 }}>
-            {info.owner.email} will receive a link to set their password and log in.
-          </div>
+      <div style={{ padding: 12, background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8, marginBottom: 14, fontSize: 12 }}>
+        <div style={{ fontWeight: 600, color: C.textPrimary, marginBottom: 4 }}>📧 Invite email sent</div>
+        <div style={{ color: C.textSecondary, lineHeight: 1.5 }}>
+          {info.owner.email} will receive an invite link to set their password and log in. The link expires in 24 hours. If they don't see it, ask them to check spam, then resend from the user's row in this admin panel.
         </div>
-      ) : info.setup_email_error ? (
-        <div style={{ padding: 12, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 8, marginBottom: 14, fontSize: 12 }}>
-          <div style={{ fontWeight: 600, color: C.textPrimary, marginBottom: 4 }}>⚠ Setup email failed</div>
-          <div style={{ color: C.textSecondary, lineHeight: 1.5 }}>
-            Practice and account were created, but the setup email could not be sent: <code>{info.setup_email_error}</code>. The user can click "Forgot password" on the login page to trigger another setup link.
-          </div>
-        </div>
-      ) : (
-        <div style={{ padding: 12, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 8, marginBottom: 14, fontSize: 12 }}>
-          <div style={{ fontWeight: 600, color: C.textPrimary, marginBottom: 4 }}>⚠ No setup email sent</div>
-          <div style={{ color: C.textSecondary, lineHeight: 1.5 }}>
-            You opted not to send a setup email. Have the owner click "Forgot password" on the login page when they're ready to set up their account.
-          </div>
-        </div>
-      )}
+      </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <Btn onClick={onClose}>Done</Btn>
