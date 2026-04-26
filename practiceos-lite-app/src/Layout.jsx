@@ -12,6 +12,7 @@ import { supabase } from "./lib/supabaseClient";
 import { C, NAV_BY_ROLE, NAV_META, ROLE_STYLES } from "./lib/tokens";
 import PortalShell          from "./views/PortalShell";
 import ProSystemAlertBanner from "./components/pro/ProSystemAlertBanner";
+import SpectatorBanner      from "./auth/SpectatorBanner";
 
 // Sidebar nav id -> URL path. Colocated with the sidebar rendering (not in
 // tokens.js) so URL changes don't require a design-token edit.
@@ -349,6 +350,7 @@ export default function Layout() {
 
       {/* ── Main Content ──────────────────────────────────────────────── */}
       <main ref={mainRef} style={{ flex: 1, minWidth: 0, overflowY: "auto", display: "flex", flexDirection: "column" }}>
+        <SpectatorBanner />
         <ProSystemAlertBanner practiceId={practiceId} role={role} tier={tier} />
         {/* Expose onNav to views via outlet context for backward compat.
             Views that still use `{ onNav }` as a prop will silently receive
