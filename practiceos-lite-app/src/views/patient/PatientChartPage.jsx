@@ -36,6 +36,19 @@ const SCREENER_SEVERITY_COLORS = {
   "Low Risk": C.green, "Moderate Risk": C.amber, "High Risk": C.red,
 };
 
+// ─── Adding a new chart tab? ────────────────────────────────────────────────
+// All edits live in this file. App.jsx uses a splat route that catches every
+// tab sub-path automatically, so it requires no changes.
+//   1. Add the tab id to VALID_TABS below (URL whitelist).
+//   2. Add the tab to the TabBar `tabs` config inside PatientChartPage's
+//      JSX - label, position, optional tier gate via spread:
+//        ...(isCommandTier ? [["tabid", "Label"]] : [])
+//   3. Add a render branch: {tab === "tabid" && <YourTab ... />}.
+//   4. If the tab needs data, extend reload()'s Promise.all and add a
+//      useState() for it alongside hedisGaps / carePlans. Wrap any
+//      tier-gated query in a ternary that resolves to {data:[]} on lower
+//      tiers so the destructure stays clean.
+// ────────────────────────────────────────────────────────────────────────────
 const VALID_TABS = ["info", "appts", "notes", "trends", "meds", "screening", "clinical", "insurance", "hedis", "plan"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
