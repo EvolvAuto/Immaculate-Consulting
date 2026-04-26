@@ -1415,7 +1415,7 @@ function HEDISGapsTab({ gaps, isCommandTier }) {
   if (!isCommandTier) {
     return (
       <EmptyState
-        icon="\u25A7"
+        icon="▧"
         title="HEDIS gap tracking is a Command-tier feature"
         sub="Upload health-plan gap files in Care Management on Command tier to see member-level gaps here."
       />
@@ -1428,7 +1428,7 @@ function HEDISGapsTab({ gaps, isCommandTier }) {
   if (open.length === 0 && closed.length === 0) {
     return (
       <EmptyState
-        icon="\u25A7"
+        icon="▧"
         title="No HEDIS gap data for this patient"
         sub="When a health-plan gap file is uploaded and matched to this patient in Care Management, the gaps will appear here."
       />
