@@ -339,9 +339,18 @@ export const Loader = ({ label = "Loading..." }) => (
   <div style={{ padding: 32, textAlign: "center", color: C.textTertiary, fontSize: 12 }}>{label}</div>
 );
 
-export const ErrorBanner = ({ message }) => (
+export const ErrorBanner = ({ message, onDismiss }) => (
   <div style={{
     background: C.redBg, color: C.red, border: `0.5px solid ${C.redBorder}`,
     padding: "10px 14px", borderRadius: 8, fontSize: 12, margin: "12px 0",
-  }}>⚠ {message}</div>
+    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+  }}>
+    <span>⚠ {message}</span>
+    {onDismiss && (
+      <button onClick={onDismiss} style={{
+        background: "none", border: "none", color: C.red,
+        cursor: "pointer", fontSize: 16, padding: 0, lineHeight: 1,
+      }}>×</button>
+    )}
+  </div>
 );
