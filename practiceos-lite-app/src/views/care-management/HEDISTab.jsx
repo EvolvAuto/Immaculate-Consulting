@@ -91,7 +91,7 @@ function HEDISOpenGaps({ practiceId }) {
   // Filters
   const [filterPlan, setFilterPlan]             = useState("");
   const [filterMeasure, setFilterMeasure]       = useState("");
-  const [filterCompliant, setFilterCompliant]   = useState("noncompliant"); // 'all' | 'noncompliant' | 'compliant'
+  const [filterCompliant, setFilterCompliant]   = useState("actionable"); // 'actionable' | 'all' | 'open' | 'unknown' | 'compliant'
   const [filterMatch, setFilterMatch]           = useState("matched");      // 'all' | 'matched' | 'unmatched' | 'multi'
   const [filterReportingPeriod, setFilterPeriod] = useState("");            // upload.id
 
@@ -142,8 +142,10 @@ function HEDISOpenGaps({ practiceId }) {
     let r = rows;
     if (filterPlan)             r = r.filter(g => g.source_plan_short_name === filterPlan);
     if (filterMeasure)          r = r.filter(g => g.measure_code === filterMeasure);
-    if (filterCompliant === "noncompliant") r = r.filter(g => g.compliant === false);
-    if (filterCompliant === "compliant")    r = r.filter(g => g.compliant === true);
+    if (filterCompliant === "actionable") r = r.filter(g => g.compliant !== true);  // open OR unknown
+    if (filterCompliant === "open")       r = r.filter(g => g.compliant === false);
+    if (filterCompliant === "unknown")    r = r.filter(g => g.compliant === null || g.compliant === undefined);
+    if (filterCompliant === "compliant")  r = r.filter(g => g.compliant === true);
     if (filterMatch === "matched")    r = r.filter(g => g.match_status === "Matched Single" || g.match_status === "Manually Resolved");
     if (filterMatch === "unmatched")  r = r.filter(g => g.match_status === "Unmatched");
     if (filterMatch === "multi")      r = r.filter(g => g.match_status === "Matched Multiple");
@@ -227,7 +229,9 @@ function HEDISOpenGaps({ practiceId }) {
           <div>
             <FL>Compliance</FL>
             <select value={filterCompliant} onChange={e => setFilterCompliant(e.target.value)} style={selectStyle}>
-              <option value="noncompliant">Non-compliant only</option>
+              <option value="actionable">Actionable (open + unknown)</option>
+              <option value="open">Open only</option>
+              <option value="unknown">Unknown only</option>
               <option value="compliant">Compliant only</option>
               <option value="all">All</option>
             </select>
