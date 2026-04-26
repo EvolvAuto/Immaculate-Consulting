@@ -128,7 +128,7 @@ export default function ClinicalView() {
       </div>
 
       {creating && <NewEncounterModal practiceId={practiceId} profile={profile} onClose={() => setCreating(false)} onCreated={(e) => { setEncounters((prev) => [e, ...prev]); setCreating(false); setEditing(e); }} />}
-      {editing && <EncounterEditor encounter={editing} profile={profile} tier={tier} onClose={() => setEditing(null)}
+      {editing && <EncounterEditor encounter={editing} profile={profile} tier={tier} capabilities={capabilities} onClose={() => setEditing(null)}
         onSaved={(u) => { setEncounters((prev) => prev.map((x) => x.id === u.id ? { ...x, ...u } : x)); setEditing({ ...editing, ...u }); }} />}
     </div>
   );
@@ -198,7 +198,7 @@ function NewEncounterModal({ onClose, onCreated, practiceId, profile }) {
 }
 
 // ─── Encounter Editor (unchanged from prior version, SOAP + sign/amend) ──────
-function EncounterEditor({ encounter, profile, tier, onClose, onSaved }) {
+function EncounterEditor({ encounter, profile, tier, capabilities, onClose, onSaved }) {
   const [panelValues, setPanelValues] = useState({});
   const [patient, setPatient] = useState(null);
   const [hasAIDraft, setHasAIDraft] = useState(false);
