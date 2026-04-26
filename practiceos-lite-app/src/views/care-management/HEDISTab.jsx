@@ -493,7 +493,7 @@ function HEDISUploads({ practiceId }) {
       )}
 
       {selected && (
-        <UploadDetail upload={selected} onClose={() => setSelected(null)} />
+        <UploadDetail upload={selected} onClose={() => setSelected(null)} onUpdated={load} />
       )}
       {showNew && (
         <NewUploadModal
@@ -725,10 +725,16 @@ function TemplatePickerModal({ uploadId, candidates, allTemplates, onClose, onCh
 // ===============================================================================
 // Upload Detail - parse_errors drill-in + matched/unmatched preview
 // ===============================================================================
-function UploadDetail({ upload, onClose }) {
-  const [gaps, setGaps]       = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState(null);
+function UploadDetail({ upload, onClose, onUpdated }) {
+  const [gaps, setGaps]               = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+
+  // Manual reporting-period fallback (for files where the parser couldn't auto-detect)
+  const [periodStart, setPeriodStart] = useState(upload.reporting_period_start || "");
+  const [periodEnd, setPeriodEnd]     = useState(upload.reporting_period_end   || "");
+  const [savingPeriod, setSavingPeriod] = useState(false);
+  const [periodSaved, setPeriodSaved]   = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -750,13 +756,60 @@ function UploadDetail({ upload, onClose }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Save manual reporting period to the upload row + propagate to gap rows
+  // so the Open Gaps "Reporting period" filter picks up the value.
+  const saveReportingPeriod = async () => {
+    if (!periodStart || !periodEnd) {
+      setError("Both start and end dates are required");
+      return;
+    }
+    if (periodEnd < periodStart) {
+      setError("End date must be on or after start date");
+      return;
+    }
+    setSavingPeriod(true);
+    setError(null);
+    try {
+      const { error: upErr } = await supabase
+        .from("cm_hedis_uploads")
+        .update({
+          reporting_period_start: periodStart,
+          reporting_period_end:   periodEnd,
+        })
+        .eq("id", upload.id);
+      if (upErr) throw upErr;
+
+      const { error: gapsErr } = await supabase
+        .from("cm_hedis_member_gaps")
+        .update({
+          reporting_period_start: periodStart,
+          reporting_period_end:   periodEnd,
+        })
+        .eq("upload_id", upload.id);
+      if (gapsErr) throw gapsErr;
+
+      setPeriodSaved(true);
+      onUpdated && onUpdated();
+    } catch (e) {
+      setError(e.message || "Failed to save reporting period");
+    } finally {
+      setSavingPeriod(false);
+    }
+  };
+
   const parseErrors = upload.parse_errors;
   const hasUnmappedHeaders = parseErrors?.unmapped_headers?.length > 0;
   const hasNormalizerIssues = parseErrors?.unmapped_normalizer_values?.length > 0;
   const stubbedMeasures = parseErrors?.unknown_measures_auto_stubbed || [];
 
+  // Show fallback only after parser ran AND failed to detect the period AND user
+  // hasn't just saved one in this session.
+  const showPeriodFallback = (upload.status === "Parsed" || upload.status === "Validated")
+    && !upload.reporting_period_start && !upload.reporting_period_end
+    && !periodSaved;
+
   return (
-    <Modal title={"Upload detail: " + upload.file_name} onClose={onClose} width={900}>
+    <Modal title={"Upload detail: " + upload.file_name} onClose={onClose} width={1200}>
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
       {/* Status summary */}
@@ -766,6 +819,41 @@ function UploadDetail({ upload, onClose }) {
         <KpiCard label="Rows matched"  value={upload.matched_row_count || 0}    hint="linked to local patient" variant="blue" />
         <KpiCard label="Rows skipped"  value={upload.skipped_row_count || 0}    hint="missing required field" variant={upload.skipped_row_count > 0 ? "amber" : "neutral"} />
       </div>
+
+      {/* Manual reporting-period fallback */}
+      {showPeriodFallback && (
+        <Card style={{ padding: 12, marginBottom: 16, background: C.amberBg, borderColor: C.amber }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Reporting period not detected</div>
+          <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 12 }}>
+            The parser could not auto-detect the reporting period for this file. Enter it manually below; the value will be saved to this upload and to all of its gap rows.
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "end" }}>
+            <div>
+              <FL>Period start</FL>
+              <input
+                type="date"
+                value={periodStart}
+                onChange={e => setPeriodStart(e.target.value)}
+                style={inputStyle}
+                disabled={savingPeriod}
+              />
+            </div>
+            <div>
+              <FL>Period end</FL>
+              <input
+                type="date"
+                value={periodEnd}
+                onChange={e => setPeriodEnd(e.target.value)}
+                style={inputStyle}
+                disabled={savingPeriod}
+              />
+            </div>
+            <Btn variant="primary" disabled={savingPeriod || !periodStart || !periodEnd} onClick={saveReportingPeriod}>
+              {savingPeriod ? "Saving..." : "Save period"}
+            </Btn>
+          </div>
+        </Card>
+      )}
 
       {/* Parse warnings (if any) */}
       {(hasUnmappedHeaders || hasNormalizerIssues || stubbedMeasures.length > 0) && (
