@@ -17,6 +17,7 @@ import InvitePatientModal from "../InvitePatientModal";
 import AssignFormsModal from "../AssignFormsModal";
 import GrantFamilyAccessModal from "../GrantFamilyAccessModal";
 import StartScreeningModal from "../../components/hrsn/StartScreeningModal";
+import CloseGapModal from "../../components/hedis/CloseGapModal";
 import TrendsTab from "./TrendsTab";
 import MedicationsTab from "./MedicationsTab";
 
@@ -409,7 +410,7 @@ export default function PatientChartPage() {
       )}
       {tab === "trends" && <TrendsTab patient={patient} />}
       {tab === "meds" && <MedicationsTab patient={patient} />}
-      {tab === "hedis" && <HEDISGapsTab gaps={hedisGaps} isCommandTier={isCommandTier} />}
+      {tab === "hedis" && <HEDISGapsTab gaps={hedisGaps} isCommandTier={isCommandTier} onChange={reload} />}
       {tab === "plan" && <CarePlanTab carePlans={carePlans} popLabels={popLabels} />}
       </div>
 
@@ -1408,7 +1409,12 @@ function plan_safe(v) {
 // "Closed/Compliant" collapses by default. Becomes useful as a longitudinal
 // view over time. Closure attestation lives in Day 3+ work.
 // ═══════════════════════════════════════════════════════════════════════════════
-function HEDISGapsTab({ gaps, isCommandTier }) {
+function HEDISGapsTab({ gaps, isCommandTier, onChange }) {
+  // Holds the gap row currently being closed via the modal. null = no modal.
+  // Lifted to this parent rather than per-row so the modal sits at a single
+  // place in the tree and onSaved triggers a top-level reload.
+  const [closingGap, setClosingGap] = useState(null);
+
   // Defensive: if a non-Command user reaches /patients/:id/hedis directly via
   // URL (deep-link, share, browser history), surface a clear message instead
   // of an empty list that suggests the feature is broken.
@@ -1455,7 +1461,7 @@ function HEDISGapsTab({ gaps, isCommandTier }) {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
-          {open.map(g => <HEDISGapRow key={g.id} gap={g} />)}
+          {open.map(g => <HEDISGapRow key={g.id} gap={g} onClose={() => setClosingGap(g)} />)}
         </div>
       )}
 
@@ -1475,16 +1481,31 @@ function HEDISGapsTab({ gaps, isCommandTier }) {
           </div>
         </details>
       )}
+
+      {closingGap && (
+        <CloseGapModal
+          gap={closingGap}
+          onClose={() => setClosingGap(null)}
+          onSaved={() => {
+            setClosingGap(null);
+            if (onChange) onChange();
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function HEDISGapRow({ gap }) {
+function HEDISGapRow({ gap, onClose }) {
   const measureName = gap.cm_hedis_measures?.measure_name || gap.measure_code;
   const sourceFile  = gap.cm_hedis_uploads?.file_name || "";
   const runDate     = gap.cm_hedis_uploads?.received_at
     ? new Date(gap.cm_hedis_uploads.received_at).toLocaleDateString()
     : null;
+  // Show the Close button only on actionable rows (not closed, not compliant).
+  // onClose is wired only by the open-section map above; closed rows pass
+  // no onClose, so the button hides automatically.
+  const canClose = onClose && !gap.closed_at && gap.compliant !== true;
 
   // Visual treatment driven by compliance state:
   //   compliant === true  -> green border, "Closed"
@@ -1526,6 +1547,11 @@ function HEDISGapRow({ gap }) {
         {gap.source_plan_short_name && (
           <span style={{ fontSize: 10, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.04em" }}>
             via {gap.source_plan_short_name}
+          </span>
+        )}
+        {canClose && (
+          <span style={{ marginLeft: "auto" }}>
+            <Btn size="sm" variant="outline" onClick={onClose}>Close gap</Btn>
           </span>
         )}
       </div>
