@@ -53,6 +53,7 @@ export default function MedicationsTab({ patient }) {
       };
       if (form.id) await updateRow("patient_medications", form.id, payload, { audit: { entityType: "patient_medications", patientId: patient.id } });
       else {
+        payload.patient_id = patient.id;
         payload.created_by = profile?.id;
         await insertRow("patient_medications", payload, practiceId, { audit: { entityType: "patient_medications", patientId: patient.id } });
       }
