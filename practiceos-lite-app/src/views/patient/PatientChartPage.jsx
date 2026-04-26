@@ -36,7 +36,7 @@ const SCREENER_SEVERITY_COLORS = {
   "Low Risk": C.green, "Moderate Risk": C.amber, "High Risk": C.red,
 };
 
-const VALID_TABS = ["info", "appts", "notes", "trends", "meds", "screening", "clinical", "insurance", "plan"];
+const VALID_TABS = ["info", "appts", "notes", "trends", "meds", "screening", "clinical", "insurance", "hedis", "plan"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -48,6 +48,7 @@ export default function PatientChartPage() {
   const location = useLocation();
   const { profile, practiceId, tier } = useAuth();
   const isProTier = ["Pro", "Command"].includes(tier);
+  const isCommandTier = tier === "Command";
 
   const urlTab = location.pathname.split("/")[3] || "info";
   const tab = VALID_TABS.includes(urlTab) ? urlTab : "info";
@@ -66,6 +67,9 @@ export default function PatientChartPage() {
   const [popLabels, setPopLabels] = useState({});
   // Active care plans for this patient. Drives the Care Plan tab content.
   const [carePlans, setCarePlans] = useState([]);
+  // HEDIS gap rows linked to this patient via hedis-match. Command-tier only;
+  // skipped on Lite/Pro to avoid an unnecessary query that would always return [].
+  const [hedisGaps, setHedisGaps] = useState([]);
   const [editing, setEditing] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showAssignForms, setShowAssignForms] = useState(false);
@@ -114,7 +118,7 @@ export default function PatientChartPage() {
 
   const reload = async () => {
     if (!patientId) return;
-    const [a, e, i, s, enr, plans] = await Promise.all([
+    const [a, e, i, s, enr, plans, gaps] = await Promise.all([
       supabase.from("appointments").select("id, appt_date, start_slot, appt_type, status, providers(last_name)").eq("patient_id", patientId).order("appt_date", { ascending: false }).limit(30),
       supabase.from("encounters").select("id, encounter_date, status, appt_type, chief_complaint, assessment, provider_id, providers(first_name, last_name)").eq("patient_id", patientId).order("encounter_date", { ascending: false }).limit(20),
       supabase.from("insurance_policies").select("*").eq("patient_id", patientId).order("rank"),
@@ -129,6 +133,16 @@ export default function PatientChartPage() {
         .eq("patient_id", patientId)
         .eq("plan_status", "Active")
         .order("assessment_date", { ascending: false }),
+      // HEDIS gaps for the chart's HEDIS tab. Command-tier only; resolves to
+      // empty array on other tiers so the rest of the destructure stays clean.
+      isCommandTier
+        ? supabase.from("cm_hedis_member_gaps")
+            .select("id, source_plan_short_name, measure_code, submeasure, compliant, bucket, measure_anchor_date, date_of_last_service, base_event_date, reporting_period_start, reporting_period_end, closed_at, closed_reason, match_status, cm_hedis_uploads(file_name, received_at), cm_hedis_measures(measure_name, measure_category)")
+            .eq("patient_id", patientId)
+            .neq("match_status", "Skipped")
+            .order("compliant", { ascending: true, nullsFirst: true })
+            .order("measure_anchor_date", { ascending: false })
+        : Promise.resolve({ data: [] }),
     ]);
     setAppts(a.data || []);
     setEncounters(e.data || []);
@@ -136,6 +150,7 @@ export default function PatientChartPage() {
     setScreeners(s.data || []);
     setEnrollments(enr.data || []);
     setCarePlans(plans.data || []);
+    setHedisGaps(gaps.data || []);
   };
   useEffect(() => { if (patient) reload(); }, [patient?.id]);
 
@@ -225,6 +240,11 @@ export default function PatientChartPage() {
             ["screening", `Screenings (${hrsnScreeners.length + mentalHealthScreeners.length})`],
             ["clinical", "Clinical"],
             ["insurance", `Insurance (${insurance.length})`],
+            // HEDIS tab is Command-tier only. Conditionally added so the tab
+            // bar simply skips it on Lite/Pro rather than rendering disabled.
+            ...(isCommandTier ? [["hedis", hedisGaps.filter(g => g.compliant !== true && !g.closed_at).length > 0
+              ? `HEDIS (${hedisGaps.filter(g => g.compliant !== true && !g.closed_at).length})`
+              : "HEDIS"]] : []),
             ["plan", carePlans.length > 0 ? `Care Plan (${carePlans.length})` : "Care Plan"],
           ]}
           active={tab} onChange={setTab} />
@@ -376,6 +396,7 @@ export default function PatientChartPage() {
       )}
       {tab === "trends" && <TrendsTab patient={patient} />}
       {tab === "meds" && <MedicationsTab patient={patient} />}
+      {tab === "hedis" && <HEDISGapsTab gaps={hedisGaps} isCommandTier={isCommandTier} />}
       {tab === "plan" && <CarePlanTab carePlans={carePlans} popLabels={popLabels} />}
       </div>
 
@@ -1360,6 +1381,165 @@ function plan_safe(v) {
     }
   }
   return String(v);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HEDISGapsTab - read-only view of HEDIS quality gaps for this patient.
+// Gaps come from cm_hedis_member_gaps after hedis-match links them to the
+// patient by member ID or name+DOB. Command-tier only.
+//
+// "Open" = compliant !== true AND closed_at IS NULL. The actionable list:
+// open gaps and unknown-status gaps (where the source plan's compliance
+// indicator wasn't mapped, leaving the column NULL).
+//
+// "Closed/Compliant" collapses by default. Becomes useful as a longitudinal
+// view over time. Closure attestation lives in Day 3+ work.
+// ═══════════════════════════════════════════════════════════════════════════════
+function HEDISGapsTab({ gaps, isCommandTier }) {
+  // Defensive: if a non-Command user reaches /patients/:id/hedis directly via
+  // URL (deep-link, share, browser history), surface a clear message instead
+  // of an empty list that suggests the feature is broken.
+  if (!isCommandTier) {
+    return (
+      <EmptyState
+        icon="\u25A7"
+        title="HEDIS gap tracking is a Command-tier feature"
+        sub="Upload health-plan gap files in Care Management on Command tier to see member-level gaps here."
+      />
+    );
+  }
+
+  const open = (gaps || []).filter(g => g.compliant !== true && !g.closed_at);
+  const closed = (gaps || []).filter(g => g.compliant === true || g.closed_at);
+
+  if (open.length === 0 && closed.length === 0) {
+    return (
+      <EmptyState
+        icon="\u25A7"
+        title="No HEDIS gap data for this patient"
+        sub="When a health-plan gap file is uploaded and matched to this patient in Care Management, the gaps will appear here."
+      />
+    );
+  }
+
+  return (
+    <div>
+      <SectionHead
+        title={open.length > 0 ? "Open gaps (" + open.length + ")" : "Open gaps"}
+        sub="Gaps the patient currently needs closed, plus any gaps with unknown compliance."
+      />
+      {open.length === 0 ? (
+        <div style={{
+          padding: "12px 14px",
+          background: C.tealBg,
+          border: "0.5px solid " + C.tealBorder,
+          borderRadius: 8,
+          fontSize: 12,
+          color: C.teal,
+          marginBottom: 16,
+        }}>
+          All known measures compliant. No outreach needed at this time.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+          {open.map(g => <HEDISGapRow key={g.id} gap={g} />)}
+        </div>
+      )}
+
+      {closed.length > 0 && (
+        <details>
+          <summary style={{
+            cursor: "pointer",
+            fontSize: 12,
+            fontWeight: 600,
+            color: C.textSecondary,
+            padding: "8px 4px",
+          }}>
+            Show {closed.length} closed / compliant {closed.length === 1 ? "gap" : "gaps"}
+          </summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+            {closed.map(g => <HEDISGapRow key={g.id} gap={g} />)}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function HEDISGapRow({ gap }) {
+  const measureName = gap.cm_hedis_measures?.measure_name || gap.measure_code;
+  const sourceFile  = gap.cm_hedis_uploads?.file_name || "";
+  const runDate     = gap.cm_hedis_uploads?.received_at
+    ? new Date(gap.cm_hedis_uploads.received_at).toLocaleDateString()
+    : null;
+
+  // Visual treatment driven by compliance state:
+  //   compliant === true  -> green border, "Closed"
+  //   compliant === false -> amber border, "Open"
+  //   compliant === null  -> gray border, "Unknown" (config gap, awaiting normalizer patch)
+  const borderColor = gap.compliant === true ? C.tealMid
+                    : gap.compliant === false ? C.amberBorder
+                    : C.borderMid;
+
+  const statusLabel = gap.closed_at ? "Closed"
+                    : gap.compliant === true ? "Compliant"
+                    : gap.compliant === false ? "Open"
+                    : "Unknown";
+
+  const statusVariant = gap.closed_at || gap.compliant === true ? "green"
+                      : gap.compliant === false ? "amber"
+                      : "neutral";
+
+  // Anchor date is the most-clinically-relevant date for outreach scripting:
+  //   measure_anchor_date for CCH (date the measure becomes due)
+  //   base_event_date for PCOR (the qualifying event)
+  //   date_of_last_service as fallback
+  const anchorDate = gap.measure_anchor_date || gap.base_event_date || gap.date_of_last_service;
+
+  return (
+    <div style={{
+      padding: "10px 14px",
+      border: "0.5px solid " + borderColor,
+      borderLeft: "3px solid " + borderColor,
+      borderRadius: 8,
+      background: "#fff",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+        <code style={{ fontSize: 11, fontWeight: 700, color: C.teal, fontFamily: "monospace" }}>
+          {gap.measure_code}{gap.submeasure ? " - " + gap.submeasure : ""}
+        </code>
+        <Badge label={statusLabel} variant={statusVariant} size="xs" />
+        {gap.bucket && <Badge label={gap.bucket} variant="neutral" size="xs" />}
+        {gap.source_plan_short_name && (
+          <span style={{ fontSize: 10, color: C.textTertiary, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            via {gap.source_plan_short_name}
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: 13, color: C.textPrimary, fontWeight: 500, marginBottom: 4 }}>
+        {measureName}
+      </div>
+      {gap.cm_hedis_measures?.measure_category && (
+        <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: 4 }}>
+          {gap.cm_hedis_measures.measure_category}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: C.textSecondary, display: "flex", flexWrap: "wrap", gap: 14 }}>
+        {anchorDate && (
+          <span><strong>Anchor:</strong> {anchorDate}</span>
+        )}
+        {gap.reporting_period_start && gap.reporting_period_end && (
+          <span><strong>Period:</strong> {gap.reporting_period_start} to {gap.reporting_period_end}</span>
+        )}
+        {gap.closed_reason && (
+          <span><strong>Closed via:</strong> {gap.closed_reason}</span>
+        )}
+        {sourceFile && runDate && (
+          <span style={{ color: C.textTertiary }}>From {sourceFile} ({runDate})</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function PatientEditForm({ patient, onSave, onCancel }) {
