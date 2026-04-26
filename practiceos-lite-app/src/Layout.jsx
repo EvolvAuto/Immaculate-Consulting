@@ -50,7 +50,7 @@ const PRO_NAV_META_LOCAL = {
 };
 
 export default function Layout() {
-  const { profile, role, practiceId, tier, signOut } = useAuth();
+  const { profile, role, practiceId, tier, isSuperAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const mainRef  = useRef(null);
@@ -252,6 +252,55 @@ export default function Layout() {
               </button>
             );
           })}
+
+          {/* Super admin section - only rendered for super admins.
+              Defense layer 1 of 3 (cosmetic). Layer 2 = SuperAdminRoute. Layer 3 = RLS. */}
+          {isSuperAdmin && (
+            <>
+              {!collapsed && (
+                <div style={{
+                  padding: "14px 12px 4px",
+                  fontSize: 9, fontWeight: 700, letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "rgba(93,202,165,0.55)",
+                }}>Super Admin</div>
+              )}
+              <button
+                onClick={() => navigate("/admin/subscriptions")}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: collapsed ? "10px 0" : "10px 12px",
+                  marginBottom: 2,
+                  background: location.pathname.startsWith("/admin") ? "rgba(93,202,165,0.12)" : "transparent",
+                  border: "none",
+                  borderLeft: "2px solid " + (location.pathname.startsWith("/admin") ? "#5DCAA5" : "transparent"),
+                  borderRadius: 0,
+                  color: location.pathname.startsWith("/admin") ? "#fff" : "rgba(255,255,255,0.75)",
+                  fontSize: 13,
+                  fontWeight: location.pathname.startsWith("/admin") ? 600 : 500,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  justifyContent: collapsed ? "center" : "flex-start",
+                }}
+              >
+                <span style={{ fontSize: 14, color: "#5DCAA5" }}>◆</span>
+                {!collapsed && <span style={{ flex: 1 }}>Administrator</span>}
+                {!collapsed && (
+                  <span style={{
+                    fontSize: 8, fontWeight: 700,
+                    color: "#5DCAA5",
+                    background: "rgba(93,202,165,0.15)",
+                    padding: "1px 5px",
+                    borderRadius: 3,
+                    letterSpacing: "0.12em",
+                  }}>IC</span>
+                )}
+              </button>
+            </>
+          )}
         </div>
 
         {/* User strip */}
