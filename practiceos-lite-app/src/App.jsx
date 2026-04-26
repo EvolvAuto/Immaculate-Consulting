@@ -55,19 +55,13 @@ export default function App() {
           <Route path="/dashboard"         element={<DashboardView />} />
           <Route path="/schedule"          element={<ScheduleView />} />
           <Route path="/patients"          element={<PatientsView />} />
-          <Route path="/patients/:id"      element={<PatientChartPage />}>
-            <Route index                  element={null} />
-            <Route path="info"            element={null} />
-            <Route path="appts"           element={null} />
-            <Route path="notes"           element={null} />
-            <Route path="trends"          element={null} />
-            <Route path="meds"            element={null} />
-            <Route path="screening"       element={null} />
-            <Route path="clinical"        element={null} />
-            <Route path="insurance"       element={null} />
-            <Route path="hedis"           element={null} />
-            <Route path="plan"            element={null} />
-          </Route>
+          {/* Patient chart - splat catches all tab sub-routes (info, appts,
+              notes, hedis, plan, etc). Tab list lives in PatientChartPage's
+              VALID_TABS constant; adding a new tab does NOT require editing
+              this file. Unknown sub-paths fall through to PatientChartPage's
+              own urlTab fallback (defaults to "info") rather than bouncing
+              the user to /dashboard. */}
+          <Route path="/patients/:id/*" element={<PatientChartPage />} />
           <Route path="/queue"             element={<QueueView />} />
           <Route path="/tasks"             element={<TasksView />} />
           <Route path="/clinical"          element={<ClinicalView />} />
