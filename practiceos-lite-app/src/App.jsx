@@ -65,6 +65,7 @@ export default function App() {
             <Route path="screening"       element={null} />
             <Route path="clinical"        element={null} />
             <Route path="insurance"       element={null} />
+            <Route path="hedis"           element={null} />
             <Route path="plan"            element={null} />
           </Route>
           <Route path="/queue"             element={<QueueView />} />
