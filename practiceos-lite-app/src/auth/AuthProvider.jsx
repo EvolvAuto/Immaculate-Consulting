@@ -30,6 +30,10 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState(null);
 
+  // Resolved super admin status + capability map. Loaded alongside profile.
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [capabilities, setCapabilities] = useState(null);
+
   // Load public.users row matching auth.user.id. Never throws.
   const loadProfile = useCallback(async (userId) => {
     if (!userId) { setProfile(null); return; }
@@ -48,6 +52,21 @@ export function AuthProvider({ children }) {
     } catch (e) {
       console.warn("[PracticeOS] profile load threw:", e?.message || e);
       setProfile(null);
+    }
+
+    // Resolve super admin status and capabilities in parallel.
+    // Both are non-blocking: failures default to safe values (no admin, no caps).
+    try {
+      const { data: saRows } = await supabase
+        .from("super_admins")
+        .select("id")
+        .eq("user_id", userId)
+        .is("revoked_at", null)
+        .limit(1);
+      setIsSuperAdmin(!!(saRows && saRows.length > 0));
+    } catch (e) {
+      console.warn("[PracticeOS] super_admin check failed:", e?.message || e);
+      setIsSuperAdmin(false);
     }
   }, []);
 
@@ -147,7 +166,23 @@ export function AuthProvider({ children }) {
     try { await sbSignOut(); } catch (e) { console.warn("[PracticeOS] signOut error:", e?.message); }
     setProfile(null);
     setSession(null);
+    setIsSuperAdmin(false);
+    setCapabilities(null);
   }, [session]);
+
+  // Load capabilities whenever practice changes (resolved server-side via RPC).
+  useEffect(() => {
+    const pid = session?.user?.app_metadata?.practice_id || profile?.practice_id;
+    if (!pid) { setCapabilities(null); return; }
+    let cancelled = false;
+    supabase.rpc("get_effective_capabilities", { p_practice_id: pid })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) { console.warn("[PracticeOS] capabilities load failed:", error.message); setCapabilities(null); }
+        else setCapabilities(data);
+      });
+    return () => { cancelled = true; };
+  }, [session, profile]);
 
   // Derived values --------------------------------------------------------------
   const value = useMemo(() => {
@@ -161,13 +196,15 @@ export function AuthProvider({ children }) {
       patientId:       md.patient_id  || profile?.patient_id  || null,
       providerId:      md.provider_id || profile?.provider_id || null,
       tier:            profile?.practices?.subscription_tier || "Lite",
+      capabilities,
+      isSuperAdmin,
       loading,
       error,
       isAuthenticated: !!session,
       signIn,
       signOut,
     };
-  }, [session, profile, loading, error, signIn, signOut]);
+  }, [session, profile, capabilities, isSuperAdmin, loading, error, signIn, signOut]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
