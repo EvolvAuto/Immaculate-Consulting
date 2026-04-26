@@ -172,8 +172,16 @@ export function AuthProvider({ children }) {
     setSpectator(sess);
     // Audit the entry. Failure does not block - we'd rather have spectator mode
     // active than blocked by an audit hiccup, but we log a warning.
-    supabase.rpc("log_spectator_event", { p_practice_id: practiceId, p_event: "enter", p_reason: reason })
-      .catch(e => console.warn("[PracticeOS] spectator entry audit failed:", e?.message));
+    // Note: Supabase's rpc() returns a thenable, not a true Promise, so we
+    // wrap the call in an async IIFE before using try/catch instead of
+    // chaining .catch() directly (which throws "rpc(...).catch is not a function").
+    (async () => {
+      try {
+        await supabase.rpc("log_spectator_event", { p_practice_id: practiceId, p_event: "enter", p_reason: reason });
+      } catch (e) {
+        console.warn("[PracticeOS] spectator entry audit failed:", e?.message);
+      }
+    })();
   }, [isSuperAdmin]);
 
   const exitSpectator = useCallback(async () => {
@@ -181,8 +189,13 @@ export function AuthProvider({ children }) {
     const practiceId = spectator.practice_id;
     sessionStorage.removeItem("practiceos.spectator");
     setSpectator(null);
-    supabase.rpc("log_spectator_event", { p_practice_id: practiceId, p_event: "exit" })
-      .catch(e => console.warn("[PracticeOS] spectator exit audit failed:", e?.message));
+    (async () => {
+      try {
+        await supabase.rpc("log_spectator_event", { p_practice_id: practiceId, p_event: "exit" });
+      } catch (e) {
+        console.warn("[PracticeOS] spectator exit audit failed:", e?.message);
+      }
+    })();
   }, [spectator]);
 
   // Actions --------------------------------------------------------------------
