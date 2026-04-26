@@ -307,7 +307,7 @@ function PracticeDetailPanel({ practice, addons, catalog, profile, onChange }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn size="sm" variant="outline" onClick={() => alert("View as Owner: not yet wired (Phase 2)")}>View as Owner →</Btn>
+          <ViewAsOwnerButton practice={practice} />
           <Btn size="sm" variant="outline" onClick={() => setTransitionModal(true)}>Change state</Btn>
         </div>
       </div>
@@ -694,5 +694,54 @@ function AddonModal({ practice, catalog, active, profile, onClose, onDone }) {
         </Btn>
       </div>
     </Modal>
+  );
+}
+// ═══════════════════════════════════════════════════════════════════════════════
+// View as Owner button - opens read-only spectator mode for the given practice.
+// Confirms with the user, captures an optional reason, then triggers the
+// AuthProvider.enterSpectator() action. The whole app transparently re-renders
+// as the spectated practice; SpectatorBanner shows persistently.
+// ═══════════════════════════════════════════════════════════════════════════════
+function ViewAsOwnerButton({ practice }) {
+  const { enterSpectator } = useAuth();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const enter = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await enterSpectator(practice.id, reason || null);
+      setOpen(false);
+      // Navigate to the spectated practice's dashboard so the read-only
+      // session lands on a meaningful page instead of staying on the admin panel.
+      navigate("/dashboard");
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Btn size="sm" variant="outline" onClick={() => setOpen(true)}>View as Owner →</Btn>
+      {open && (
+        <Modal title="Enter spectator mode" onClose={() => setOpen(false)} maxWidth={460}>
+          <div style={{ padding: 12, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 8, marginBottom: 14, fontSize: 12, color: C.textPrimary, lineHeight: 1.5 }}>
+            <b>Read-only spectator mode.</b> You will see PracticeOS as <b>{practice.name}</b>'s owner sees it. All writes (form saves, toggles, deletes) will be blocked. This session is audit-logged as a Break-The-Glass event.
+          </div>
+          <Input label="Reason (optional, but recommended)" value={reason} onChange={setReason} placeholder="e.g. Debugging client-reported scheduling issue" />
+          {err && <div style={{ padding: 10, background: "#fef2f2", border: "0.5px solid " + C.red, borderRadius: 6, color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Btn variant="outline" onClick={() => setOpen(false)}>Cancel</Btn>
+            <Btn onClick={enter} disabled={busy}>{busy ? "Entering..." : "Enter spectator mode"}</Btn>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
