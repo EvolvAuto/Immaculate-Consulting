@@ -41,7 +41,24 @@ const COMMON_PROGRAM_TYPES = [
   "other",
 ];
 
-const STATUS_OPTIONS = ["All", "Active", "Draft", "Archived"];
+const STATUS_OPTIONS = ["All", "Draft", "Active", "Expired", "Cancelled", "Archived"];
+
+// HCP-LAN APM Framework category labels (display only; full list with
+// descriptions lives in VBPContractFormPage). Mirrors the form so the detail
+// view shows human-readable names, not just codes.
+const HCP_LAN_LABELS = {
+  "1":  "1 - FFS, no link to quality",
+  "2A": "2A - Foundational payments (infrastructure)",
+  "2B": "2B - Pay for reporting",
+  "2C": "2C - Pay-for-performance",
+  "3A": "3A - Shared savings (upside only)",
+  "3B": "3B - Shared savings + risk",
+  "3N": "3N - Risk-based, not linked to quality",
+  "4A": "4A - Condition-specific population-based payment",
+  "4B": "4B - Comprehensive population-based payment",
+  "4C": "4C - Integrated finance + delivery system",
+  "4N": "4N - Capitated, not linked to quality",
+};
 
 function fmtDateOnly(iso) {
   if (!iso) return "-";
@@ -81,7 +98,7 @@ export default function VBPContractsTab({ practiceId, isAdmin }) {
     try {
       const { data, error: cErr } = await supabase
         .from("cm_vbp_contracts")
-        .select("id, payer_short_name, measurement_year, contract_label, contract_type, program_type, effective_start, effective_end, status, payment_methodology, eligibility_requirements, notes, notes_payment_methodology, created_at, updated_at")
+        .select("id, payer_short_name, measurement_year, contract_label, contract_type, program_type, hcp_lan_category, effective_start, effective_end, status, payment_methodology, eligibility_requirements, notes, notes_payment_methodology, created_at, updated_at")
         .eq("practice_id", practiceId)
         .order("measurement_year", { ascending: false })
         .order("payer_short_name", { ascending: true })
@@ -350,9 +367,14 @@ function ContractRow({ contract, measureCounts, isExpanded, onToggle, onEdit, me
         <Td><strong>{c.payer_short_name}</strong></Td>
         <Td>{c.measurement_year}</Td>
         <Td>
-          {c.program_type
-            ? <Badge label={c.program_type} variant="neutral" size="xs" />
-            : <span style={{ fontSize: 11, color: C.textTertiary }}>not set</span>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+            {c.program_type
+              ? <Badge label={c.program_type} variant="neutral" size="xs" />
+              : <span style={{ fontSize: 11, color: C.textTertiary }}>not set</span>}
+            {c.hcp_lan_category && (
+              <Badge label={"HCP-LAN " + c.hcp_lan_category} variant="blue" size="xs" />
+            )}
+          </div>
         </Td>
         <Td style={{ fontSize: 11 }}>
           <div>{effectiveLabel}</div>
@@ -389,6 +411,16 @@ function ContractDetail({ contract, measures, loading }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Classification */}
+      {c.hcp_lan_category && (
+        <div>
+          <DetailLabel>HCP-LAN APM category</DetailLabel>
+          <div style={{ fontSize: 12, color: C.textPrimary }}>
+            {HCP_LAN_LABELS[c.hcp_lan_category] || c.hcp_lan_category}
+          </div>
+        </div>
+      )}
+
       {/* Notes */}
       {c.notes && (
         <div>
