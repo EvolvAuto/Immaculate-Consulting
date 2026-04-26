@@ -31,6 +31,7 @@ import PortalView           from "./views/PortalView";
 
 // Command tier views (tier + role gate is inside each view)
 import CareManagementView   from "./views/CareManagementView";
+import VBPContractFormPage  from "./views/care-management/VBPContractFormPage";
 
 // Super admin (Administrator) section
 import AdministratorView    from "./views/admin/AdministratorView";
@@ -89,6 +90,11 @@ export default function App() {
 
           {/* Command tier */}
           <Route path="/care-management" element={<CareManagementView />} />
+          {/* VBP contract form is full-page (not a sub-tab); list view lives
+              inside CareManagementView's VBP Contracts tab. /new must precede
+              /:id so the literal route wins over the param route. */}
+          <Route path="/care-management/vbp-contracts/new" element={<VBPContractFormPage />} />
+          <Route path="/care-management/vbp-contracts/:id" element={<VBPContractFormPage />} />
 
           {/* Super admin section. Splat catches sub-tabs (subscriptions, practices, health, flags, audit, settings).
               SuperAdminRoute redirects non-super-admins to /dashboard before AdministratorView mounts.
