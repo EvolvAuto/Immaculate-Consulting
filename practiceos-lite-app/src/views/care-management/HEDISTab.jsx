@@ -421,7 +421,7 @@ function HEDISUploads({ practiceId }) {
       {uploads.length === 0 ? (
         <EmptyState
           title="No HEDIS uploads yet"
-          message="Drop your first plan gap-list file to start. Currently supported: Carolina Complete Health (CCH), Healthy Blue (BCBS NC Medicaid), and UnitedHealthcare (PCOR). New formats can be added via template config."
+          sub="Drop your first plan gap-list file to start. Currently supported: Carolina Complete Health (CCH), Healthy Blue (BCBS NC Medicaid), and UnitedHealthcare (PCOR). New formats can be added via template config."
         />
       ) : (
         <Card style={{ padding: 0, overflow: "hidden" }}>
@@ -882,7 +882,7 @@ function UploadDetail({ upload, onClose, onUpdated }) {
       {loading ? (
         <Loader label="Loading gap rows..." />
       ) : gaps.length === 0 ? (
-        <EmptyState title="No gap rows" message="This upload has no parsed gap rows yet. If status is Received, click Parse." />
+        <EmptyState title="No gap rows" sub="This upload has no parsed gap rows yet. If status is Received, click Parse." />
       ) : (
         <div style={{ maxHeight: 400, overflow: "auto", border: "0.5px solid " + C.borderLight, borderRadius: 8 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
