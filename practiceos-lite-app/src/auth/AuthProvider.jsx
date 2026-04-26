@@ -33,6 +33,16 @@ export function AuthProvider({ children }) {
   // Resolved super admin status + capability map. Loaded alongside profile.
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [capabilities, setCapabilities] = useState(null);
+  // Spectator mode: when set, super admin is "viewing as" a practice's owner.
+  // Read-only - all writes are blocked at the helper level (see lib/db.js).
+  // Stored in sessionStorage so a page reload preserves spectator mode within
+  // the same tab but a new tab starts clean.
+  const [spectator, setSpectator] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem("practiceos.spectator");
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  });
 
   // Load public.users row matching auth.user.id. Never throws.
   const loadProfile = useCallback(async (userId) => {
@@ -136,6 +146,45 @@ export function AuthProvider({ children }) {
     };
   }, [loadProfile]);
 
+  // Spectator mode actions ------------------------------------------------------
+  const enterSpectator = useCallback(async (practiceId, reason = null) => {
+    if (!isSuperAdmin) throw new Error("Spectator mode requires super admin access");
+    // Resolve the spectated practice's name + capability snapshot
+    const [practiceRes, capRes, ownerRes] = await Promise.all([
+      supabase.from("practices").select("id, name, subscription_tier").eq("id", practiceId).single(),
+      supabase.rpc("get_effective_capabilities", { p_practice_id: practiceId }),
+      // Find the practice's primary owner to determine the role we're acting as
+      supabase.from("users").select("id, email, full_name, role").eq("practice_id", practiceId).eq("role", "Owner").eq("is_active", true).limit(1).maybeSingle(),
+    ]);
+    if (practiceRes.error) throw practiceRes.error;
+    if (capRes.error)      throw capRes.error;
+    const sess = {
+      practice_id:   practiceRes.data.id,
+      practice_name: practiceRes.data.name,
+      tier:          practiceRes.data.subscription_tier,
+      capabilities:  capRes.data,
+      acting_role:   ownerRes.data?.role  || "Owner",
+      acting_email:  ownerRes.data?.email || null,
+      acting_name:   ownerRes.data?.full_name || null,
+      entered_at:    new Date().toISOString(),
+    };
+    sessionStorage.setItem("practiceos.spectator", JSON.stringify(sess));
+    setSpectator(sess);
+    // Audit the entry. Failure does not block - we'd rather have spectator mode
+    // active than blocked by an audit hiccup, but we log a warning.
+    supabase.rpc("log_spectator_event", { p_practice_id: practiceId, p_event: "enter", p_reason: reason })
+      .catch(e => console.warn("[PracticeOS] spectator entry audit failed:", e?.message));
+  }, [isSuperAdmin]);
+
+  const exitSpectator = useCallback(async () => {
+    if (!spectator) return;
+    const practiceId = spectator.practice_id;
+    sessionStorage.removeItem("practiceos.spectator");
+    setSpectator(null);
+    supabase.rpc("log_spectator_event", { p_practice_id: practiceId, p_event: "exit" })
+      .catch(e => console.warn("[PracticeOS] spectator exit audit failed:", e?.message));
+  }, [spectator]);
+
   // Actions --------------------------------------------------------------------
   const signIn = useCallback(async (email, password) => {
     setError(null);
@@ -168,6 +217,8 @@ export function AuthProvider({ children }) {
     setSession(null);
     setIsSuperAdmin(false);
     setCapabilities(null);
+    sessionStorage.removeItem("practiceos.spectator");
+    setSpectator(null);
   }, [session]);
 
   // Load capabilities whenever practice changes (resolved server-side via RPC).
@@ -191,20 +242,28 @@ export function AuthProvider({ children }) {
       user:            session?.user || null,
       session,
       profile,
-   role:            md.role        || profile?.role        || null,
-      practiceId:      md.practice_id || profile?.practice_id || null,
+      // When spectator mode is active, the *effective* identity reported by
+      // useAuth() is the spectated practice's. Components that gate on tier,
+      // role, practiceId, or capabilities transparently see the spectated
+      // values. Real super admin identity is preserved on session.user for
+      // audit logging and for the spectator banner / exit button.
+      role:            spectator ? spectator.acting_role  : (md.role        || profile?.role        || null),
+      practiceId:      spectator ? spectator.practice_id  : (md.practice_id || profile?.practice_id || null),
       patientId:       md.patient_id  || profile?.patient_id  || null,
       providerId:      md.provider_id || profile?.provider_id || null,
-      tier:            profile?.practices?.subscription_tier || "Lite",
-      capabilities,
+      tier:            spectator ? spectator.tier         : (profile?.practices?.subscription_tier || "Lite"),
+      capabilities:    spectator ? spectator.capabilities : capabilities,
       isSuperAdmin,
+      spectator,
+      enterSpectator,
+      exitSpectator,
       loading,
       error,
       isAuthenticated: !!session,
       signIn,
       signOut,
     };
-  }, [session, profile, capabilities, isSuperAdmin, loading, error, signIn, signOut]);
+  }, [session, profile, capabilities, isSuperAdmin, spectator, enterSpectator, exitSpectator, loading, error, signIn, signOut]);
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
