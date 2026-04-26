@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthProvider";
 import { C } from "../../lib/tokens";
-import { Badge, Btn, Card, Modal, Input, Loader, ErrorBanner } from "../../components/ui";
+import { Badge, Btn, Card, Modal, Input, Textarea, Loader, ErrorBanner } from "../../components/ui";
 
 const LIFECYCLE_LABELS = {
   prospect:           "Prospect",
@@ -246,6 +246,7 @@ function PracticeDetailPanel({ practice, addons, catalog, profile, onChange }) {
   const [requests, setRequests] = useState([]);
   const [transitionModal, setTransitionModal] = useState(null);
   const [addonModal, setAddonModal] = useState(null);
+  const [reviewModal, setReviewModal] = useState(null);
 
   const loadAux = async () => {
     const [hRes, rRes] = await Promise.all([
@@ -423,7 +424,7 @@ function PracticeDetailPanel({ practice, addons, catalog, profile, onChange }) {
                     Requested {fmtDate(r.created_at)}
                   </div>
                 </div>
-                <Btn size="sm" variant="outline" onClick={() => alert("Review flow: not yet wired")}>Review</Btn>
+                <Btn size="sm" variant="outline" onClick={() => setReviewModal(r)}>Review</Btn>
               </div>
             ))}
           </Card>
@@ -498,6 +499,15 @@ function PracticeDetailPanel({ practice, addons, catalog, profile, onChange }) {
           profile={profile}
           onClose={() => setAddonModal(null)}
           onDone={() => { setAddonModal(null); onChange(); }}
+        />
+      )}
+      {reviewModal && (
+        <ReviewRequestModal
+          request={reviewModal}
+          practice={practice}
+          profile={profile}
+          onClose={() => setReviewModal(null)}
+          onDone={() => { setReviewModal(null); loadAux(); onChange(); }}
         />
       )}
     </div>
@@ -744,5 +754,156 @@ function ViewAsOwnerButton({ practice }) {
         </Modal>
       )}
     </>
+  );
+}
+// ═══════════════════════════════════════════════════════════════════════════════
+// Review request modal - approve / deny / reply on a pending change request.
+// Question requests get a Reply path (no approve/deny distinction).
+// All other request types (tier_upgrade, addon_add, pause, etc.) get
+// Approve / Deny. Approval does NOT auto-execute the change - super admin
+// separately runs the matching transition / addon flow with proration preview.
+// ═══════════════════════════════════════════════════════════════════════════════
+const REQUEST_TYPE_LABELS = {
+  tier_upgrade:   "Tier upgrade",
+  tier_downgrade: "Tier downgrade",
+  addon_add:      "Add-on activation",
+  addon_remove:   "Add-on removal",
+  question:       "Question",
+  pause:          "Pause subscription",
+  cancel:         "Cancel subscription",
+};
+
+const REQUEST_HISTORY_TYPE = {
+  tier_upgrade:   "tier_change",
+  tier_downgrade: "tier_change",
+  addon_add:      "addon_added",
+  addon_remove:   "addon_removed",
+  pause:          "pause",
+  cancel:         "cancel",
+  // 'question' has no parallel change_type - we skip writing to history
+};
+
+function ReviewRequestModal({ request, practice, profile, onClose, onDone }) {
+  const isQuestion = request.request_type === "question";
+  const [response, setResponse] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  // Pretty-print the details JSON. If it has a `summary` key, lead with that.
+  const detailsLines = (() => {
+    const d = request.details || {};
+    const lines = [];
+    if (d.summary) lines.push({ k: "Summary", v: d.summary });
+    Object.entries(d).forEach(([k, v]) => {
+      if (k === "summary") return;
+      if (v == null || v === "") return;
+      lines.push({ k: k.replace(/_/g, " "), v: typeof v === "object" ? JSON.stringify(v) : String(v) });
+    });
+    return lines;
+  })();
+
+  const submit = async (decision) => {
+    // decision: 'approved' | 'denied' | 'completed' (for question replies)
+    if (!response.trim()) {
+      setErr("Response message is required.");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      const { error: upErr } = await supabase.from("subscription_change_requests")
+        .update({
+          status:           decision,
+          reviewed_by:      profile.id,
+          reviewed_at:      new Date().toISOString(),
+          response_message: response.trim(),
+        })
+        .eq("id", request.id);
+      if (upErr) throw upErr;
+
+      // Write a history row for non-question requests so the timeline reflects the decision.
+      // Note: this records the *decision*, not the execution. Approving a tier upgrade
+      // does NOT change the tier; the super admin separately runs that flow with proration.
+      const historyType = REQUEST_HISTORY_TYPE[request.request_type];
+      if (historyType) {
+        await supabase.from("subscription_change_history").insert({
+          practice_id:     practice.id,
+          change_type:     historyType,
+          from_value:      { request_status: "pending" },
+          to_value:        { request_status: decision, request_type: request.request_type, request_details: request.details },
+          effective_date:  new Date().toISOString(),
+          reason:          "Request " + decision + ": " + response.trim().slice(0, 200),
+          created_by:      profile.id,
+        });
+      }
+      onDone();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={"Review: " + (REQUEST_TYPE_LABELS[request.request_type] || request.request_type)} onClose={onClose} maxWidth={560}>
+      {/* Request summary */}
+      <div style={{ padding: 12, background: C.bgSecondary, border: "0.5px solid " + C.borderLight, borderRadius: 8, marginBottom: 14, fontSize: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: C.violetBg || "#EDE9FE", color: C.violet || "#6D28D9", border: "0.5px solid " + (C.violetBorder || "#C4B5FD") }}>
+            {request.request_type.replace(/_/g, " ")}
+          </span>
+          <span style={{ fontSize: 11, color: C.textTertiary }}>Submitted {fmtDate(request.created_at)}</span>
+        </div>
+        {detailsLines.length === 0 ? (
+          <div style={{ color: C.textTertiary, fontStyle: "italic" }}>(No details provided.)</div>
+        ) : (
+          <div>
+            {detailsLines.map((line, i) => (
+              <div key={i} style={{ display: "flex", gap: 10, padding: "3px 0", fontSize: 12 }}>
+                <span style={{ color: C.textTertiary, minWidth: 90, textTransform: "capitalize", flexShrink: 0 }}>{line.k}:</span>
+                <span style={{ color: C.textPrimary, flex: 1 }}>{line.v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Approval-vs-execution callout for non-question requests */}
+      {!isQuestion && (
+        <div style={{ padding: 10, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 8, marginBottom: 14, fontSize: 11, color: C.textSecondary, lineHeight: 1.5 }}>
+          <b style={{ color: C.textPrimary }}>Note:</b> Approving this request acknowledges intent only. To actually execute the change, use the <b>Change state</b> button or the relevant <b>Add-on</b> control above — both show proration before committing.
+        </div>
+      )}
+
+      <Textarea
+        label={isQuestion ? "Response to client *" : "Decision message to client *"}
+        value={response}
+        onChange={setResponse}
+        rows={4}
+        placeholder={isQuestion
+          ? "Reply to the question..."
+          : "Reason for your decision. This will be visible to the practice owner."}
+      />
+
+      {err && <div style={{ padding: 10, background: "#fef2f2", border: "0.5px solid " + C.red, borderRadius: 6, color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, borderTop: "0.5px solid " + C.borderLight, paddingTop: 14 }}>
+        <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+        {isQuestion ? (
+          <Btn onClick={() => submit("completed")} disabled={busy}>
+            {busy ? "Sending..." : "Send reply"}
+          </Btn>
+        ) : (
+          <>
+            <Btn variant="outline" onClick={() => submit("denied")} disabled={busy}>
+              {busy ? "Working..." : "Deny"}
+            </Btn>
+            <Btn onClick={() => submit("approved")} disabled={busy}>
+              {busy ? "Working..." : "Approve"}
+            </Btn>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }
