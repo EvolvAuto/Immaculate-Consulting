@@ -5,6 +5,7 @@ import { Card, SectionHead } from "../components/ui";
 import CHWTab from "./CHWTab";
 import PRLTab from "./care-management/PRLTab";
 import HEDISTab from "./care-management/HEDISTab";
+import VBPContractsTab from "./care-management/VBPContractsTab";
 import RegistryTab from "./care-management/RegistryTab";
 import TouchpointsTab from "./care-management/TouchpointsTab";
 import PlansTab from "./care-management/PlansTab";
@@ -28,7 +29,7 @@ import BillingTab from "./care-management/BillingTab";
 // React hooks-order error #310 when auth loads asynchronously.
 // ===============================================================================
 
-const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis"];
+const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis", "vbp"];
 const TAB_META = {
   registry:    { label: "Registry",           icon: "\u25A3" },
   touchpoints: { label: "Touchpoints",        icon: "\u25C9" },
@@ -37,6 +38,7 @@ const TAB_META = {
   chw:         { label: "CHW Coordination",   icon: "\u25C8" },
   prl:         { label: "PRL",                icon: "\u25A6" },
   hedis:       { label: "HEDIS",              icon: "\u25A7" },
+  vbp:         { label: "VBP Contracts",      icon: "\u25A8" },
 };
 
 const CM_ROLES = new Set([
@@ -65,6 +67,7 @@ export default function CareManagementView() {
   //   CHW:                              Registry + Touchpoints + CHW
   //   Clinical (CM / Supervising CM):   all clinical tabs, no PRL
   //   Admin (Owner / Manager):          all tabs including PRL
+  // Admin tabs (PRL, VBP) are gated; clinical roles see only clinical tabs.
   const visibleTabs = role === "CHW"
     ? ["registry", "touchpoints", "chw"]
     : isAdmin
@@ -129,6 +132,7 @@ export default function CareManagementView() {
         {tab === "chw"         && <CHWTab practiceId={profile?.practice_id} profile={profile} />}
         {tab === "prl"         && <PRLTab />}
         {tab === "hedis"       && <HEDISTab practiceId={profile?.practice_id} profile={profile} isAdmin={isAdmin} />}
+        {tab === "vbp"         && <VBPContractsTab practiceId={profile?.practice_id} isAdmin={isAdmin} />}
       </div>
     </div>
   );
