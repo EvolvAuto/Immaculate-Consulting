@@ -9,6 +9,7 @@ import {
   KpiCard, StatusBadge, SubTabButton, Th, Td, inputStyle, selectStyle
 } from "./shared";
 import CloseGapModal from "../../components/hedis/CloseGapModal";
+import HEDISRegressionQueue from "./HEDISRegressionQueue";
 
 // ===============================================================================
 // HEDIS tab - quality gap tracking from health-plan files
@@ -66,15 +67,17 @@ export default function HEDISTab({ practiceId, profile, isAdmin }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <SubTabButton active={mode === "gaps"}     onClick={() => setMode("gaps")}>Open Gaps</SubTabButton>
+        <SubTabButton active={mode === "gaps"}        onClick={() => setMode("gaps")}>Open Gaps</SubTabButton>
+        <SubTabButton active={mode === "regressions"} onClick={() => setMode("regressions")}>Regressions</SubTabButton>
         {isAdmin && (
           <SubTabButton active={mode === "uploads"} onClick={() => setMode("uploads")}>Uploads</SubTabButton>
         )}
         <SubTabButton active={mode === "outbound"} onClick={() => setMode("outbound")}>Outbound</SubTabButton>
       </div>
-      {mode === "gaps"     && <HEDISOpenGaps practiceId={practiceId} />}
-      {mode === "uploads"  && isAdmin && <HEDISUploads practiceId={practiceId} />}
-      {mode === "outbound" && <HEDISOutboundPlaceholder />}
+      {mode === "gaps"        && <HEDISOpenGaps practiceId={practiceId} />}
+      {mode === "regressions" && <HEDISRegressionQueue practiceId={practiceId} />}
+      {mode === "uploads"     && isAdmin && <HEDISUploads practiceId={practiceId} />}
+      {mode === "outbound"    && <HEDISOutboundPlaceholder />}
     </div>
   );
 }
