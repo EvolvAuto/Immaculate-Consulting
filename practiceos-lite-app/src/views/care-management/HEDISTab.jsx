@@ -3,11 +3,12 @@ import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthProvider";
 import { C } from "../../lib/tokens";
 import {
-  Btn, Card, Modal, Loader, EmptyState, ErrorBanner, FL
+  Btn, Card, Modal, Loader, EmptyState, ErrorBanner, FL, Badge
 } from "../../components/ui";
 import {
   KpiCard, StatusBadge, SubTabButton, Th, Td, inputStyle, selectStyle
 } from "./shared";
+import CloseGapModal from "../../components/hedis/CloseGapModal";
 
 // ===============================================================================
 // HEDIS tab - quality gap tracking from health-plan files
@@ -95,6 +96,12 @@ function HEDISOpenGaps({ practiceId }) {
   const [filterMatch, setFilterMatch]           = useState("matched");      // 'all' | 'matched' | 'unmatched' | 'multi'
   const [filterReportingPeriod, setFilterPeriod] = useState("");            // upload.id
 
+  // Member-detail modal state. Stores plan_member_id; gap subset is derived
+  // from `rows` so it stays in sync after save+reload.
+  const [selectedMemberKey, setSelectedMemberKey] = useState(null);
+  // Currently-being-closed gap row; opens shared CloseGapModal.
+  const [closingGap, setClosingGap] = useState(null);
+
   const load = useCallback(async () => {
     if (!practiceId) return;
     setLoading(true);
@@ -104,7 +111,7 @@ function HEDISOpenGaps({ practiceId }) {
       const [gapsRes, measRes, upRes] = await Promise.all([
         supabase
           .from("cm_hedis_member_gaps")
-          .select("id, source_plan_short_name, plan_member_id, member_first_name, member_last_name, member_dob, measure_code, submeasure, compliant, bucket, measure_anchor_date, date_of_last_service, match_status, match_confidence, patient_id, reporting_period_start, reporting_period_end, upload_id, patient:patient_id(id, first_name, last_name, date_of_birth)")
+          .select("id, source_plan_short_name, plan_member_id, member_first_name, member_last_name, member_dob, measure_code, submeasure, compliant, bucket, measure_anchor_date, date_of_last_service, base_event_date, closed_at, closure_method, match_status, match_confidence, patient_id, reporting_period_start, reporting_period_end, upload_id, patient:patient_id(id, first_name, last_name, date_of_birth), cm_hedis_measures(measure_name, measure_category), cm_hedis_uploads(file_name, received_at)")
           .eq("practice_id", practiceId)
           .is("closed_at", null)
           .order("reporting_period_end", { ascending: false, nullsFirst: false })
@@ -293,7 +300,14 @@ function HEDISOpenGaps({ practiceId }) {
                 const openCount = m.gaps.filter(g => g.compliant === false).length;
                 const measuresList = Array.from(new Set(m.gaps.map(g => g.measure_code))).join(", ");
                 return (
-                  <tr key={m.plan_member_id} style={{ borderBottom: idx < grouped.length - 1 ? "0.5px solid " + C.borderLight : "none" }}>
+                  <tr
+                    key={m.plan_member_id}
+                    onClick={() => setSelectedMemberKey(m.plan_member_id)}
+                    style={{
+                      borderBottom: idx < grouped.length - 1 ? "0.5px solid " + C.borderLight : "none",
+                      cursor: "pointer",
+                    }}
+                  >
                     <Td>
                       <strong>{memberName}</strong>
                       {m.patient && (
@@ -327,6 +341,156 @@ function HEDISOpenGaps({ practiceId }) {
           </table>
         </Card>
       )}
+
+      {/* Member detail modal - shows all gaps for the selected member as
+          stacked cards with a per-card Close button. Derives gap list from
+          parent `rows` so each save+reload stays consistent. */}
+      {selectedMemberKey && (
+        <MemberGapsModal
+          memberKey={selectedMemberKey}
+          rows={rows}
+          onClose={() => setSelectedMemberKey(null)}
+          onCloseGap={(g) => setClosingGap(g)}
+        />
+      )}
+
+      {/* Shared CloseGapModal. Wired to parent `load()` so the table refreshes
+          (closed gap drops from the open list; member's open count decrements;
+          row may disappear entirely if member has no remaining open gaps). */}
+      {closingGap && (
+        <CloseGapModal
+          gap={closingGap}
+          onClose={() => setClosingGap(null)}
+          onSaved={() => {
+            setClosingGap(null);
+            load();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ===============================================================================
+// MemberGapsModal - stacked gap cards for a single member, with Close buttons
+// on actionable rows. Used from Care Management Open Gaps view.
+// ===============================================================================
+function MemberGapsModal({ memberKey, rows, onClose, onCloseGap }) {
+  // Derive this member's gaps from parent rows. As parent rows mutate after
+  // a Close save+reload, the modal's gap list updates automatically.
+  const memberGaps = useMemo(
+    () => rows.filter(g => g.plan_member_id === memberKey),
+    [rows, memberKey]
+  );
+
+  // Auto-close once all gaps for this member are resolved (parent's
+  // `closed_at IS NULL` filter removes closed gaps from `rows`, so once
+  // every one is closed, memberGaps becomes empty and we dismiss).
+  useEffect(() => {
+    if (memberGaps.length === 0) onClose();
+  }, [memberGaps.length, onClose]);
+
+  if (memberGaps.length === 0) return null;
+
+  const first = memberGaps[0];
+  const memberName = [first.member_first_name, first.member_last_name].filter(Boolean).join(" ") || "(no name)";
+  const isUnmatched = !first.patient_id;
+
+  return (
+    <Modal
+      title={"Open gaps - " + memberName}
+      onClose={onClose}
+      maxWidth={720}
+    >
+      <div style={{
+        marginBottom: 12, fontSize: 12, color: C.textSecondary,
+        display: "flex", flexWrap: "wrap", gap: 12, alignItems: "baseline",
+      }}>
+        <span>Member ID: <code style={{ fontFamily: "monospace" }}>{first.plan_member_id}</code></span>
+        <span>DOB: {fmtDateOnly(first.member_dob)}</span>
+        <span>Plan: {first.source_plan_short_name}</span>
+      </div>
+
+      {isUnmatched && (
+        <div style={{
+          padding: "10px 12px", marginBottom: 12,
+          background: C.amberBg, border: "0.5px solid " + C.amber, borderRadius: 6,
+          fontSize: 12, color: C.textPrimary, lineHeight: 1.5,
+        }}>
+          <strong>Unmatched member.</strong> This member is not yet linked to a local patient record.
+          Closure attestation requires a patient link - resolve the match first via Manual Resolution.
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {memberGaps.map(g => (
+          <MemberGapCard key={g.id} gap={g} onCloseGap={onCloseGap} />
+        ))}
+      </div>
+
+      <div style={{
+        marginTop: 16, paddingTop: 12,
+        borderTop: "0.5px solid " + C.borderLight,
+        display: "flex", justifyContent: "flex-end",
+      }}>
+        <Btn variant="ghost" onClick={onClose}>Done</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+function MemberGapCard({ gap, onCloseGap }) {
+  const measureName = gap.cm_hedis_measures?.measure_name || gap.measure_code;
+  const sourceFile  = gap.cm_hedis_uploads?.file_name || "";
+  const anchorDate  = gap.measure_anchor_date || gap.base_event_date || gap.date_of_last_service;
+  const canClose    = !gap.closed_at && gap.compliant !== true && !!gap.patient_id;
+
+  // Status visual mirrors chart-side HEDISGapRow for consistency.
+  const borderColor = gap.compliant === false ? C.amber
+                    : gap.compliant === null  ? C.borderMid
+                    : C.tealMid;
+  const statusLabel = gap.compliant === false ? "Open"
+                    : gap.compliant === null  ? "Unknown"
+                    : "Compliant";
+  const statusVariant = gap.compliant === false ? "amber"
+                      : gap.compliant === null  ? "neutral"
+                      : "green";
+
+  return (
+    <div style={{
+      padding: "10px 14px",
+      border: "0.5px solid " + borderColor,
+      borderLeft: "3px solid " + borderColor,
+      borderRadius: 8,
+      background: "#fff",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+        <code style={{ fontSize: 11, fontWeight: 700, color: C.teal, fontFamily: "monospace" }}>
+          {gap.measure_code}{gap.submeasure ? " - " + gap.submeasure : ""}
+        </code>
+        <Badge label={statusLabel} variant={statusVariant} size="xs" />
+        {gap.bucket && <Badge label={gap.bucket} variant="neutral" size="xs" />}
+        {canClose && (
+          <span style={{ marginLeft: "auto" }}>
+            <Btn size="sm" variant="outline" onClick={() => onCloseGap(gap)}>Close gap</Btn>
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: 13, color: C.textPrimary, fontWeight: 500, marginBottom: 4 }}>
+        {measureName}
+      </div>
+      {gap.cm_hedis_measures?.measure_category && (
+        <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: 4 }}>
+          {gap.cm_hedis_measures.measure_category}
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: C.textSecondary, display: "flex", flexWrap: "wrap", gap: 14 }}>
+        {anchorDate && <span><strong>Anchor:</strong> {anchorDate}</span>}
+        {gap.reporting_period_start && gap.reporting_period_end && (
+          <span><strong>Period:</strong> {gap.reporting_period_start} to {gap.reporting_period_end}</span>
+        )}
+        {sourceFile && <span style={{ color: C.textTertiary }}>From {sourceFile}</span>}
+      </div>
     </div>
   );
 }
