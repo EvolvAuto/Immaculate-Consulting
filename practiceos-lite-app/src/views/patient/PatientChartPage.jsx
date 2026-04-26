@@ -154,6 +154,7 @@ export default function PatientChartPage() {
             .select("id, source_plan_short_name, measure_code, submeasure, compliant, bucket, measure_anchor_date, date_of_last_service, base_event_date, reporting_period_start, reporting_period_end, closed_at, closure_method, match_status, cm_hedis_uploads(file_name, received_at), cm_hedis_measures(measure_name, measure_category)")
             .eq("patient_id", patientId)
             .neq("match_status", "Skipped")
+            .is("superseded_at", null)
             .order("compliant", { ascending: true, nullsFirst: true })
             .order("measure_anchor_date", { ascending: false })
         : Promise.resolve({ data: [] }),
