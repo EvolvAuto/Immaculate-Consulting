@@ -114,6 +114,7 @@ function HEDISOpenGaps({ practiceId }) {
           .select("id, source_plan_short_name, plan_member_id, member_first_name, member_last_name, member_dob, measure_code, submeasure, compliant, bucket, measure_anchor_date, date_of_last_service, base_event_date, closed_at, closure_method, match_status, match_confidence, patient_id, reporting_period_start, reporting_period_end, upload_id, patient:patient_id(id, first_name, last_name, date_of_birth), cm_hedis_measures(measure_name, measure_category), cm_hedis_uploads(file_name, received_at)")
           .eq("practice_id", practiceId)
           .is("closed_at", null)
+          .is("superseded_at", null)
           .order("reporting_period_end", { ascending: false, nullsFirst: false })
           .limit(2000),
         supabase
