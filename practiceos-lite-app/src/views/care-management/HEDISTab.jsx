@@ -198,7 +198,7 @@ function HEDISOpenGaps({ practiceId }) {
 
   return (
     <div>
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+      {error && <ErrorBanner message={error} />}
 
       {/* KPIs */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
@@ -402,7 +402,7 @@ function HEDISUploads({ practiceId }) {
 
   return (
     <div>
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+      {error && <ErrorBanner message={error} />}
 
       {/* Summary */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 20 }}>
@@ -622,8 +622,8 @@ function NewUploadModal({ practiceId, onClose, onCreated }) {
   };
 
   return (
-    <Modal title="Upload HEDIS file" onClose={onClose} width={620}>
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+    <Modal title="Upload HEDIS file" onClose={onClose} maxWidth={620}>
+      {error && <ErrorBanner message={error} />}
       <div style={{ marginBottom: 12 }}>
         <FL>HEDIS gap-list file (.xlsx)</FL>
         <input
@@ -672,7 +672,7 @@ function TemplatePickerModal({ uploadId, candidates, allTemplates, onClose, onCh
   const list = showAllOptions ? allTemplates : candidates;
 
   return (
-    <Modal title="Pick a template for this file" onClose={onClose} width={560}>
+    <Modal title="Pick a template for this file" onClose={onClose} maxWidth={560}>
       <div style={{ fontSize: 13, color: C.textSecondary, marginBottom: 12 }}>
         {showAllOptions
           ? "We could not auto-detect the file format. Pick the template that matches this file:"
@@ -809,8 +809,8 @@ function UploadDetail({ upload, onClose, onUpdated }) {
     && !periodSaved;
 
   return (
-    <Modal title={"Upload detail: " + upload.file_name} onClose={onClose} width={1200}>
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+    <Modal title={"Upload detail: " + upload.file_name} onClose={onClose} maxWidth={1100}>
+      {error && <ErrorBanner message={error}  />}
 
       {/* Status summary */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 16 }}>
