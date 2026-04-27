@@ -25,6 +25,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
+import { updateRow } from "../../lib/db";
 import { C } from "../../lib/tokens";
 import {
   Btn, Card, Modal, Loader, EmptyState, ErrorBanner, FL, Badge, Textarea
@@ -370,8 +371,9 @@ function ResolveRegressionModal({ gap, onClose, onResolved }) {
       // the gap rejoins the open queue (and Open Gaps surface stops filtering
       // it out via closed_at IS NULL).
       const patch = {
-        regression_resolved_at: new Date().toISOString(),
-        regression_resolution: resolution,
+        regression_resolved_at:    new Date().toISOString(),
+        regression_resolution:     resolution,
+        regression_resolution_note: note.trim() || null,
       };
       if (!selected.keepsClosure) {
         patch.closed_at              = null;
@@ -380,24 +382,21 @@ function ResolveRegressionModal({ gap, onClose, onResolved }) {
         patch.closed_by_encounter_id = null;
       }
 
-      // If a note was provided, append to bucket as a structured trailer.
-      // We don't have a dedicated regression_resolution_note column yet;
-      // staff notes go into bucket as "Regression resolved: <note>" so they
-      // surface in the gap row's existing display fields. (If a column gets
-      // added later, this is a one-line swap.)
-      if (note.trim()) {
-        const existingBucket = gap.bucket || "";
-        const trailer = "Regression " + resolution + ": " + note.trim();
-        patch.bucket = existingBucket
-          ? (existingBucket + " | " + trailer).slice(0, 500)
-          : trailer.slice(0, 500);
-      }
-
-      const { error: upErr } = await supabase
-        .from("cm_hedis_member_gaps")
-        .update(patch)
-        .eq("id", gap.id);
-      if (upErr) throw upErr;
+      // Route through updateRow so the resolution lands in audit_log with
+      // entity context. Audit details capture which resolution was picked
+      // and whether closure was voided - useful when investigating later.
+      await updateRow("cm_hedis_member_gaps", gap.id, patch, {
+        audit: {
+          entityType: "cm_hedis_member_gaps",
+          patientId:  gap.patient_id,
+          details: {
+            action:           "regression_resolved",
+            resolution,
+            voided_closure:   !selected.keepsClosure,
+            had_note:         !!note.trim(),
+          },
+        },
+      });
 
       onResolved();
     } catch (e) {
