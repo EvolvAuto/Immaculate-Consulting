@@ -520,12 +520,21 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
         });
       }
 
-      onSaved({ gap: updatedGap, partial: !allDoneOrExcluded });
+      // Pass the original gap when partial-save (updatedGap is null because
+      // the parent gap stays open until all subcomponents are met). Parent
+      // handlers that read gap.id wouldn't survive a null here.
+      onSaved({ gap: updatedGap || gap, partial: !allDoneOrExcluded });
     } catch (e) {
+      // Surface the error in console for debugging - the in-modal error
+      // banner sometimes gets lost in a re-render race; the console copy
+      // is unambiguous.
+      console.error("[CloseGapModal] save failed:", e);
       setError(e.message || "Failed to save attestations");
       setSaving(false);
-      // Reload subcomponents to reflect any partial saves
-      loadSubcomps();
+      // NOTE: previously called loadSubcomps() here to reflect partial
+      // saves, but loadSubcomps starts with setError(null), wiping the
+      // error we just set. User can close + reopen the modal to see any
+      // partial-save state.
     }
   };
 
