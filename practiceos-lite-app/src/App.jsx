@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute  from "./auth/ProtectedRoute";
 import SuperAdminRoute from "./auth/SuperAdminRoute";
 import ActivatePortal  from "./auth/ActivatePortal";
+import SetPassword     from "./auth/SetPassword";
 import Layout          from "./Layout";
 
 // Views -----------------------------------------------------------------------
@@ -51,6 +52,11 @@ export default function App() {
             Runs OUTSIDE ProtectedRoute so unauthenticated patients
             can land here from their invite email. */}
         <Route path="/activate" element={<ActivatePortal />} />
+
+        {/* Public route: staff/owner invite + password recovery flow.
+            Runs OUTSIDE ProtectedRoute since the user has a temp session
+            from clicking an email link but hasn't set their password yet. */}
+        <Route path="/set-password" element={<SetPassword />} />
 
         {/* All other routes require auth, and render inside the Layout shell. */}
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
