@@ -542,6 +542,35 @@ function MarkSentModal({ submission, profile, onClose, onSaved }) {
   const [sentAt, setSentAt]   = useState(() => new Date().toISOString().slice(0, 16));
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState(null);
+  const [matchedProfile, setMatchedProfile] = useState(null);
+
+  // Look up matching delivery profile to prefill sent_via + sent_to
+  useEffect(() => {
+    if (!profile?.practice_id || !submission.payer_short_name) return;
+    (async () => {
+      const { data } = await supabase
+        .from("cm_plan_delivery_profiles")
+        .select("delivery_method, sftp_host, sftp_port, sftp_directory, email_to, portal_url, status")
+        .eq("practice_id", profile.practice_id)
+        .eq("payer_short_name", submission.payer_short_name)
+        .maybeSingle();
+      if (!data || data.status === "Inactive") return;
+      setMatchedProfile(data);
+      setSentVia(data.delivery_method);
+      if (data.delivery_method === "Manual SFTP" || data.delivery_method === "Auto SFTP") {
+        if (data.sftp_host) {
+          let target = data.sftp_host;
+          if (data.sftp_port && data.sftp_port !== 22) target += ":" + data.sftp_port;
+          if (data.sftp_directory) target += data.sftp_directory.startsWith("/") ? data.sftp_directory : "/" + data.sftp_directory;
+          setSentTo(target);
+        }
+      } else if (data.delivery_method === "Email") {
+        if (data.email_to) setSentTo(data.email_to);
+      } else if (data.delivery_method === "Plan Portal") {
+        if (data.portal_url) setSentTo(data.portal_url);
+      }
+    })();
+  }, [profile?.practice_id, submission.payer_short_name]);
 
   const save = async () => {
     setError(null);
@@ -567,6 +596,11 @@ function MarkSentModal({ submission, profile, onClose, onSaved }) {
       <div style={{ marginBottom: 12, fontSize: 12, color: C.textSecondary }}>
         Record how this submission was delivered to the plan. This becomes part of the audit trail.
       </div>
+      {matchedProfile && (
+        <div style={{ marginBottom: 12, padding: "8px 12px", background: C.tealBg, border: "0.5px solid " + C.tealBorder, borderRadius: 6, fontSize: 11, color: C.textPrimary }}>
+          Prefilled from your saved <strong>{matchedProfile.delivery_method}</strong> connection profile. Edit the fields below if this submission went elsewhere.
+        </div>
+      )}
       <Select label="Delivery channel *" value={sentVia} onChange={setSentVia} options={SENT_VIA_OPTIONS} />
       <Input label="Sent to (path / email / portal URL)" value={sentTo} onChange={setSentTo}
         placeholder={sentVia === "Manual SFTP" ? "sftp://plan-host.example.com/inbox/" : "e.g. supplemental-data@plan.com"} />
