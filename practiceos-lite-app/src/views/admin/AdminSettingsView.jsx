@@ -32,6 +32,7 @@ function fmtRelative(ts) {
 }
 
 export default function AdminSettingsView() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [admins, setAdmins] = useState([]);
@@ -40,6 +41,7 @@ export default function AdminSettingsView() {
   const [practiceAddons, setPracticeAddons] = useState([]);
   const [grantModal, setGrantModal] = useState(false);
   const [editAddon, setEditAddon] = useState(null);
+  const [revokeModal, setRevokeModal] = useState(null);
 
   const load = async () => {
     try {
@@ -126,7 +128,11 @@ export default function AdminSettingsView() {
                   </td>
                   <td style={{ padding: "8px 0 8px 0", borderBottom: "0.5px solid " + C.borderLight, textAlign: "right" }}>
                     {!a.revoked_at && (
-                      <Btn size="sm" variant="ghost" onClick={() => alert("Revoke flow: Phase 2 (requires confirmation modal)")}>Revoke</Btn>
+                      a.user_id === user?.id ? (
+                        <span style={{ fontSize: 11, color: C.textTertiary, fontStyle: "italic" }}>(you)</span>
+                      ) : (
+                        <Btn size="sm" variant="ghost" onClick={() => setRevokeModal({ admin: a, profile })}>Revoke</Btn>
+                      )
                     )}
                   </td>
                 </tr>
@@ -226,6 +232,15 @@ export default function AdminSettingsView() {
       )}
       {editAddon && (
         <EditAddonModal addon={editAddon} onClose={() => setEditAddon(null)} onDone={() => { setEditAddon(null); load(); }} />
+      )}
+      {revokeModal && (
+        <RevokeSuperAdminModal
+          admin={revokeModal.admin}
+          profile={revokeModal.profile}
+          activeAdminCount={admins.filter(a => !a.revoked_at).length}
+          onClose={() => setRevokeModal(null)}
+          onDone={() => { setRevokeModal(null); load(); }}
+        />
       )}
     </div>
   );
@@ -357,6 +372,94 @@ function EditAddonModal({ addon, onClose, onDone }) {
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
         <Btn variant="outline" onClick={onClose}>Cancel</Btn>
         <Btn onClick={submit} disabled={busy}>{busy ? "Saving..." : "Save changes"}</Btn>
+      </div>
+    </Modal>
+  );
+}
+// ═══════════════════════════════════════════════════════════════════════════════
+// Revoke super admin access modal
+// Confirmation flow with type-to-confirm friction. The DB-level helper
+// (revoke_super_admin RPC) enforces no-self-revoke and last-admin protection
+// regardless of what the UI does.
+// ═══════════════════════════════════════════════════════════════════════════════
+function RevokeSuperAdminModal({ admin, profile, activeAdminCount, onClose, onDone }) {
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const targetEmail   = profile?.email || "";
+  const targetName    = profile?.full_name || targetEmail || admin.user_id.slice(0, 8);
+  const isLastAdmin   = activeAdminCount <= 1;
+  const emailMatches  = confirmEmail.trim().toLowerCase() === targetEmail.trim().toLowerCase();
+  const canSubmit     = !isLastAdmin && targetEmail && emailMatches && !busy;
+
+  const submit = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const { data, error } = await supabase.rpc("revoke_super_admin", {
+        p_target_user_id: admin.user_id,
+        p_reason:         reason.trim() || null,
+      });
+      if (error) throw error;
+      onDone();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Revoke super admin access" onClose={onClose} maxWidth={500}>
+      {/* What this does */}
+      <div style={{ padding: 14, background: "#fef2f2", border: "0.5px solid " + C.red, borderRadius: 8, marginBottom: 14, fontSize: 12, color: C.textPrimary, lineHeight: 1.5 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6, color: C.red }}>⚠ Destructive action</div>
+        <div style={{ color: C.textSecondary }}>
+          You are about to revoke super admin access for <b style={{ color: C.textPrimary }}>{targetName}</b>{targetEmail ? <> ({targetEmail})</> : null}. They will lose access to the Administrator section, audit log, and all subscription controls. Their PracticeOS account remains active. This action is audit-logged as Break-The-Glass and is reversible only by re-granting access.
+        </div>
+      </div>
+
+      {/* Last-admin guard */}
+      {isLastAdmin && (
+        <div style={{ padding: 12, background: C.amberBg, border: "0.5px solid " + C.amberBorder, borderRadius: 8, marginBottom: 14, fontSize: 12, color: C.textPrimary }}>
+          <b>Cannot revoke:</b> this is the only active super admin. Grant access to another user first, then revoke this one.
+        </div>
+      )}
+
+      {!isLastAdmin && (
+        <>
+          <div style={{ marginBottom: 14 }}>
+            <Input
+              label={"Type the user's email to confirm: " + targetEmail}
+              value={confirmEmail}
+              onChange={setConfirmEmail}
+              placeholder={targetEmail}
+            />
+          </div>
+
+          <Input label="Reason / context (optional)" value={reason} onChange={setReason} placeholder="e.g. Contractor offboarded, role change, etc." />
+        </>
+      )}
+
+      {err && <div style={{ padding: 10, background: "#fef2f2", border: "0.5px solid " + C.red, borderRadius: 6, color: C.red, fontSize: 12, marginBottom: 12 }}>{err}</div>}
+
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14, borderTop: "0.5px solid " + C.borderLight, paddingTop: 14 }}>
+        <Btn variant="outline" onClick={onClose}>Cancel</Btn>
+        {!isLastAdmin && (
+          <Btn
+            onClick={submit}
+            disabled={!canSubmit}
+            style={{
+              background: canSubmit ? C.red : C.borderMid,
+              borderColor: canSubmit ? C.red : C.borderMid,
+              color: "#fff",
+            }}
+          >
+            {busy ? "Revoking..." : "Revoke access"}
+          </Btn>
+        )}
       </div>
     </Modal>
   );
