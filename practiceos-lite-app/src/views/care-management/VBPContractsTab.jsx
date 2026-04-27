@@ -43,6 +43,41 @@ const COMMON_PROGRAM_TYPES = [
 
 const STATUS_OPTIONS = ["All", "Draft", "Active", "Expired", "Cancelled", "Archived"];
 
+// NC health plan label lookup. Mirrors the master list in VBPContractFormPage
+// so the list view can display "Healthy Blue (BCBS NC Medicaid)" instead of
+// the raw "healthy_blue" stored value. Falls back to the raw value for any
+// plan not in this map (e.g., legacy contracts pre-dropdown, or values added
+// to the form list but not yet here).
+const NC_HEALTH_PLAN_LABELS = {
+  wellcare:             "WellCare of NC",
+  amerihealth:          "AmeriHealth Caritas NC",
+  healthy_blue:         "Healthy Blue (BCBS NC Medicaid)",
+  uhc_community:        "UHC Community Plan",
+  cch:                  "Carolina Complete Health",
+  alliance:             "Alliance Health",
+  partners:             "Partners Health Management",
+  trillium:             "Trillium Health Resources",
+  vaya:                 "Vaya Health",
+  ebci:                 "EBCI Tribal Option",
+  nc_medicaid_direct:   "NC Medicaid Direct",
+  ubh:                  "United Behavioral Health",
+  bcbs_nc:              "BCBS NC (Commercial)",
+  aetna:                "Aetna",
+  cigna:                "Cigna",
+  uhc_commercial:       "UHC (Commercial)",
+  humana:               "Humana",
+  wellcare_ma:          "WellCare MA",
+  humana_ma:            "Humana MA",
+  uhc_ma:               "UHC MA",
+  aetna_ma:             "Aetna MA",
+  bcbs_nc_ma:           "BCBS NC MA",
+  healthteam_advantage: "HealthTeam Advantage",
+  alignment:            "Alignment Healthcare",
+  medicare_ffs:         "Original Medicare",
+  mssp:                 "MSSP ACO",
+  other:                "Other",
+};
+
 // HCP-LAN APM Framework category labels (display only; full list with
 // descriptions lives in VBPContractFormPage). Mirrors the form so the detail
 // view shows human-readable names, not just codes.
@@ -364,7 +399,12 @@ function ContractRow({ contract, measureCounts, isExpanded, onToggle, onEdit, me
             </div>
           )}
         </Td>
-        <Td><strong>{c.payer_short_name}</strong></Td>
+        <Td>
+          <strong>{NC_HEALTH_PLAN_LABELS[c.payer_short_name] || c.payer_short_name}</strong>
+          <div style={{ fontSize: 10, color: C.textTertiary, fontFamily: "monospace", marginTop: 2 }}>
+            {c.payer_short_name}
+          </div>
+        </Td>
         <Td>{c.measurement_year}</Td>
         <Td>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
