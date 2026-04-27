@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Terms of Service — Immaculate Consulting</title>
+<meta name="description" content="The terms governing use of the Immaculate Consulting website and pre-engagement services."/>
+<meta name="robots" content="index,follow"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Syne:wght@500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+html[data-theme="dark"]{
+  --bg:#071527;--bg2:#0a1c36;--surface:#09162e;--surface2:#0b1a30;
+  --text:#e8f4ff;--text2:#c8dff0;--text3:#7fb4d4;
+  --teal:#00c4a0;--teal2:#00e8be;--teal-soft:rgba(0,196,160,.1);--teal-line:rgba(0,196,160,.28);
+  --hairline:rgba(255,255,255,.08);
+  --nav-bg:rgba(7,21,39,0.92);
+  --btn-ink:#071527;
+  color-scheme:dark;
+}
+html[data-theme="light"]{
+  --bg:#f7fafc;--bg2:#edf2f7;--surface:#ffffff;--surface2:#f1f6fb;
+  --text:#0c1b36;--text2:#3d5176;--text3:#5b7290;
+  --teal:#00a585;--teal2:#008d70;--teal-soft:rgba(0,165,133,.08);--teal-line:rgba(0,165,133,.32);
+  --hairline:rgba(12,27,54,.09);
+  --nav-bg:rgba(255,255,255,0.88);
+  --btn-ink:#ffffff;
+  color-scheme:light;
+}
+html,body{background:var(--bg);color:var(--text)}
+body{font-family:'DM Sans',sans-serif;line-height:1.7;transition:background .4s ease,color .4s ease}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9998;opacity:.025;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");background-size:128px 128px}
+
+h1,h2,h3{font-family:'Inter',sans-serif;letter-spacing:-.02em;color:var(--text)}
+
+.nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--hairline);background:var(--nav-bg);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);transition:background .4s ease,border-color .4s ease}
+.nav-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:19px;letter-spacing:-.4px;color:var(--text);display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-logo em{color:var(--teal);font-style:normal}
+.logo-mark{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,var(--teal) 0%,#38bdf8 100%);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.logo-mark::before{content:'';position:absolute;inset:2px;border-radius:6px;background:var(--bg);opacity:.15}
+.logo-mark svg{position:relative;z-index:1}
+.nav-right{display:flex;align-items:center;gap:14px}
+.theme-toggle{width:38px;height:38px;border-radius:10px;border:1px solid var(--hairline);background:transparent;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .25s;padding:0}
+.theme-toggle:hover{background:var(--surface);color:var(--text);border-color:var(--teal-line)}
+.theme-toggle svg{width:18px;height:18px;transition:transform .35s cubic-bezier(.16,1,.3,1)}
+.theme-toggle:hover svg{transform:rotate(25deg)}
+html[data-theme="dark"] .icon-sun{display:block}
+html[data-theme="dark"] .icon-moon{display:none}
+html[data-theme="light"] .icon-sun{display:none}
+html[data-theme="light"] .icon-moon{display:block}
+.nav-cta{background:var(--teal);color:var(--btn-ink);padding:10px 20px;border-radius:10px;border:none;font-family:'DM Sans',sans-serif;font-weight:600;font-size:14px;cursor:pointer;transition:all .25s;text-decoration:none;display:inline-block}
+.nav-cta:hover{background:var(--teal2);transform:translateY(-1px);box-shadow:0 8px 24px var(--teal-soft)}
+
+.legal{max-width:780px;margin:0 auto;padding:140px 32px 80px}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;background:var(--teal-soft);border:1px solid var(--teal-line);padding:6px 16px;border-radius:100px;font-size:11px;font-weight:500;letter-spacing:1.8px;text-transform:uppercase;color:var(--teal);margin-bottom:20px}
+.legal h1{font-size:clamp(34px,5vw,52px);font-weight:800;line-height:1.1;letter-spacing:-1.5px;margin-bottom:12px}
+.updated{font-size:14px;color:var(--text3);margin-bottom:48px;font-family:'Syne',sans-serif;letter-spacing:.5px}
+.legal h2{font-size:22px;font-weight:700;margin:48px 0 14px;color:var(--text);scroll-margin-top:90px}
+.legal h2 .num{font-family:'Syne',sans-serif;color:var(--teal);font-weight:700;margin-right:10px;font-size:18px;letter-spacing:1px}
+.legal h3{font-size:16px;font-weight:600;margin:24px 0 10px;color:var(--text)}
+.legal p{font-size:16px;color:var(--text2);margin-bottom:14px}
+.legal ul{margin:14px 0 14px 22px;color:var(--text2)}
+.legal li{margin-bottom:8px;font-size:16px}
+.legal a{color:var(--teal);text-decoration:none;border-bottom:1px solid var(--teal-line);transition:border-color .2s}
+.legal a:hover{border-bottom-color:var(--teal)}
+.legal strong{color:var(--text);font-weight:600}
+
+.toc{background:var(--surface);border:1px solid var(--hairline);border-radius:14px;padding:22px 26px;margin:0 0 48px}
+.toc-label{font-family:'Syne',sans-serif;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1.6px;color:var(--text3);margin-bottom:14px}
+.toc ol{list-style:none;counter-reset:toc;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}
+.toc li{counter-increment:toc;font-size:14px;color:var(--text2)}
+.toc li::before{content:counter(toc,decimal-leading-zero);font-family:'Syne',sans-serif;color:var(--teal);font-weight:600;margin-right:10px;font-size:12px}
+.toc a{color:var(--text2);text-decoration:none;border:none;transition:color .2s}
+.toc a:hover{color:var(--teal)}
+
+.callout{background:var(--teal-soft);border-left:3px solid var(--teal);padding:18px 22px;border-radius:8px;margin:22px 0}
+.callout p{margin-bottom:0;color:var(--text2)}
+.callout strong{color:var(--text)}
+
+.legal .upper{text-transform:uppercase;font-size:14px;letter-spacing:.4px}
+
+.footer{padding:40px 32px;border-top:1px solid var(--hairline);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;background:var(--bg)}
+.footer-logo{font-family:'Inter',sans-serif;font-weight:800;font-size:16px;color:var(--text)}
+.footer-logo em{color:var(--teal);font-style:normal}
+.footer-copy{font-size:13px;color:var(--text3)}
+.footer-links{display:flex;gap:24px;flex-wrap:wrap}
+.footer-links a{font-size:13px;color:var(--text3);text-decoration:none;cursor:pointer;transition:color .2s}
+.footer-links a:hover{color:var(--text)}
+
+@media (max-width:720px){
+  .legal{padding:110px 22px 60px}
+  .toc ol{grid-template-columns:1fr}
+  .footer{flex-direction:column;text-align:center}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/" class="nav-logo">
+    <span class="logo-mark">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L4 7 L4 17 L12 22 L20 17 L20 7 Z"/></svg>
+    </span>
+    Immaculate<em>.</em>
+  </a>
+  <div class="nav-right">
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <a class="nav-cta" href="/">Back to home</a>
+  </div>
+</nav>
+
+<main class="legal">
+  <span class="eyebrow"><span style="width:7px;height:7px;border-radius:50%;background:var(--teal);display:inline-block"></span>Legal</span>
+  <h1>Terms of Service</h1>
+  <div class="updated">Last updated: April 27, 2026</div>
+
+  <p>These Terms of Service ("Terms") govern your access to and use of the website operated by <strong>Immaculate Consulting LLC</strong> ("Immaculate Consulting," "we," "us," or "our") at <a href="https://immaculate-consulting.org">immaculate-consulting.org</a>, including any pages, content, forms, the interactive proposal builder, and pre-engagement communications (collectively, the "Site").</p>
+
+  <p>By accessing or using the Site, you agree to these Terms. If you do not agree, do not use the Site. These Terms govern your use of the Site only. Any actual consulting services or software products are governed by a separate, signed agreement between Immaculate Consulting and your organization.</p>
+
+  <div class="toc">
+    <div class="toc-label">In these terms</div>
+    <ol>
+      <li><a href="#about">About Immaculate Consulting</a></li>
+      <li><a href="#use">Acceptable use of the Site</a></li>
+      <li><a href="#proposal">Inquiries &amp; proposal builder</a></li>
+      <li><a href="#engagement">Service engagements</a></li>
+      <li><a href="#ip">Intellectual property</a></li>
+      <li><a href="#confidentiality">Confidentiality</a></li>
+      <li><a href="#hipaa">HIPAA &amp; healthcare</a></li>
+      <li><a href="#disclaimers">Disclaimers</a></li>
+      <li><a href="#liability">Limitation of liability</a></li>
+      <li><a href="#indemnify">Indemnification</a></li>
+      <li><a href="#thirdparty">Third-party services</a></li>
+      <li><a href="#governing">Governing law</a></li>
+      <li><a href="#changes">Changes to these Terms</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ol>
+  </div>
+
+  <h2 id="about"><span class="num">01</span>About Immaculate Consulting</h2>
+  <p>Immaculate Consulting is a healthcare technology consulting firm based in Raleigh, North Carolina, serving solo and small medical practices — primarily NC Medicaid–focused practices — with AI-enabled operations consulting and software products. We are a Limited Liability Company organized under the laws of North Carolina.</p>
+
+  <h2 id="use"><span class="num">02</span>Acceptable use of the Site</h2>
+  <p>You agree to use the Site only for lawful purposes and in a way that does not infringe on anyone else's rights or restrict their use. You will not:</p>
+  <ul>
+    <li>Submit false, misleading, or fraudulent information through any form</li>
+    <li>Attempt to gain unauthorized access to the Site, its underlying systems, or any data not intended for you</li>
+    <li>Use automated tools (bots, scrapers, crawlers) to harvest content or submit forms, except for well-known search engine indexing</li>
+    <li>Upload or transmit malicious code, viruses, or any code intended to damage or disrupt the Site</li>
+    <li>Submit Protected Health Information (PHI), personal patient data, or any sensitive third-party information through Site forms</li>
+    <li>Reverse engineer, decompile, or attempt to extract proprietary content, layouts, or methodologies from the Site for competitive use</li>
+  </ul>
+
+  <h2 id="proposal"><span class="num">03</span>Inquiries &amp; proposal builder</h2>
+  <p>The Site offers an interactive proposal builder that generates an estimated scope, module list, and price range based on the selections you make. Output from the proposal builder is:</p>
+  <ul>
+    <li><strong>Indicative, not binding.</strong> Pricing, scope, and timeline shown in the builder are estimates intended to begin a conversation.</li>
+    <li><strong>Not an offer.</strong> No contract is formed by submitting or generating a proposal through the Site.</li>
+    <li><strong>Subject to change.</strong> A final, binding scope and price will be provided in a written engagement letter or master services agreement signed by both parties.</li>
+  </ul>
+  <p>Submitting an inquiry or generating a proposal does not obligate you to engage Immaculate Consulting, and does not obligate Immaculate Consulting to accept your engagement.</p>
+
+  <h2 id="engagement"><span class="num">04</span>Service engagements</h2>
+  <p>Any consulting services, software subscriptions (including PracticeOS Lite, PracticeOS Pro, PracticeOS Command, and Immaculate Consulting's tiered AI offerings), or other deliverables are governed by a separate written agreement between Immaculate Consulting and the engaging organization. That agreement controls all rights and obligations relating to the services, including fees, deliverables, service levels, support, intellectual property, confidentiality, data handling, and termination. In the event of any conflict between these Site Terms and a signed services agreement, the signed services agreement controls.</p>
+
+  <h2 id="ip"><span class="num">05</span>Intellectual property</h2>
+  <p>The Site and its content — including text, graphics, layouts, animations, the proposal builder logic, the module catalog, design tokens, methodologies, frameworks, and trademarks — are owned by Immaculate Consulting or licensed to it, and are protected by U.S. and international copyright, trademark, and trade secret laws. You receive a limited, revocable, non-exclusive, non-transferable license to view the Site for personal and legitimate prospective-client purposes. You may not reproduce, modify, distribute, publicly display, or create derivative works from the Site without our prior written consent. "Immaculate Consulting," the Immaculate logo, "PracticeOS," "IC-BOS," and related marks are trademarks of Immaculate Consulting LLC.</p>
+
+  <h2 id="confidentiality"><span class="num">06</span>Confidentiality</h2>
+  <p>Information you share with us during a consultation, in a discovery call, or through forms — including operational pain points, financials, and EHR configuration — will be treated as confidential and used only for the purpose of evaluating fit and preparing a proposal. We will not disclose your confidential information to third parties without your consent, except to subcontractors bound by equivalent confidentiality obligations, or as required by law. The reverse also applies: any confidential information we share with you about our methodology, pricing, or roadmap remains our confidential information and may not be disclosed to others.</p>
+
+  <h2 id="hipaa"><span class="num">07</span>HIPAA &amp; healthcare</h2>
+  <p>The Site itself is not a HIPAA-secured channel. Do not submit Protected Health Information through Site forms or unencrypted email.</p>
+  <p>When we deliver services to a covered entity, Immaculate Consulting acts as a <strong>Business Associate</strong> under HIPAA, governed by a signed Business Associate Agreement (BAA) with that client. Any handling of PHI under that engagement is governed by the BAA — not by these Terms.</p>
+  <p>Nothing on the Site constitutes medical, clinical, billing, coding, or legal advice. Information about regulatory programs (NC Medicaid Tailored Care Management, AMH tier requirements, HRSN screening, HEDIS measures, etc.) is provided for general informational purposes only. You are responsible for consulting your own legal counsel, compliance officer, and clinical leadership before relying on any information on the Site.</p>
+
+  <h2 id="disclaimers"><span class="num">08</span>Disclaimers</h2>
+  <div class="callout">
+    <p class="upper"><strong>The Site is provided "as is" and "as available," without warranties of any kind, express or implied.</strong> To the fullest extent permitted by law, Immaculate Consulting disclaims all warranties, including merchantability, fitness for a particular purpose, non-infringement, accuracy, reliability, and uninterrupted availability. We do not warrant that the Site will be error-free, secure, or available at any particular time.</p>
+  </div>
+
+  <h2 id="liability"><span class="num">09</span>Limitation of liability</h2>
+  <p class="upper"><strong>To the fullest extent permitted by applicable law, Immaculate Consulting and its members, officers, employees, and contractors will not be liable for any indirect, incidental, special, consequential, exemplary, or punitive damages, or for lost profits, lost revenue, lost data, or business interruption, arising out of or relating to your use of the Site, even if advised of the possibility of such damages.</strong></p>
+  <p class="upper"><strong>In no event will our aggregate liability arising out of or relating to your use of the Site exceed one hundred U.S. dollars (USD $100). The limitations in this section apply to any theory of liability — contract, warranty, tort (including negligence), strict liability, or otherwise.</strong></p>
+  <p>This limitation does not apply to liabilities under a separately signed services agreement, which has its own liability terms.</p>
+
+  <h2 id="indemnify"><span class="num">10</span>Indemnification</h2>
+  <p>You agree to defend, indemnify, and hold harmless Immaculate Consulting and its members, officers, employees, and contractors from and against any third-party claims, damages, liabilities, costs, and expenses (including reasonable attorneys' fees) arising out of: (a) your violation of these Terms; (b) your misuse of the Site; or (c) your violation of any law or third-party right in connection with your use of the Site.</p>
+
+  <h2 id="thirdparty"><span class="num">11</span>Third-party services</h2>
+  <p>The Site may link to or rely on third-party services (e.g., Formspree for form delivery, Vercel for hosting, fonts.googleapis.com for typography). Those services are governed by their own terms and privacy policies. We are not responsible for the content, security, or practices of third-party services.</p>
+
+  <h2 id="governing"><span class="num">12</span>Governing law &amp; disputes</h2>
+  <p>These Terms are governed by the laws of the State of North Carolina, without regard to conflict-of-laws principles. Any dispute arising out of or relating to these Terms or your use of the Site will be brought exclusively in the state or federal courts located in Wake County, North Carolina, and you consent to the personal jurisdiction of those courts. The parties waive any right to a jury trial. Either party may seek injunctive relief in any court of competent jurisdiction to protect intellectual property or confidential information.</p>
+
+  <h2 id="changes"><span class="num">13</span>Changes to these Terms</h2>
+  <p>We may update these Terms from time to time. The "Last updated" date at the top reflects the most recent revision. Material changes will be posted prominently on the Site. Your continued use of the Site after a change constitutes acceptance of the revised Terms. If you do not agree to a change, stop using the Site.</p>
+
+  <h2 id="contact"><span class="num">14</span>Contact</h2>
+  <p>Questions about these Terms can be sent to:</p>
+  <p>
+    <strong>Immaculate Consulting LLC</strong><br/>
+    Attn: Legal<br/>
+    Raleigh, North Carolina<br/>
+    <a href="mailto:leonard.croom@immaculate-consulting.org">leonard.croom@immaculate-consulting.org</a>
+  </p>
+</main>
+
+<footer class="footer">
+  <div class="footer-logo">Immaculate Consulting<em>.</em></div>
+  <div class="footer-copy">© 2026 Immaculate Consulting · AI Operations Consulting · NC Medical Practices</div>
+  <div class="footer-links">
+    <a href="/">Home</a>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+    <a href="mailto:leonard@immaculate-consulting.org">Contact</a>
+  </div>
+</footer>
+
+<script>
+function toggleTheme(){
+  var cur = document.documentElement.getAttribute('data-theme');
+  var next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('ic-theme', next); } catch(e) {}
+}
+(function(){
+  try {
+    var saved = localStorage.getItem('ic-theme');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-theme', saved);
+    }
+  } catch(e) {}
+})();
+</script>
+</body>
+</html>
