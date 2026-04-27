@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { C } from "../lib/tokens";
 import { Card, SectionHead } from "../components/ui";
@@ -57,10 +58,14 @@ const ADMIN_ROLES = new Set(["Owner", "Manager"]);
 
 export default function CareManagementView() {
   const { profile } = useAuth();
+  const location = useLocation();
   const role = profile?.role;
   const canAccess = role && (CM_ROLES.has(role) || role === "CHW");
   const isAdmin = role && ADMIN_ROLES.has(role);
-  const [tab, setTab] = useState("registry"); // Default to Registry; PRL is admin-only
+  // Initial tab can be set by navigation state, e.g. when the VBP contract
+  // form saves it sends users back here with state: { tab: "vbp" }. Falls
+  // back to "registry" for direct visits or browser refresh.
+  const [tab, setTab] = useState(location.state?.tab || "registry");
 
   // Role-based tab visibility. Computed unconditionally (no hooks below this
   // point can be skipped by the early-return below).
