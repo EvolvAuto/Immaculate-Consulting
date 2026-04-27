@@ -1039,9 +1039,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
           <div class="arch-body">
             <div class="arch-label">Layer 4</div>
             <div class="arch-name">Automation Intelligence</div>
-            <div class="arch-tagline">Reminders, verification, denial monitoring, CHW outreach — the invisible engine</div>
+            <div class="arch-tagline">Reminders, verification, CHW outreach, knowledge base — the invisible engine</div>
           </div>
-          <div class="arch-count">5 modules</div>
+          <div class="arch-count">4 modules</div>
         </div>
         <div class="arch-layer l5 rv d4">
           <div class="arch-icon">
@@ -1358,7 +1358,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
                 <li>AI Receptionist <span class="addon-tag">+module</span></li>
                 <li>Appointment Reminders <span class="addon-tag">+module</span></li>
                 <li>Insurance Verification <span class="addon-tag">+module</span></li>
-                <li>Claim Denial Monitor <span class="addon-tag">+module</span></li>
               </ul>
             </div>
           </div>
@@ -1432,37 +1431,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         <div class="module-footer">
           <button class="mod-expand" onclick="toggleModule(this)">Details <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
           <button class="mod-add" onclick="addModuleToProposal('workflow-automation','Custom Workflow Automation',2,'automation')">+ Add</button>
-        </div>
-      </div>
-
-      <div class="module-card m-amber rv d2" data-cat="automation" data-mod="claims-denials">
-        <div class="module-top">
-          <div class="module-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2l9 4v6c0 5-4 9-9 10-5-1-9-5-9-10V6l9-4z"/><path d="M9 12l3-3 3 3M12 9v6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
-          <div class="module-badges"><span class="mod-badge auto">AI-drafted</span></div>
-        </div>
-        <div class="module-layer-tag">Automation</div>
-        <h3>Claim Denial Monitor</h3>
-        <p>Denials tracked, categorized, and AI-drafted appeals generated for staff review. Nothing ages out. Nothing gets written off by accident.</p>
-        <div class="module-meta"><span>Denial tracking</span><span>AI appeal drafts</span><span>Aging alerts</span></div>
-        <div class="module-detail">
-          <div class="detail-grid">
-            <div class="detail-block">
-              <h5>Included capabilities</h5>
-              <ul>
-                <li>Denial aggregation across all clearinghouses</li>
-                <li>AI-drafted appeal letters citing policy and documentation</li>
-                <li>Category analysis (eligibility vs coding vs auth)</li>
-                <li>Aging alerts before filing deadlines</li>
-                <li>Monthly recovery report with revenue reclaimed</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div class="module-footer">
-          <button class="mod-expand" onclick="toggleModule(this)">Details <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
-          <button class="mod-add" onclick="addModuleToProposal('claims-denials','Claim Denial Monitor',2,'automation')">+ Add</button>
         </div>
       </div>
 
@@ -2171,7 +2139,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
         <div class="builder-step" data-step="3">
           <div class="step-header">
             <h3>Add automation where it counts</h3>
-            <p>Automation layers on AI-driven workflows — reminders, verifications, denial monitoring, HIPAA-compliant messaging. Toggle on anywhere you want it included.</p>
+            <p>Automation layers on AI-driven workflows — reminders, verifications, intake, HIPAA-compliant messaging. Toggle on anywhere you want it included.</p>
           </div>
           <div class="toggle-list" id="toggleList">
             <div class="toggle-empty">Select at least one module in step 2 to see automation options.</div>
@@ -2492,7 +2460,6 @@ function toggleMobileMenu(){
   if(feed){
     const alertPool = [
       { cls:'g', dot:'g', tag:'g', tagTxt:'Auto',   txt:'Insurance verified — 14 patients cleared' },
-      { cls:'',  dot:'t', tag:'t', tagTxt:'AI',     txt:'Claim denial appeal drafted — $340' },
       { cls:'a', dot:'a', tag:'a', tagTxt:'Queue',  txt:'3 reminders queued for tomorrow 8 AM' },
       { cls:'',  dot:'t', tag:'t', tagTxt:'Portal', txt:'New patient intake submitted — portal' },
       { cls:'g', dot:'g', tag:'g', tagTxt:'Auto',   txt:'Eligibility check cleared — $1,280 visit' },
@@ -2536,7 +2503,6 @@ function toggleMobileMenu(){
 
   /* KPI hero counters (existing kAppts) */
   const kAppts = document.getElementById('k-appts');
-  const kDenials = document.getElementById('k-denials');
   const kHours = document.getElementById('k-hours');
   if(kAppts){
     let appts = parseInt(kAppts.textContent, 10) || 26;
@@ -2595,7 +2561,6 @@ const MODULE_CATALOG = [
   { id:'practiceos-lite',       name:'PracticeOS Lite',            weight:5, cat:'operations', desc:'Complete EHR-alternative bundle. Standard: scheduling, records, charge capture, reporting. Add other modules as optional.', automatable:true, icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 14l2 2 4-4"/></svg>' },
   { id:'insurance-verification',name:'Insurance Verification',     weight:1, cat:'automation', desc:'Automated eligibility checks before the visit. Issues flagged for review.', automatable:true, icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6l-9-4z"/><path d="M9 12l2 2 4-4"/></svg>' },
   { id:'workflow-automation',   name:'Custom Workflow Automation', weight:2, cat:'automation', desc:'We map, design, and automate one specific workflow start-to-finish.', automatable:true, icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8.5 6H16M18 8.5V16M16 18H8.5M6 16V8.5"/></svg>' },
-  { id:'claims-denials',        name:'Claim Denial Monitor',       weight:2, cat:'automation', desc:'AI classifies denials daily and triages by dollar impact and payer.', automatable:true, icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M4 8h16M4 16h16"/></svg>' },
   { id:'chw-network',           name:'CHW Network Integration',    weight:1, cat:'automation', desc:'Tap into NC CHW Association to reach Medicaid patients & SDOH barriers.', automatable:false, icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><circle cx="17" cy="11" r="2.5"/><path d="M3 21c.5-4 3-6 6-6s5.5 2 6 6M14 21c.3-2 1.5-3.5 3-3.5s2.7 1.5 3 3.5"/></svg>' },
   { id:'ai-knowledge',          name:'AI Knowledge Hub',           weight:2, cat:'automation', desc:'Your practice-specific knowledge base that staff and patients can query.', automatable:true, icon:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14z"/><path d="M9 8h6"/></svg>' }
 ];
@@ -2676,9 +2641,9 @@ const TIER_PACKAGES = {
     modules: ['practiceos-lite', 'patient-portal', 'appointment-reminders', 'insurance-verification',
               'ai-receptionist', 'ai-knowledge', 'workflow-automation',
               'practice-suite', 'provider-portal', 'provider-scheduler',
-              'checkin-kiosk', 'checkin-queue', 'claims-denials', 'chw-network'],
+              'checkin-kiosk', 'checkin-queue', 'chw-network'],
     autoModules: ['appointment-reminders', 'insurance-verification', 'ai-receptionist', 'workflow-automation',
-                  'claims-denials', 'practice-suite', 'provider-portal', 'patient-portal', 'provider-scheduler',
+                  'practice-suite', 'provider-portal', 'patient-portal', 'provider-scheduler',
                   'checkin-kiosk', 'checkin-queue']
   }
 };
@@ -2792,7 +2757,6 @@ function automationBlurb(id){
     'practiceos-lite':'Full-stack automation layer for practices without an EHR',
     'insurance-verification':'Nightly eligibility sweep, exception flagging',
     'workflow-automation':'This is automation. Includes end-to-end AI workflow.',
-    'claims-denials':'AI triages denials daily, drafts appeals for review',
     'ai-knowledge':'Staff + patient query interface, auto-refreshed'
   };
   return map[id] || 'AI-driven workflow layer included';
