@@ -398,6 +398,15 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
     setError(null);
     setSaving(true);
     try {
+      // Defensive: PatientChartPage's HEDIS tab query selects gap columns
+      // for display but doesn't include patient_id, so gap.patient_id is
+      // undefined when the modal opens from there. Every subcomponent row
+      // has patient_id (NOT NULL FK), so pull it from there as a fallback.
+      const patientId = gap.patient_id || subcomps[0]?.patient_id;
+      if (!patientId) {
+        throw new Error("Could not determine patient_id for this gap.");
+      }
+
       const writes = []; // queue of { subcomp, draft } to process
 
       for (const s of subcomps) {
@@ -436,7 +445,7 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
           // could put a real loinc_code here later.
           const isVaccine = ["DTaP","IPV","MMR","HiB","HepB","VZV","PCV","HepA","RV","Flu","Combo10","HPV","Tdap"].includes(w.subcomp.component_code);
           const evidence = await insertRow("cm_clinical_evidence", {
-            patient_id:        gap.patient_id,
+            patient_id:        patientId,
             evidence_type:     isVaccine ? "Immunization" : "Encounter",
             evidence_category: isVaccine ? "Immunization" : "Encounter",
             evidence_date:     w.draft.date,
@@ -453,7 +462,7 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
               doses_satisfied: w.doses,
             },
           }, practiceId, {
-            audit: { entityType: "cm_clinical_evidence", patientId: gap.patient_id },
+            audit: { entityType: "cm_clinical_evidence", patientId },
           });
 
           // Link evidence to subcomponent
@@ -516,7 +525,7 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
           closed_at:      new Date().toISOString(),
           closure_method: "Composite components met",
         }, {
-          audit: { entityType: "cm_hedis_member_gaps", patientId: gap.patient_id, details: { method: "composite", subcomponent_count: refreshed.length } },
+          audit: { entityType: "cm_hedis_member_gaps", patientId, details: { method: "composite", subcomponent_count: refreshed.length } },
         });
       }
 
