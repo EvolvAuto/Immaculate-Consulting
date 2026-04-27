@@ -7,6 +7,7 @@ import CHWTab from "./CHWTab";
 import PRLTab from "./care-management/PRLTab";
 import HEDISTab from "./care-management/HEDISTab";
 import VBPContractsTab from "./care-management/VBPContractsTab";
+import OutboundTab from "./care-management/OutboundTab";
 import RegistryTab from "./care-management/RegistryTab";
 import TouchpointsTab from "./care-management/TouchpointsTab";
 import PlansTab from "./care-management/PlansTab";
@@ -30,7 +31,7 @@ import BillingTab from "./care-management/BillingTab";
 // React hooks-order error #310 when auth loads asynchronously.
 // ===============================================================================
 
-const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis", "vbp"];
+const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis", "vbp", "outbound"];
 const TAB_META = {
   registry:    { label: "Registry",           icon: "\u25A3" },
   touchpoints: { label: "Touchpoints",        icon: "\u25C9" },
@@ -40,6 +41,7 @@ const TAB_META = {
   prl:         { label: "PRL",                icon: "\u25A6" },
   hedis:       { label: "HEDIS",              icon: "\u25A7" },
   vbp:         { label: "VBP Contracts",      icon: "\u25A8" },
+  outbound:    { label: "Outbound",           icon: "\u25A9" },
 };
 
 const CM_ROLES = new Set([
@@ -138,6 +140,7 @@ export default function CareManagementView() {
         {tab === "prl"         && <PRLTab />}
         {tab === "hedis"       && <HEDISTab practiceId={profile?.practice_id} profile={profile} isAdmin={isAdmin} />}
         {tab === "vbp"         && <VBPContractsTab practiceId={profile?.practice_id} isAdmin={isAdmin} />}
+        {tab === "outbound"    && <OutboundTab practiceId={profile?.practice_id} isAdmin={isAdmin} />}
       </div>
     </div>
   );
