@@ -119,7 +119,7 @@ export default function VBPContractsTab({ practiceId, isAdmin }) {
   const [filterPayer, setFilterPayer]     = useState("");
   const [filterMY, setFilterMY]           = useState("");
   const [filterProgram, setFilterProgram] = useState("");
-  const [filterStatus, setFilterStatus]   = useState("Active");
+  const [filterStatus, setFilterStatus]   = useState("All");
 
   // Inline expansion state (rows are expanded by id)
   const [expanded, setExpanded] = useState(null);
