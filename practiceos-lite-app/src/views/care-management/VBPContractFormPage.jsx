@@ -63,6 +63,85 @@ const MEASURE_STATUSES = [
 
 const STATUS_OPTIONS = ["Draft", "Active", "Expired", "Cancelled", "Archived"];
 
+// NC health plans / payers that may issue VBP contracts. Stored value is the
+// canonical short_name (lowercase snake_case) so it matches what the HEDIS
+// gap pipeline already uses on cm_hedis_uploads.source_plan_short_name -
+// keeping the two columns aligned is critical for Phase 3 outbound
+// serializer joins. Display label is human-readable.
+//
+// Grouped by line of business. Tailored Plan PHPs (Alliance, Partners,
+// Trillium, Vaya) are NC's behavioral health/I-DD/TBI Medicaid plans.
+// Standard Plan PHPs are the 5 statewide Medicaid managed care plans.
+const NC_HEALTH_PLANS = [
+  {
+    group: "NC Medicaid - Standard Plan PHPs",
+    options: [
+      { short: "wellcare",      label: "WellCare of North Carolina" },
+      { short: "amerihealth",   label: "AmeriHealth Caritas North Carolina" },
+      { short: "healthy_blue",  label: "Healthy Blue (BCBS NC Medicaid)" },
+      { short: "uhc_community", label: "UnitedHealthcare Community Plan of NC" },
+      { short: "cch",           label: "Carolina Complete Health" },
+    ],
+  },
+  {
+    group: "NC Medicaid - Tailored Plan PHPs (BH/I-DD/TBI)",
+    options: [
+      { short: "alliance", label: "Alliance Health" },
+      { short: "partners", label: "Partners Health Management" },
+      { short: "trillium", label: "Trillium Health Resources" },
+      { short: "vaya",     label: "Vaya Health" },
+    ],
+  },
+  {
+    group: "NC Medicaid - Other",
+    options: [
+      { short: "ebci",               label: "EBCI Tribal Option" },
+      { short: "nc_medicaid_direct", label: "NC Medicaid Direct (FFS)" },
+    ],
+  },
+  {
+    group: "Behavioral Health Carve-out",
+    options: [
+      { short: "ubh", label: "United Behavioral Health (Optum)" },
+    ],
+  },
+  {
+    group: "Commercial",
+    options: [
+      { short: "bcbs_nc",        label: "Blue Cross Blue Shield of NC (Commercial)" },
+      { short: "aetna",          label: "Aetna" },
+      { short: "cigna",          label: "Cigna" },
+      { short: "uhc_commercial", label: "UnitedHealthcare (Commercial)" },
+      { short: "humana",         label: "Humana" },
+    ],
+  },
+  {
+    group: "Medicare Advantage",
+    options: [
+      { short: "wellcare_ma",         label: "WellCare Medicare Advantage" },
+      { short: "humana_ma",           label: "Humana Medicare Advantage" },
+      { short: "uhc_ma",              label: "UnitedHealthcare Medicare Advantage" },
+      { short: "aetna_ma",            label: "Aetna Medicare Advantage" },
+      { short: "bcbs_nc_ma",          label: "BCBS NC Medicare Advantage" },
+      { short: "healthteam_advantage",label: "HealthTeam Advantage" },
+      { short: "alignment",           label: "Alignment Healthcare" },
+    ],
+  },
+  {
+    group: "Medicare",
+    options: [
+      { short: "medicare_ffs", label: "Original Medicare (FFS)" },
+      { short: "mssp",         label: "Medicare Shared Savings Program (MSSP) ACO" },
+    ],
+  },
+  {
+    group: "Other",
+    options: [
+      { short: "other", label: "Other (specify in contract notes)" },
+    ],
+  },
+];
+
 // HCP-LAN APM Framework categories. Industry-standard taxonomy from the
 // Health Care Payment Learning & Action Network. Practices use this for
 // portfolio reporting and to align with HCPLAN's 2030 goal of more two-sided
@@ -244,7 +323,7 @@ export default function VBPContractFormPage() {
         if (mErr) throw mErr;
       }
 
-      navigate("/care-management/vbp-contracts");
+      navigate("/care-management", { state: { tab: "vbp" } });
     } catch (e) {
       setError(e.message || "Failed to save contract");
       setSaving(false);
@@ -257,7 +336,7 @@ export default function VBPContractFormPage() {
   return (
     <div style={{ padding: "20px 24px", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
       <div style={{ marginBottom: 14 }}>
-        <Btn variant="ghost" size="sm" onClick={() => navigate("/care-management/vbp-contracts")}>← Back to contracts</Btn>
+        <Btn variant="ghost" size="sm" onClick={() => navigate("/care-management", { state: { tab: "vbp" } })}>← Back to contracts</Btn>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
@@ -284,7 +363,7 @@ export default function VBPContractFormPage() {
           measures={measures}
           setMeasures={setMeasures}
           measureCatalog={measureCatalog}
-          onCancel={() => navigate("/care-management/vbp-contracts")}
+          onCancel={() => navigate("/care-management", { state: { tab: "vbp" } })}
           onSave={save}
           saving={saving}
           validateStep={validateStep}
@@ -299,7 +378,7 @@ export default function VBPContractFormPage() {
           measureCatalog={measureCatalog}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
-          onCancel={() => navigate("/care-management/vbp-contracts")}
+          onCancel={() => navigate("/care-management", { state: { tab: "vbp" } })}
           onSave={save}
           saving={saving}
         />
@@ -443,9 +522,35 @@ function IdentitySection({ contract, setContract }) {
   const currentYear = new Date().getFullYear();
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
-        <Input label="Contract label *" value={contract.contract_label} onChange={set("contract_label")} placeholder="e.g. UHC CP-PCPi 2026" />
-        <Input label="Payer (short name) *" value={contract.payer_short_name} onChange={set("payer_short_name")} placeholder="e.g. uhc, wellcare, ubh" />
+      <div style={{ marginBottom: 14 }}>
+        <FL>Contract label *</FL>
+        <input
+          type="text"
+          value={contract.contract_label}
+          onChange={e => set("contract_label")(e.target.value)}
+          placeholder="e.g. UHC CP-PCPi 2026"
+          style={inputStyle}
+        />
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <FL>Health plan / payer *</FL>
+        <select
+          value={contract.payer_short_name || ""}
+          onChange={e => set("payer_short_name")(e.target.value)}
+          style={selectStyle}
+        >
+          <option value="">Select a health plan...</option>
+          {NC_HEALTH_PLANS.map(group => (
+            <optgroup key={group.group} label={group.group}>
+              {group.options.map(opt => (
+                <option key={opt.short} value={opt.short}>{opt.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4, lineHeight: 1.5 }}>
+          The short identifier is saved (e.g. "healthy_blue") so contracts join cleanly to the HEDIS gap pipeline. If a plan isn't listed, pick "Other" and explain in contract notes.
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <Input label="Measurement year *" type="number" value={contract.measurement_year || currentYear} onChange={set("measurement_year")} />
