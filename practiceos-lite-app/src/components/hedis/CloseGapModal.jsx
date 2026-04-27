@@ -509,30 +509,39 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
       }
 
       // Re-fetch sub-components to compute final state
-      const { data: refreshed } = await supabase
+      const { data: refreshed, error: refreshErr } = await supabase
         .from("cm_hedis_gap_subcomponents")
         .select("*")
-        .eq("gap_id", gap.id);
+        .eq("gap_id", gap.id)
+        .order("component_index", { ascending: true, nullsFirst: false })
+        .order("component_code");
+      if (refreshErr) throw refreshErr;
 
       const allDoneOrExcluded = (refreshed || []).every(
         s => s.completed || s.exclusion_documented
       );
 
-      let updatedGap = null;
       if (allDoneOrExcluded && (refreshed || []).length > 0) {
-        // Close the parent gap
-        updatedGap = await updateRow("cm_hedis_member_gaps", gap.id, {
+        // Full close: update the parent gap and notify the caller. The
+        // parent typically closes the modal in its onSaved handler.
+        const updatedGap = await updateRow("cm_hedis_member_gaps", gap.id, {
           closed_at:      new Date().toISOString(),
           closure_method: "Composite components met",
         }, {
           audit: { entityType: "cm_hedis_member_gaps", patientId, details: { method: "composite", subcomponent_count: refreshed.length } },
         });
+        onSaved({ gap: updatedGap, evidence: null });
+      } else {
+        // Partial save: this is the common case for composites like CIS-10
+        // where doses are administered across multiple visits. Keep the
+        // modal open and refresh the subcomponent state in place so just-
+        // saved doses appear (e.g. DTaP 1/4 -> DTaP 2/4 with "2 remaining"
+        // visible). Clear the draft buffer so a second click of save
+        // doesn't re-submit the same entries.
+        setSubcomps(refreshed || []);
+        setDrafts({});
+        setSaving(false);
       }
-
-      // Pass the original gap when partial-save (updatedGap is null because
-      // the parent gap stays open until all subcomponents are met). Parent
-      // handlers that read gap.id wouldn't survive a null here.
-      onSaved({ gap: updatedGap || gap, partial: !allDoneOrExcluded });
     } catch (e) {
       // Surface the error in console for debugging - the in-modal error
       // banner sometimes gets lost in a re-render race; the console copy
