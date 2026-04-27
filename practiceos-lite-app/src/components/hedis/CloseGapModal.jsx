@@ -278,6 +278,29 @@ function SimpleCloseGap({ gap, onClose, onSaved }) {
 //      excluded, UPDATE parent gap's closed_at with method='Composite
 //      components met'.
 // ═══════════════════════════════════════════════════════════════════════════
+// CVX defaults per CIS antigen. CVX is the standard immunization code system
+// (CDC IIS). These are the most common SINGLE-antigen codes; staff can
+// override for combo formulations. Reference: cdc.gov/vaccines/programs/iis/
+//   DTaP combos: 50 (DTaP-Hib), 110 (Pediarix DTaP-HepB-IPV), 120 (Pentacel
+//   DTaP-HepB-IPV+Hib), 130 (Kinrix DTaP-IPV)
+//   PCV: 100 (PCV7 historical), 133 (PCV13 most common), 152 (PCV15),
+//   215 (PCV20 newest)
+//   RV: 116 (RV5/RotaTeq, 3-dose), 119 (RV1/Rotarix, 2-dose)
+// Defaults below pick the most common standalone code for each antigen.
+const CVX_DEFAULTS = {
+  DTaP: "20",
+  IPV:  "10",
+  MMR:  "03",
+  HiB:  "49",
+  HepB: "08",
+  VZV:  "21",
+  PCV:  "133",
+  HepA: "85",
+  RV:   "116",
+  Flu:  "88",
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
   const { profile, practiceId } = useAuth();
 
@@ -288,8 +311,21 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
   const [generating, setGenerating] = useState(false);
 
   // Per-subcomponent draft state. Keyed by subcomp.id. Each entry:
-  //   { date, code, doses, note, exclusion: bool, exclusionReason }
+  //   { date, code, doses, note, exclusion, exclusionReason, included }
+  // The `included` flag is used in visit mode (checkbox to include the
+  // antigen in the current visit's batch). In chart-review mode it's
+  // ignored - the date+code presence drives whether an entry is processed.
   const [drafts, setDrafts] = useState({});
+
+  // Two distinct workflows:
+  //   "visit"        - Staff documenting today's visit. One date applies
+  //                    to all checked antigens. CVX codes pre-filled.
+  //                    Click checkbox + verify CVX + save. Most common.
+  //   "chart_review" - Catch-up entry where doses span multiple historical
+  //                    visits. Each card has its own date input. Slower but
+  //                    needed when entering past records.
+  const [mode, setMode] = useState("visit");
+  const [visitDate, setVisitDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const measureName = measure?.measure_name || gap.cm_hedis_measures?.measure_name || gap.measure_code;
   const sourceFile  = gap.cm_hedis_uploads?.file_name || "";
@@ -380,17 +416,43 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
     return { done, excluded, open, total: subcomps.length };
   }, [subcomps]);
 
+  // How many open antigens are queued for save in the current draft state.
+  // Drives the save button label and the visit-mode progress indicator.
+  // Visit mode counts antigens with included=true; chart-review counts
+  // antigens with date+code filled in.
+  const pendingCount = useMemo(() => {
+    let n = 0;
+    for (const s of subcomps) {
+      if (s.completed || s.exclusion_documented) continue;
+      const d = drafts[s.id];
+      if (!d) continue;
+      if (d.exclusion) { n++; continue; }
+      if (mode === "visit") {
+        if (d.included && d.code?.trim()) n++;
+      } else {
+        if (d.date && d.code?.trim()) n++;
+      }
+    }
+    return n;
+  }, [subcomps, drafts, mode]);
+
   // ─── Draft helpers ───────────────────────────────────────────────────
-  const getDraft = (id) => drafts[id] || {
+  // getDraft takes the full subcomp so it can pre-fill the CVX default
+  // for the antigen (DTaP -> 20, MMR -> 03, etc). Defaults render in the
+  // input but aren't persisted to drafts state until the user actually
+  // edits a field (the patch in updateDraft is what materializes the
+  // draft entry).
+  const getDraft = (subcomp) => drafts[subcomp.id] || {
     date: new Date().toISOString().slice(0, 10),
-    code: "",
+    code: CVX_DEFAULTS[subcomp.component_code] || "",
     doses: 1,
     note: "",
     exclusion: false,
     exclusionReason: "",
+    included: false,
   };
-  const updateDraft = (id, patch) => {
-    setDrafts(prev => ({ ...prev, [id]: { ...getDraft(id), ...patch } }));
+  const updateDraft = (subcomp, patch) => {
+    setDrafts(prev => ({ ...prev, [subcomp.id]: { ...getDraft(subcomp), ...patch } }));
   };
 
   // ─── Save ────────────────────────────────────────────────────────────
@@ -398,16 +460,17 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
     setError(null);
     setSaving(true);
     try {
-      // Defensive: PatientChartPage's HEDIS tab query selects gap columns
-      // for display but doesn't include patient_id, so gap.patient_id is
-      // undefined when the modal opens from there. Every subcomponent row
-      // has patient_id (NOT NULL FK), so pull it from there as a fallback.
       const patientId = gap.patient_id || subcomps[0]?.patient_id;
       if (!patientId) {
         throw new Error("Could not determine patient_id for this gap.");
       }
 
-      const writes = []; // queue of { subcomp, draft } to process
+      const writes = []; // queue of { subcomp, draft, entryDate, entryCode } to process
+
+      // Validate visit-mode top-level state up front
+      if (mode === "visit" && !visitDate) {
+        throw new Error("Visit date is required.");
+      }
 
       for (const s of subcomps) {
         // Skip already-done or already-excluded
@@ -416,23 +479,47 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
         if (!d) continue;
 
         if (d.exclusion) {
+          // Exclusion is mode-agnostic - reason is always required
           if (!d.exclusionReason?.trim()) {
             throw new Error("Exclusion reason required for " + s.component_code);
           }
           writes.push({ kind: "exclusion", subcomp: s, draft: d });
-        } else if (d.date && d.code?.trim()) {
-          // Validate doses count
-          const doses = parseInt(d.doses, 10) || 1;
-          const remaining = s.doses_required - s.doses_completed;
-          if (doses < 1 || doses > remaining) {
-            throw new Error(s.component_code + ": doses must be between 1 and " + remaining);
-          }
-          writes.push({ kind: "evidence", subcomp: s, draft: d, doses });
+          continue;
         }
+
+        // Determine entry date and code based on mode
+        let entryDate, entryCode;
+        if (mode === "visit") {
+          // Visit mode: only process antigens the user explicitly checked.
+          // Use the top-level visit date for everyone. CVX must be filled
+          // (the default pre-fills it; user can override or clear).
+          if (!d.included) continue;
+          entryDate = visitDate;
+          entryCode = d.code?.trim();
+          if (!entryCode) {
+            throw new Error(s.component_code + ": CVX/CPT code is required.");
+          }
+        } else {
+          // Chart-review mode: per-card date + code. Skip silently if
+          // either is missing (user hasn't engaged with this card yet).
+          if (!d.date || !d.code?.trim()) continue;
+          entryDate = d.date;
+          entryCode = d.code.trim();
+        }
+
+        // Validate doses count
+        const doses = parseInt(d.doses, 10) || 1;
+        const remaining = s.doses_required - s.doses_completed;
+        if (doses < 1 || doses > remaining) {
+          throw new Error(s.component_code + ": doses must be between 1 and " + remaining);
+        }
+        writes.push({ kind: "evidence", subcomp: s, draft: d, doses, entryDate, entryCode });
       }
 
       if (writes.length === 0) {
-        throw new Error("Nothing to save. Fill in evidence or mark an exclusion for at least one component.");
+        throw new Error(mode === "visit"
+          ? "Nothing to save. Check the antigens administered today, or mark one as excluded."
+          : "Nothing to save. Fill date+code on at least one antigen, or mark one as excluded.");
       }
 
       // Iterate writes. Per-write failures are reported but don't roll back
@@ -448,7 +535,7 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
             patient_id:        patientId,
             evidence_type:     isVaccine ? "Immunization" : "Encounter",
             evidence_category: isVaccine ? "Immunization" : "Encounter",
-            evidence_date:     w.draft.date,
+            evidence_date:     w.entryDate,
             source:            "Manual Attestation",
             attested_by:       profile.id,
             attested_at:       new Date().toISOString(),
@@ -458,7 +545,7 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
               measure_code:    gap.measure_code,
               component_code:  w.subcomp.component_code,
               component_label: w.subcomp.component_label || null,
-              code_entered:    w.draft.code.trim(),
+              code_entered:    w.entryCode,
               doses_satisfied: w.doses,
             },
           }, practiceId, {
@@ -482,7 +569,7 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
           // Distinguish in-window vs outside-window close per schema CHECK.
           // window_close is nullable; when not set, default to in_window
           // (most common case - staff closing gaps live during the MY).
-          const inWindow = !w.subcomp.window_close || w.draft.date <= w.subcomp.window_close;
+          const inWindow = !w.subcomp.window_close || w.entryDate <= w.subcomp.window_close;
           const newWindowStatus = willComplete
             ? (inWindow ? "closed_in_window" : "closed_outside_window")
             : "open";
@@ -532,27 +619,33 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
         });
         onSaved({ gap: updatedGap, evidence: null });
       } else {
-        // Partial save: this is the common case for composites like CIS-10
-        // where doses are administered across multiple visits. Keep the
-        // modal open and refresh the subcomponent state in place so just-
+        // Partial save: keep the modal open and refresh in place so just-
         // saved doses appear (e.g. DTaP 1/4 -> DTaP 2/4 with "2 remaining"
-        // visible). Clear the draft buffer so a second click of save
-        // doesn't re-submit the same entries.
+        // visible). Clear the draft buffer so a second save doesn't re-
+        // submit the same entries.
         setSubcomps(refreshed || []);
         setDrafts({});
         setSaving(false);
       }
     } catch (e) {
-      // Surface the error in console for debugging - the in-modal error
-      // banner sometimes gets lost in a re-render race; the console copy
-      // is unambiguous.
       console.error("[CloseGapModal] save failed:", e);
       setError(e.message || "Failed to save attestations");
       setSaving(false);
-      // NOTE: previously called loadSubcomps() here to reflect partial
-      // saves, but loadSubcomps starts with setError(null), wiping the
-      // error we just set. User can close + reopen the modal to see any
-      // partial-save state.
+      // NOTE: don't call loadSubcomps() here - it starts with setError(null)
+      // which clobbers the message. Refresh inline instead, swallowing any
+      // refresh failures (the error message is what matters to the user).
+      try {
+        const { data } = await supabase
+          .from("cm_hedis_gap_subcomponents")
+          .select("*")
+          .eq("gap_id", gap.id)
+          .order("component_index", { ascending: true, nullsFirst: false })
+          .order("component_code");
+        if (data) {
+          setSubcomps(data);
+          setDrafts({});
+        }
+      } catch (_) {}
     }
   };
 
@@ -577,16 +670,49 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
       </div>
 
       <div style={{ marginBottom: 12, padding: "10px 12px", background: C.bgSecondary, borderRadius: 6, fontSize: 12, color: C.textPrimary, lineHeight: 1.55 }}>
-        <strong>Composite measure.</strong> Document each component separately with its own
-        evidence date and code. The gap closes automatically when every component is
-        completed or documented as excluded. Save partial progress at any time and resume later.
+        <strong>Composite measure.</strong> {mode === "visit"
+          ? "Check off antigens administered at today's visit. The gap closes when every component is completed or documented as excluded across visits."
+          : "Document each component with its own evidence date - useful for catch-up entry where doses span multiple historical visits."}
       </div>
+
+      {/* Mode toggle */}
+      <div style={{ display: "flex", gap: 0, marginBottom: 12, border: "0.5px solid " + C.borderMid, borderRadius: 6, overflow: "hidden", width: "fit-content" }}>
+        <ModeButton active={mode === "visit"} onClick={() => setMode("visit")}>
+          Visit mode
+        </ModeButton>
+        <ModeButton active={mode === "chart_review"} onClick={() => setMode("chart_review")}>
+          Chart review
+        </ModeButton>
+      </div>
+
+      {/* Visit date - only in visit mode */}
+      {mode === "visit" && (
+        <div style={{ marginBottom: 14, padding: "10px 12px", background: "#fff", border: "0.5px solid " + C.borderLight, borderRadius: 6 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <FL style={{ marginBottom: 0 }}>Visit date</FL>
+            <input
+              type="date"
+              value={visitDate}
+              onChange={e => setVisitDate(e.target.value)}
+              style={{ padding: "6px 8px", border: "0.5px solid " + C.borderMid, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }}
+            />
+            <span style={{ fontSize: 11, color: C.textTertiary, marginLeft: "auto" }}>
+              Applies to every antigen checked below
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Progress strip */}
       <div style={{ display: "flex", gap: 14, marginBottom: 14, padding: "10px 12px", background: "#fff", border: "0.5px solid " + C.borderLight, borderRadius: 6, fontSize: 12 }}>
         <div><strong>{stats.done}</strong> of {stats.total} complete</div>
         {stats.excluded > 0 && <div style={{ color: C.textSecondary }}>{stats.excluded} excluded</div>}
         {stats.open > 0 && <div style={{ color: C.amber }}>{stats.open} remaining</div>}
+        {mode === "visit" && pendingCount > 0 && (
+          <div style={{ marginLeft: "auto", color: C.teal, fontWeight: 600 }}>
+            {pendingCount} marked for this visit
+          </div>
+        )}
       </div>
 
       {/* Sub-component cards */}
@@ -595,8 +721,9 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
           <SubcomponentCard
             key={s.id}
             subcomp={s}
-            draft={getDraft(s.id)}
-            onUpdate={(patch) => updateDraft(s.id, patch)}
+            draft={getDraft(s)}
+            mode={mode}
+            onUpdate={(patch) => updateDraft(s, patch)}
           />
         ))}
       </div>
@@ -609,16 +736,42 @@ function CompositeCloseGap({ gap, measure, onClose, onSaved }) {
 
       <div style={{ marginTop: 14, paddingTop: 12, borderTop: "0.5px solid " + C.borderLight, display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <Btn variant="outline" onClick={onClose} disabled={saving}>Cancel</Btn>
-        <Btn onClick={save} disabled={saving || subcomps.length === 0}>
-          {saving ? "Saving..." : "Save attestations"}
+        <Btn onClick={save} disabled={saving || subcomps.length === 0 || pendingCount === 0}>
+          {saving ? "Saving..."
+            : mode === "visit"
+              ? (pendingCount > 0 ? "Save visit (" + pendingCount + " antigen" + (pendingCount === 1 ? "" : "s") + ")" : "Save visit")
+              : (pendingCount > 0 ? "Save attestations (" + pendingCount + ")" : "Save attestations")}
         </Btn>
       </div>
     </Modal>
   );
 }
 
+// ─── Mode toggle button ──────────────────────────────────────────────────
+function ModeButton({ active, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: "8px 16px",
+        fontSize: 12,
+        fontWeight: 600,
+        fontFamily: "inherit",
+        border: "none",
+        cursor: "pointer",
+        background: active ? C.teal : "#fff",
+        color: active ? "#fff" : C.textPrimary,
+        transition: "background 0.15s, color 0.15s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
 // ─── Single sub-component card ───────────────────────────────────────────
-function SubcomponentCard({ subcomp, draft, onUpdate }) {
+function SubcomponentCard({ subcomp, draft, mode, onUpdate }) {
   const s = subcomp;
 
   // Locked: already completed
@@ -656,48 +809,89 @@ function SubcomponentCard({ subcomp, draft, onUpdate }) {
     );
   }
 
-  // Open: form state
+  // Open: form state forks by mode
   const remaining = s.doses_required - s.doses_completed;
   const partialProgress = s.doses_completed > 0;
+  const inExclusion = draft.exclusion;
+  const isVisitMode = mode === "visit";
+  // In visit mode: card is collapsed unless user has checked it OR they're
+  // in exclusion entry. In chart review: always show the form.
+  const expanded = !isVisitMode || draft.included || inExclusion;
 
   return (
-    <div style={{ padding: "12px 14px", border: "0.5px solid " + C.amberBorder, borderLeft: "3px solid " + C.amber, borderRadius: 6, background: "#fff" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+    <div style={{
+      padding: "12px 14px",
+      border: "0.5px solid " + (draft.included ? C.tealBorder : C.amberBorder),
+      borderLeft: "3px solid " + (draft.included ? C.teal : C.amber),
+      borderRadius: 6,
+      background: "#fff",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: expanded ? 8 : 0, flexWrap: "wrap" }}>
+        {/* Visit-mode include checkbox */}
+        {isVisitMode && !inExclusion && (
+          <input
+            type="checkbox"
+            checked={!!draft.included}
+            onChange={e => onUpdate({ included: e.target.checked })}
+            style={{ width: 16, height: 16, cursor: "pointer", margin: 0 }}
+            title="Administered at this visit"
+          />
+        )}
         <code style={{ fontFamily: "monospace", fontWeight: 700, color: C.teal }}>{s.component_code}</code>
         <span style={{ fontSize: 13, color: C.textPrimary, fontWeight: 500 }}>{s.component_label}</span>
         <Badge label={s.doses_completed + " / " + s.doses_required + " doses"} variant={partialProgress ? "blue" : "amber"} size="xs" />
         {partialProgress && <span style={{ fontSize: 11, color: C.textTertiary }}>{remaining} remaining</span>}
       </div>
 
-      {!draft.exclusion ? (
+      {expanded && !inExclusion && (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 8 }}>
-            <div>
-              <FL>Evidence date</FL>
-              <input type="date" value={draft.date} onChange={e => onUpdate({ date: e.target.value })}
-                style={{ width: "100%", padding: "6px 8px", border: "0.5px solid " + C.borderMid, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+          {isVisitMode ? (
+            // Visit mode: just CVX + doses (date is the top-level visit date)
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 8 }}>
+              <div>
+                <FL>CVX/CPT code</FL>
+                <input type="text" value={draft.code} onChange={e => onUpdate({ code: e.target.value })}
+                  placeholder="e.g. 20"
+                  style={{ width: "100%", padding: "6px 8px", border: "0.5px solid " + C.borderMid, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+              </div>
+              <div>
+                <FL>Doses</FL>
+                <input type="number" min="1" max={remaining} value={draft.doses} onChange={e => onUpdate({ doses: e.target.value })}
+                  style={{ width: "100%", padding: "6px 8px", border: "0.5px solid " + C.borderMid, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+              </div>
             </div>
-            <div>
-              <FL>CVX/CPT code</FL>
-              <input type="text" value={draft.code} onChange={e => onUpdate({ code: e.target.value })}
-                placeholder="e.g. 20 (DTaP CVX)"
-                style={{ width: "100%", padding: "6px 8px", border: "0.5px solid " + C.borderMid, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+          ) : (
+            // Chart review mode: per-card date + CVX + doses
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px", gap: 8 }}>
+              <div>
+                <FL>Evidence date</FL>
+                <input type="date" value={draft.date} onChange={e => onUpdate({ date: e.target.value })}
+                  style={{ width: "100%", padding: "6px 8px", border: "0.5px solid " + C.borderMid, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+              </div>
+              <div>
+                <FL>CVX/CPT code</FL>
+                <input type="text" value={draft.code} onChange={e => onUpdate({ code: e.target.value })}
+                  placeholder="e.g. 20"
+                  style={{ width: "100%", padding: "6px 8px", border: "0.5px solid " + C.borderMid, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+              </div>
+              <div>
+                <FL>Doses</FL>
+                <input type="number" min="1" max={remaining} value={draft.doses} onChange={e => onUpdate({ doses: e.target.value })}
+                  style={{ width: "100%", padding: "6px 8px", border: "0.5px solid " + C.borderMid, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+              </div>
             </div>
-            <div>
-              <FL>Doses</FL>
-              <input type="number" min="1" max={remaining} value={draft.doses} onChange={e => onUpdate({ doses: e.target.value })}
-                style={{ width: "100%", padding: "6px 8px", border: "0.5px solid " + C.borderMid, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
-            </div>
-          </div>
+          )}
           <div style={{ marginTop: 6, fontSize: 11, color: C.textTertiary, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>Set Doses &gt; 1 if this entry covers multiple historical shots (e.g. chart review).</span>
-            <button onClick={() => onUpdate({ exclusion: true })}
+            <button onClick={() => onUpdate({ exclusion: true, included: false })}
               style={{ background: "none", border: "none", color: C.textSecondary, fontSize: 11, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", padding: 0 }}>
               Mark as excluded instead
             </button>
           </div>
         </>
-      ) : (
+      )}
+
+      {inExclusion && (
         <>
           <div>
             <FL>Exclusion reason</FL>
@@ -712,6 +906,16 @@ function SubcomponentCard({ subcomp, draft, onUpdate }) {
             </button>
           </div>
         </>
+      )}
+
+      {/* Visit-mode collapsed shortcut: tiny "exclude" link when not yet included */}
+      {isVisitMode && !expanded && (
+        <div style={{ marginTop: 6, fontSize: 11, color: C.textTertiary, textAlign: "right" }}>
+          <button onClick={() => onUpdate({ exclusion: true, included: false })}
+            style={{ background: "none", border: "none", color: C.textSecondary, fontSize: 11, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit", padding: 0 }}>
+            Not given today - mark as excluded
+          </button>
+        </div>
       )}
     </div>
   );
