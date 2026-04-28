@@ -84,22 +84,34 @@ const CADENCE_OPTIONS = ["Monthly", "Quarterly", "Annually", "Ad-hoc"];
 export default function PlanConnectionsTab({ practiceId, isAdmin }) {
   const { profile } = useAuth();
 
-  const [profiles, setProfiles]   = useState([]);
-  const [contracts, setContracts] = useState([]); // for "plans without profile" KPI
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
-  const [editing, setEditing]     = useState(null); // null | profile object | {} for new
-  const [filter, setFilter]       = useState("Active+Pending");
+  const [profiles, setProfiles]       = useState([]);
+  const [credentials, setCredentials] = useState([]); // one per profile_id
+  const [contracts, setContracts]     = useState([]); // for "plans without profile" KPI
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState(null);
+  const [editing, setEditing]         = useState(null); // null | profile object | {} for new
+  const [credEditing, setCredEditing] = useState(null); // null | profile object (manage creds for that profile)
+  const [filter, setFilter]           = useState("Active+Pending");
+
+  // Fast lookup: profile_id -> credential row
+  const credByProfile = useMemo(() => {
+    const m = {};
+    for (const c of credentials) m[c.profile_id] = c;
+    return m;
+  }, [credentials]);
 
   const refresh = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [pRes, cRes] = await Promise.all([
+      const [pRes, cRes, vRes] = await Promise.all([
         supabase.from("cm_plan_delivery_profiles")
           .select("*")
           .eq("practice_id", practiceId)
           .order("payer_short_name"),
+        supabase.from("cm_plan_delivery_credentials")
+          .select("id, profile_id, auth_type, status, last_tested_at, last_test_result, last_test_error, last_rotated_at")
+          .eq("practice_id", practiceId),
         supabase.from("cm_vbp_contracts")
           .select("payer_short_name")
           .eq("practice_id", practiceId)
@@ -107,8 +119,10 @@ export default function PlanConnectionsTab({ practiceId, isAdmin }) {
       ]);
       if (pRes.error) throw pRes.error;
       if (cRes.error) throw cRes.error;
+      if (vRes.error) throw vRes.error;
       setProfiles(pRes.data || []);
-      setContracts(cRes.data || []);
+      setCredentials(cRes.data || []);
+      setContracts(vRes.data || []);
     } catch (e) {
       setError(e.message || "Failed to load");
     } finally {
@@ -200,7 +214,13 @@ export default function PlanConnectionsTab({ practiceId, isAdmin }) {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: 12 }}>
           {filtered.map(p => (
-            <ConnectionCard key={p.id} connection={p} onEdit={() => setEditing(p)} />
+            <ConnectionCard
+              key={p.id}
+              connection={p}
+              credential={credByProfile[p.id] || null}
+              onEdit={() => setEditing(p)}
+              onManageCreds={() => setCredEditing(p)}
+            />
           ))}
         </div>
       )}
@@ -214,16 +234,26 @@ export default function PlanConnectionsTab({ practiceId, isAdmin }) {
           onSaved={() => { setEditing(null); refresh(); }}
         />
       )}
+
+      {credEditing !== null && (
+        <CredentialManageModal
+          profile={credEditing}
+          credential={credByProfile[credEditing.id] || null}
+          onClose={() => setCredEditing(null)}
+          onSaved={() => { setCredEditing(null); refresh(); }}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Connection card ────────────────────────────────────────────────────
-function ConnectionCard({ connection: p, onEdit }) {
+function ConnectionCard({ connection: p, credential, onEdit, onManageCreds }) {
   const variant = STATUS_VARIANT[p.status] || { label: p.status, variant: "neutral" };
+  const isSFTP = p.delivery_method === "Manual SFTP" || p.delivery_method === "Auto SFTP";
 
   let summary = "";
-  if (p.delivery_method === "Manual SFTP" || p.delivery_method === "Auto SFTP") {
+  if (isSFTP) {
     if (p.sftp_host) {
       summary = (p.sftp_username ? p.sftp_username + "@" : "") + p.sftp_host
         + (p.sftp_port && p.sftp_port !== 22 ? ":" + p.sftp_port : "");
@@ -237,22 +267,42 @@ function ConnectionCard({ connection: p, onEdit }) {
     summary = "(see notes)";
   }
 
+  // Credential status sub-badge (SFTP only)
+  let credLabel = null;
+  let credVariant = "neutral";
+  if (isSFTP) {
+    if (!credential) {
+      credLabel = "No credentials"; credVariant = "amber";
+    } else if (credential.status === "Active" && credential.last_test_result === "Success") {
+      credLabel = "Creds OK"; credVariant = "green";
+    } else if (credential.status === "Pending Test") {
+      credLabel = "Creds untested"; credVariant = "amber";
+    } else if (credential.status === "Test Failed" || credential.last_test_result === "Auth Failed" || credential.last_test_result === "Connection Failed") {
+      credLabel = "Creds failing"; credVariant = "red";
+    } else {
+      credLabel = "Creds " + credential.status; credVariant = "neutral";
+    }
+  }
+
   return (
-    <Card style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8, cursor: "pointer" }} onClick={onEdit}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+    <Card style={{ padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, cursor: "pointer" }} onClick={onEdit}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.textPrimary }}>
             {p.display_name || PLAN_LABEL[p.payer_short_name] || p.payer_short_name}
           </div>
           <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 2 }}>{p.delivery_method}</div>
         </div>
-        <Badge label={variant.label} variant={variant.variant} size="xs" />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+          <Badge label={variant.label} variant={variant.variant} size="xs" />
+          {credLabel && <Badge label={credLabel} variant={credVariant} size="xs" />}
+        </div>
       </div>
 
-      <div style={{
+      <div onClick={onEdit} style={{
         fontSize: 11, color: C.textSecondary, fontFamily: "monospace",
         wordBreak: "break-all", padding: "6px 8px", background: C.bgSecondary,
-        borderRadius: 4, minHeight: 26,
+        borderRadius: 4, minHeight: 26, cursor: "pointer",
       }}>
         {summary}
       </div>
@@ -266,6 +316,15 @@ function ConnectionCard({ connection: p, onEdit }) {
           {p.last_submitted_at ? "Last sent: " + new Date(p.last_submitted_at).toLocaleDateString() : "Never sent"}
         </span>
       </div>
+
+      {isSFTP && (
+        <div style={{ display: "flex", gap: 6, paddingTop: 6, borderTop: "0.5px solid " + C.borderLight }}>
+          <Btn variant="outline" size="sm" onClick={onEdit}>Edit profile</Btn>
+          <Btn size="sm" onClick={onManageCreds}>
+            {credential ? "Manage credentials" : "+ Add credentials"}
+          </Btn>
+        </div>
+      )}
     </Card>
   );
 }
@@ -489,6 +548,243 @@ function ConnectionEditModal({ connection, practiceId, existingPayers, onClose, 
       <div style={{ marginTop: 16, paddingTop: 12, borderTop: "0.5px solid " + C.borderLight, display: "flex", gap: 8, justifyContent: "flex-end" }}>
         <Btn variant="outline" onClick={onClose} disabled={saving}>Cancel</Btn>
         <Btn onClick={save} disabled={saving}>{saving ? "Saving..." : (isNew ? "Create connection" : "Save changes")}</Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ─── Credential management modal ──────────────────────────────────────────
+// Add or rotate SFTP credentials for a Plan Connection. Plaintext is sent
+// to the hedis-credential-save edge function which writes it into Supabase
+// Vault encrypted. After save we offer a one-click "Test connection" that
+// hits hedis-outbound-test-credentials and reflects the result on the cred.
+function CredentialManageModal({ profile, credential, onClose, onSaved }) {
+  const isRotate = !!credential;
+
+  const [authType, setAuthType] = useState(credential?.auth_type || "password");
+  const [password, setPassword] = useState("");
+  const [sshKey, setSshKey]     = useState("");
+  const [passphrase, setPassphrase] = useState("");
+
+  const [saving, setSaving]     = useState(false);
+  const [testing, setTesting]   = useState(false);
+  const [error, setError]       = useState(null);
+  const [testResult, setTestResult] = useState(null); // null | { success, message, directory_check }
+  const [savedJustNow, setSavedJustNow] = useState(false);
+
+  const validate = () => {
+    if (authType === "password" && !password.trim()) return "Password is required.";
+    if (authType === "ssh_key" && !sshKey.trim()) return "SSH private key is required.";
+    if (authType === "ssh_key" && sshKey.trim() && !sshKey.includes("BEGIN") && !sshKey.includes("PRIVATE KEY")) {
+      return "SSH key doesn't look like a PEM-formatted private key. Paste the full block including '-----BEGIN ... PRIVATE KEY-----' lines.";
+    }
+    return null;
+  };
+
+  const save = async () => {
+    const v = validate();
+    if (v) { setError(v); return; }
+    setError(null);
+    setTestResult(null);
+    setSaving(true);
+    try {
+      const body = {
+        profile_id: profile.id,
+        auth_type: authType,
+      };
+      if (authType === "password") {
+        body.password = password;
+      } else {
+        body.ssh_private_key = sshKey;
+        if (passphrase.trim()) body.ssh_passphrase = passphrase;
+      }
+
+      const { data, error: invErr } = await supabase.functions.invoke("hedis-credential-save", { body });
+      if (invErr) {
+        let msg = invErr.message;
+        try {
+          const ctx = invErr.context;
+          if (ctx && typeof ctx.text === "function") {
+            const txt = await ctx.text();
+            const parsed = JSON.parse(txt);
+            if (parsed.error) msg = parsed.error;
+          }
+        } catch (_) {}
+        throw new Error(msg);
+      }
+      if (!data?.credential_id) throw new Error("Save did not return a credential_id");
+
+      // Clear the plaintext fields immediately after save
+      setPassword("");
+      setSshKey("");
+      setPassphrase("");
+      setSavedJustNow(true);
+    } catch (e) {
+      setError(e.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const test = async () => {
+    if (!credential?.id && !savedJustNow) {
+      setError("Save the credential before testing.");
+      return;
+    }
+    setError(null);
+    setTesting(true);
+    setTestResult(null);
+    try {
+      // We need the credential_id for the test call. If we just saved (no
+      // credential prop yet) re-fetch the row by profile_id.
+      let credentialId = credential?.id;
+      if (!credentialId) {
+        const { data } = await supabase
+          .from("cm_plan_delivery_credentials")
+          .select("id")
+          .eq("profile_id", profile.id)
+          .maybeSingle();
+        credentialId = data?.id;
+      }
+      if (!credentialId) throw new Error("Could not locate the saved credential.");
+
+      const { data, error: invErr } = await supabase.functions.invoke("hedis-outbound-test-credentials", {
+        body: { credential_id: credentialId },
+      });
+
+      if (invErr) {
+        // Surface server-side category if available
+        let msg = invErr.message;
+        let category = null;
+        try {
+          const ctx = invErr.context;
+          if (ctx && typeof ctx.text === "function") {
+            const txt = await ctx.text();
+            const parsed = JSON.parse(txt);
+            if (parsed.error) msg = parsed.error;
+            if (parsed.category) category = parsed.category;
+          }
+        } catch (_) {}
+        setTestResult({ success: false, message: (category ? category + ": " : "") + msg });
+        return;
+      }
+      if (data?.status === "success") {
+        setTestResult({ success: true, message: "Connection successful.", directory_check: data.directory_check });
+      } else {
+        setTestResult({ success: false, message: (data?.category || "Failed") + ": " + (data?.error || "Unknown error") });
+      }
+    } catch (e) {
+      setTestResult({ success: false, message: e.message || String(e) });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const close = () => {
+    if (saving || testing) return;
+    onSaved(); // refresh parent regardless
+    onClose();
+  };
+
+  const planLabel = profile.display_name || PLAN_LABEL[profile.payer_short_name] || profile.payer_short_name;
+
+  return (
+    <Modal title={(isRotate ? "Rotate credentials: " : "Add credentials: ") + planLabel} onClose={close} maxWidth={680}>
+      <div style={{ marginBottom: 12, padding: "10px 12px", background: C.bgSecondary, borderRadius: 6, fontSize: 12, color: C.textPrimary, lineHeight: 1.55 }}>
+        Credentials are stored encrypted in our secure vault. Once saved, plaintext is never visible — not to us, not back to you. To rotate, save a new value here. To remove credentials, contact support.
+      </div>
+
+      {isRotate && (
+        <div style={{ marginBottom: 12, padding: "8px 12px", background: "#fffbeb", border: "0.5px solid " + C.amberBorder, borderRadius: 6, fontSize: 11, color: C.amber }}>
+          Existing credentials will be replaced. Last rotated: {credential.last_rotated_at ? new Date(credential.last_rotated_at).toLocaleString() : "(initial setup)"}.
+        </div>
+      )}
+
+      <FL>Authentication type *</FL>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        <MethodButton active={authType === "password"} onClick={() => setAuthType("password")}>
+          Password
+        </MethodButton>
+        <MethodButton active={authType === "ssh_key"} onClick={() => setAuthType("ssh_key")}>
+          SSH key
+        </MethodButton>
+      </div>
+
+      {authType === "password" ? (
+        <Input
+          label="SFTP password *"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          placeholder={isRotate ? "New password (existing will be replaced)" : "Password from plan onboarding email"}
+        />
+      ) : (
+        <>
+          <FL>SSH private key (PEM) *</FL>
+          <textarea
+            value={sshKey}
+            onChange={e => setSshKey(e.target.value)}
+            placeholder={"-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"}
+            spellCheck={false}
+            style={{
+              width: "100%", padding: "8px 10px", border: "0.5px solid " + C.borderMid,
+              borderRadius: 4, fontSize: 11, fontFamily: "monospace", minHeight: 140,
+              marginBottom: 10, resize: "vertical",
+            }}
+          />
+          <Input
+            label="Passphrase (optional, only if key is encrypted)"
+            type="password"
+            value={passphrase}
+            onChange={setPassphrase}
+          />
+        </>
+      )}
+
+      {savedJustNow && !testResult && (
+        <div style={{ marginTop: 8, padding: "8px 12px", background: C.tealBg, border: "0.5px solid " + C.tealBorder, borderRadius: 6, fontSize: 12, color: C.textPrimary }}>
+          Credentials saved securely. Click "Test connection" to verify they work against the plan's SFTP server.
+        </div>
+      )}
+
+      {testResult && (
+        <div style={{
+          marginTop: 8, padding: "10px 12px", borderRadius: 6, fontSize: 12,
+          background: testResult.success ? C.tealBg : "#fef2f2",
+          border: "0.5px solid " + (testResult.success ? C.tealBorder : C.red),
+          color: testResult.success ? C.textPrimary : C.red,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>
+            {testResult.success ? "✓ " : "✗ "}{testResult.message}
+          </div>
+          {testResult.directory_check && (
+            <div style={{ fontSize: 11, color: C.textSecondary }}>
+              {testResult.directory_check.listed
+                ? "Directory listed: " + testResult.directory_check.entry_count + " entries"
+                : "Directory check failed: " + (testResult.directory_check.error || "unknown")}
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div style={{ marginTop: 8, padding: "8px 12px", background: "#fef2f2", border: "0.5px solid " + C.red, borderRadius: 6, fontSize: 12, color: C.red }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{ marginTop: 16, paddingTop: 12, borderTop: "0.5px solid " + C.borderLight, display: "flex", gap: 8, justifyContent: "space-between" }}>
+        <Btn variant="outline" onClick={close} disabled={saving || testing}>Close</Btn>
+        <div style={{ display: "flex", gap: 8 }}>
+          {(credential || savedJustNow) && (
+            <Btn variant="outline" onClick={test} disabled={saving || testing}>
+              {testing ? "Testing..." : "Test connection"}
+            </Btn>
+          )}
+          <Btn onClick={save} disabled={saving || testing}>
+            {saving ? "Saving..." : (isRotate ? "Rotate credentials" : "Save credentials")}
+          </Btn>
+        </div>
       </div>
     </Modal>
   );
