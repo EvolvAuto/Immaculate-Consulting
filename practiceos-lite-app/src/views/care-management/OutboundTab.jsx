@@ -101,6 +101,41 @@ export default function OutboundTab({ practiceId, isAdmin }) {
   const [voidModalSub, setVoidModalSub]       = useState(null);
   const [filterStatus, setFilterStatus]       = useState("All");
   const [filterPayer, setFilterPayer]         = useState("All");
+  const [deliveringId, setDeliveringId]       = useState(null);
+  const [deliveryError, setDeliveryError]     = useState(null);
+
+  // Send a Generated submission via SFTP using the saved credentials for
+  // its plan. On success, refresh so the row flips to Sent.
+  const handleSendSftp = async (submission) => {
+    setDeliveryError(null);
+    setDeliveringId(submission.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("hedis-outbound-deliver", {
+        body: { submission_id: submission.id, triggered_via: "Manual" },
+      });
+      if (error) {
+        let serverMsg = error.message;
+        try {
+          const ctx = error.context;
+          if (ctx && typeof ctx.text === "function") {
+            const txt = await ctx.text();
+            const parsed = JSON.parse(txt);
+            if (parsed.error) serverMsg = parsed.error;
+            if (parsed.category) serverMsg = parsed.category + ": " + serverMsg;
+          }
+        } catch (_) {}
+        throw new Error(serverMsg);
+      }
+      if (data?.status !== "success") {
+        throw new Error((data?.category || "Failed") + ": " + (data?.error || "Unknown error"));
+      }
+      await refresh();
+    } catch (e) {
+      setDeliveryError("SFTP delivery failed for " + submission.file_name + ": " + (e.message || String(e)));
+    } finally {
+      setDeliveringId(null);
+    }
+  };
 
   const refresh = async () => {
     setLoading(true);
@@ -207,6 +242,16 @@ export default function OutboundTab({ practiceId, isAdmin }) {
         </select>
       </div>
 
+      {/* Delivery error banner (transient; clears on next attempt or refresh) */}
+      {deliveryError && (
+        <Card style={{ padding: "10px 14px", background: "#fef2f2", border: "0.5px solid " + C.red, color: C.red, fontSize: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>{deliveryError}</span>
+          <button onClick={() => setDeliveryError(null)}
+            style={{ background: "none", border: "none", color: C.red, fontSize: 16, cursor: "pointer", padding: 0, marginLeft: 12 }}
+            title="Dismiss">×</button>
+        </Card>
+      )}
+
       {/* Body */}
       {loading ? (
         <Loader label="Loading submissions..." />
@@ -246,6 +291,8 @@ export default function OutboundTab({ practiceId, isAdmin }) {
                   onMarkSent={() => setSentModalSub(s)}
                   onVoid={() => setVoidModalSub(s)}
                   onDownload={() => downloadFile(s)}
+                  onSendSftp={() => handleSendSftp(s)}
+                  delivering={deliveringId === s.id}
                 />
               ))}
             </tbody>
@@ -282,7 +329,7 @@ export default function OutboundTab({ practiceId, isAdmin }) {
 }
 
 // ─── Submission row + expanded detail ─────────────────────────────────────
-function SubmissionRow({ submission: s, expanded, onToggle, onMarkSent, onVoid, onDownload }) {
+function SubmissionRow({ submission: s, expanded, onToggle, onMarkSent, onVoid, onDownload, onSendSftp, delivering }) {
   const variant = STATUS_VARIANT[s.status] || { variant: "neutral", label: s.status };
   const isActionable = s.status === "Generated";
   return (
@@ -295,8 +342,13 @@ function SubmissionRow({ submission: s, expanded, onToggle, onMarkSent, onVoid, 
         <Td>{s.gap_count}</Td>
         <Td><Badge label={variant.label} variant={variant.variant} size="xs" /></Td>
         <Td onClick={e => e.stopPropagation()}>
-          <div style={{ display: "flex", gap: 4 }}>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             <Btn variant="outline" size="sm" onClick={onDownload}>Download</Btn>
+            {isActionable && (
+              <Btn size="sm" onClick={onSendSftp} disabled={delivering}>
+                {delivering ? "Sending..." : "Send via SFTP"}
+              </Btn>
+            )}
             {isActionable && <Btn variant="outline" size="sm" onClick={onMarkSent}>Mark Sent</Btn>}
             {(s.status === "Generated" || s.status === "Sent") && <Btn variant="outline" size="sm" onClick={onVoid}>Void</Btn>}
           </div>
