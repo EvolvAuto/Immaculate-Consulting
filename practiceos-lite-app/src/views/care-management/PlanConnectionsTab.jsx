@@ -578,14 +578,14 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
   const [saving, setSaving]     = useState(false);
   const [testing, setTesting]   = useState(false);
   const [error, setError]       = useState(null);
-  const [testResult, setTestResult] = useState(null); // null | { success, message, directory_check }
+  const [testResult, setTestResult] = useState(null);
   const [savedJustNow, setSavedJustNow] = useState(false);
 
   const validate = () => {
     if (authType === "password" && !password.trim()) return "Password is required.";
     if (authType === "ssh_key" && !sshKey.trim()) return "SSH private key is required.";
     if (authType === "ssh_key" && sshKey.trim() && !sshKey.includes("BEGIN") && !sshKey.includes("PRIVATE KEY")) {
-      return "SSH key doesn't look like a PEM-formatted private key. Paste the full block including '-----BEGIN ... PRIVATE KEY-----' lines.";
+      return "SSH key doesn't look like a PEM-formatted private key. Paste the full block including 'BEGIN ... PRIVATE KEY' lines.";
     }
     return null;
   };
@@ -623,7 +623,6 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
       }
       if (!data?.credential_id) throw new Error("Save did not return a credential_id");
 
-      // Clear the plaintext fields immediately after save
       setPassword("");
       setSshKey("");
       setPassphrase("");
@@ -644,8 +643,6 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
     setTesting(true);
     setTestResult(null);
     try {
-      // We need the credential_id for the test call. If we just saved (no
-      // credential prop yet) re-fetch the row by profile_id.
       let credentialId = credential?.id;
       if (!credentialId) {
         const { data } = await supabase
@@ -662,7 +659,6 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
       });
 
       if (invErr) {
-        // Surface server-side category if available
         let msg = invErr.message;
         let category = null;
         try {
@@ -691,7 +687,7 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
 
   const close = () => {
     if (saving || testing) return;
-    onSaved(); // refresh parent regardless
+    onSaved();
     onClose();
   };
 
@@ -700,20 +696,18 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
   return (
     <Modal title={(isRotate ? "Rotate credentials: " : "Add credentials: ") + planLabel} onClose={close} maxWidth={680}>
       <div style={{ marginBottom: 12, padding: "10px 12px", background: C.bgSecondary, borderRadius: 6, fontSize: 12, color: C.textPrimary, lineHeight: 1.55 }}>
-        <div style={{ marginBottom: 12, padding: "10px 12px", background: C.bgSecondary, borderRadius: 6, fontSize: 12, color: C.textPrimary, lineHeight: 1.55 }}>
-        Credentials are stored encrypted in our secure vault. Once saved, plaintext is never visible — not to us, not back to you. To rotate, save a new value here. To remove credentials, contact support.
+        Credentials are stored encrypted in our secure vault. Once saved, plaintext is never visible - not to us, not back to you. To rotate, save a new value here. To remove credentials, contact support.
       </div>
 
-      {/* Connection target preview - shows admin exactly what these creds will connect to */}
       <div style={{ marginBottom: 12, padding: "10px 12px", border: "0.5px solid " + C.borderLight, borderRadius: 6, fontSize: 12 }}>
         <div style={{ fontSize: 10, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6, fontWeight: 600 }}>
           Connection target
         </div>
         <div style={{ fontFamily: "monospace", fontSize: 11, color: profileIncomplete ? C.textTertiary : C.textPrimary }}>
-          {profile.sftp_username || <em style={{ color: C.amber }}>(username missing)</em>}
-          @{profile.sftp_host || <em style={{ color: C.amber }}>(host missing)</em>}
+          {profile.sftp_username || "(username missing)"}
+          @{profile.sftp_host || "(host missing)"}
           {profile.sftp_port && profile.sftp_port !== 22 ? ":" + profile.sftp_port : ""}
-          {profile.sftp_directory ? " · " + profile.sftp_directory : ""}
+          {profile.sftp_directory ? " - " + profile.sftp_directory : ""}
         </div>
       </div>
 
@@ -727,7 +721,7 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
           </div>
           {onJumpToProfileEdit && (
             <Btn variant="outline" size="sm" onClick={onJumpToProfileEdit}>
-              → Edit profile to add {missingFields[0]}
+              Edit profile to add {missingFields[0]}
             </Btn>
           )}
         </div>
@@ -794,7 +788,7 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
           color: testResult.success ? C.textPrimary : C.red,
         }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>
-            {testResult.success ? "✓ " : "✗ "}{testResult.message}
+            {testResult.success ? "OK: " : "FAIL: "}{testResult.message}
           </div>
           {testResult.directory_check && (
             <div style={{ fontSize: 11, color: C.textSecondary }}>
@@ -828,7 +822,6 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
     </Modal>
   );
 }
-
 // ─── Small helpers ────────────────────────────────────────────────────────
 function SectionLabel({ children }) {
   return (
