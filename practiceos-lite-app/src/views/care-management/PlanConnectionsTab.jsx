@@ -344,7 +344,8 @@ function ConnectionEditModal({ connection, practiceId, existingPayers, onClose, 
     sftp_host:           connection.sftp_host || "",
     sftp_port:           connection.sftp_port || 22,
     sftp_username:       connection.sftp_username || "",
-    sftp_directory:      connection.sftp_directory || "",
+    outbound_directory:  connection.outbound_directory || connection.sftp_directory || "",
+    inbound_directory:   connection.inbound_directory || "",
     sftp_uses_ssh_key:   connection.sftp_uses_ssh_key || false,
     sftp_pgp_required:   connection.sftp_pgp_required || false,
     email_to:            connection.email_to || "",
@@ -373,6 +374,7 @@ function ConnectionEditModal({ connection, practiceId, existingPayers, onClose, 
       return "A connection profile for this plan already exists. Edit the existing one instead.";
     }
     if (isSFTP && !form.sftp_host) return "SFTP host is required for SFTP delivery";
+    if (isSFTP && !form.outbound_directory) return "Outbound directory is required for SFTP delivery";
     if (isEmail && !form.email_to) return "Email recipient is required for Email delivery";
     if (isPortal && !form.portal_url) return "Portal URL is required for Portal delivery";
     if (form.expected_day_of_month) {
@@ -398,7 +400,9 @@ function ConnectionEditModal({ connection, practiceId, existingPayers, onClose, 
         sftp_host: clean(form.sftp_host),
         sftp_port: form.sftp_port ? parseInt(form.sftp_port, 10) : null,
         sftp_username: clean(form.sftp_username),
-        sftp_directory: clean(form.sftp_directory),
+        outbound_directory: clean(form.outbound_directory),
+        inbound_directory: clean(form.inbound_directory),
+        sftp_directory: clean(form.outbound_directory),  // legacy field stays in sync with outbound
         sftp_uses_ssh_key: !!form.sftp_uses_ssh_key,
         sftp_pgp_required: !!form.sftp_pgp_required,
         email_to: clean(form.email_to),
@@ -474,11 +478,15 @@ function ConnectionEditModal({ connection, practiceId, existingPayers, onClose, 
               placeholder="sftp.healthyblue.example.com" />
             <Input label="Port" type="number" value={form.sftp_port} onChange={v => set({ sftp_port: v })} placeholder="22" />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 10 }}>
-            <Input label="Username" value={form.sftp_username} onChange={v => set({ sftp_username: v })}
-              placeholder="practice_tin_123456789" />
-            <Input label="Directory / path" value={form.sftp_directory} onChange={v => set({ sftp_directory: v })}
+          <Input label="Username" value={form.sftp_username} onChange={v => set({ sftp_username: v })}
+            placeholder="practice_tin_123456789" />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <Input label="Outbound directory * (where we PUT files)" value={form.outbound_directory}
+              onChange={v => set({ outbound_directory: v })}
               placeholder="/inbox/supplemental_data/" />
+            <Input label="Inbound directory (where we GET files)" value={form.inbound_directory}
+              onChange={v => set({ inbound_directory: v })}
+              placeholder="/outbox/" />
           </div>
           <div style={{ display: "flex", gap: 16, marginTop: 4, marginBottom: 10 }}>
             <Checkbox checked={form.sftp_uses_ssh_key} onChange={v => set({ sftp_uses_ssh_key: v })}>
@@ -800,6 +808,11 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
         </div>
       )}
 
+      {/* Inbound files panel - configures + triggers polls */}
+      {(credential || savedJustNow) && profile.inbound_directory && (
+        <InboundFilesPanel profile={profile} />
+      )}
+
       {error && (
         <div style={{ marginTop: 8, padding: "8px 12px", background: "#fef2f2", border: "0.5px solid " + C.red, borderRadius: 6, fontSize: 12, color: C.red }}>
           {error}
@@ -877,5 +890,414 @@ function Chip({ active, children, onClick }) {
         color: active ? C.teal : C.textPrimary,
         borderRadius: 16, cursor: "pointer", fontFamily: "inherit",
       }}>{children}</button>
+  );
+}
+
+// ─── Inbound files panel ─────────────────────────────────────────────────
+// Lives inside the CredentialManageModal once SFTP creds are configured and
+// the profile has an inbound_directory. Lets admin:
+//   - Configure per (plan, file_type) filename patterns
+//   - Test that patterns match files on the plan SFTP (no download)
+//   - Trigger a real poll (downloads matched files, stages in cm_inbound_files)
+//   - See recent files received + last poll history
+
+const FILE_TYPE_OPTIONS = [
+  { value: "prl",                label: "PRL (Patient Risk List)" },
+  { value: "member_assignment",  label: "Member Assignment (834 EDI)" },
+  { value: "claims_encounter",   label: "Claims / Encounter" },
+  { value: "pharmacy_lockin",    label: "Pharmacy Lock-in" },
+  { value: "pharmacy_claims",    label: "Pharmacy Claims" },
+  { value: "icns",               label: "Initial Care Needs Screening" },
+];
+
+const FILE_TYPE_LABEL = {};
+for (const o of FILE_TYPE_OPTIONS) FILE_TYPE_LABEL[o.value] = o.label;
+
+function InboundFilesPanel({ profile }) {
+  const [configs, setConfigs]     = useState([]);
+  const [files, setFiles]         = useState([]);
+  const [polls, setPolls]         = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [editingConfig, setEditingConfig] = useState(null); // null | config row | {} for new
+  const [testResult, setTestResult] = useState(null);
+  const [pollResult, setPollResult] = useState(null);
+  const [running, setRunning]     = useState(null); // null | 'test' | 'poll'
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const [cRes, fRes, pRes] = await Promise.all([
+        supabase.from("cm_inbound_file_configs")
+          .select("*")
+          .eq("profile_id", profile.id)
+          .order("file_type"),
+        supabase.from("cm_inbound_files")
+          .select("id, remote_filename, file_type, content_bytes, status, received_at, parsed_at, parse_error")
+          .eq("profile_id", profile.id)
+          .order("received_at", { ascending: false })
+          .limit(20),
+        supabase.from("cm_inbound_poll_attempts")
+          .select("id, status, files_listed, files_matched, files_downloaded, files_duplicate, files_failed, duration_ms, attempted_at, error_message")
+          .eq("profile_id", profile.id)
+          .order("attempted_at", { ascending: false })
+          .limit(10),
+      ]);
+      setConfigs(cRes.data || []);
+      setFiles(fRes.data || []);
+      setPolls(pRes.data || []);
+    } catch (e) {
+      console.error("InboundFilesPanel refresh failed:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { refresh(); }, [profile.id]);
+
+  const runTest = async () => {
+    setRunning("test");
+    setTestResult(null);
+    setPollResult(null);
+    try {
+      const { data, error: invErr } = await supabase.functions.invoke("amh-inbound-test", {
+        body: { profile_id: profile.id },
+      });
+      if (invErr) {
+        let msg = invErr.message;
+        try {
+          const ctx = invErr.context;
+          if (ctx && typeof ctx.text === "function") {
+            const txt = await ctx.text();
+            const parsed = JSON.parse(txt);
+            if (parsed.error) msg = parsed.error;
+          }
+        } catch (_) {}
+        setTestResult({ success: false, message: msg });
+      } else if (data?.status === "success") {
+        setTestResult({
+          success: true,
+          message: "Listed " + data.total_files + " files; " + (data.matches?.length || 0) + " matched, " + (data.unmatched_count || 0) + " unmatched.",
+          matches: data.matches || [],
+          unmatched: data.unmatched || [],
+        });
+      } else {
+        setTestResult({ success: false, message: (data?.category || "Failed") + ": " + (data?.error || "Unknown") });
+      }
+    } catch (e) {
+      setTestResult({ success: false, message: e.message || String(e) });
+    } finally {
+      setRunning(null);
+    }
+  };
+
+  const runPoll = async () => {
+    setRunning("poll");
+    setTestResult(null);
+    setPollResult(null);
+    try {
+      const { data, error: invErr } = await supabase.functions.invoke("amh-inbound-poll", {
+        body: { profile_id: profile.id, triggered_via: "Manual" },
+      });
+      if (invErr) {
+        let msg = invErr.message;
+        try {
+          const ctx = invErr.context;
+          if (ctx && typeof ctx.text === "function") {
+            const txt = await ctx.text();
+            const parsed = JSON.parse(txt);
+            if (parsed.error) msg = parsed.error;
+          }
+        } catch (_) {}
+        setPollResult({ success: false, message: msg });
+      } else if (data?.status === "success") {
+        setPollResult({
+          success: true,
+          message: "Stored " + (data.files_stored || 0) + " new files; " + (data.files_duplicate || 0) + " duplicate, " + (data.files_failed || 0) + " failed.",
+        });
+        await refresh();
+      } else {
+        setPollResult({ success: false, message: (data?.poll_status || "Failed") + ": " + (data?.error || "Unknown") });
+      }
+    } catch (e) {
+      setPollResult({ success: false, message: e.message || String(e) });
+    } finally {
+      setRunning(null);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 16, paddingTop: 12, borderTop: "0.5px solid " + C.borderLight }}>
+      <SectionLabel>Inbound files</SectionLabel>
+      <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 10, lineHeight: 1.55 }}>
+        Configure which files this plan sends from <code style={{ fontFamily: "monospace" }}>{profile.inbound_directory}</code>. Patterns use glob syntax (<code style={{ fontFamily: "monospace" }}>*</code> matches anything).
+      </div>
+
+      {/* Configs list */}
+      {loading ? (
+        <div style={{ fontSize: 11, color: C.textTertiary, padding: 8 }}>Loading...</div>
+      ) : configs.length === 0 ? (
+        <div style={{ padding: "8px 12px", background: C.bgSecondary, borderRadius: 6, fontSize: 11, color: C.textSecondary, marginBottom: 8 }}>
+          No file types configured yet. Click "+ Add file type" to register the first pattern.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
+          {configs.map(c => (
+            <div key={c.id} style={{
+              display: "grid", gridTemplateColumns: "180px 1fr 90px 70px", gap: 8,
+              padding: "6px 10px", border: "0.5px solid " + C.borderLight, borderRadius: 4,
+              fontSize: 11, alignItems: "center",
+            }}>
+              <span style={{ fontWeight: 600 }}>{FILE_TYPE_LABEL[c.file_type] || c.file_type}</span>
+              <code style={{ fontFamily: "monospace", color: C.textSecondary }}>{c.filename_pattern}</code>
+              <span style={{ color: C.textTertiary }}>{c.expected_cadence || "—"}</span>
+              <button onClick={() => setEditingConfig(c)}
+                style={{ background: "none", border: "0.5px solid " + C.borderMid, borderRadius: 4, padding: "2px 8px", fontSize: 10, cursor: "pointer", color: C.textSecondary }}>
+                Edit
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+        <Btn variant="outline" size="sm" onClick={() => setEditingConfig({})}>+ Add file type</Btn>
+        {configs.length > 0 && (
+          <>
+            <Btn variant="outline" size="sm" onClick={runTest} disabled={!!running}>
+              {running === "test" ? "Testing..." : "Test patterns"}
+            </Btn>
+            <Btn size="sm" onClick={runPoll} disabled={!!running}>
+              {running === "poll" ? "Polling..." : "Poll now"}
+            </Btn>
+          </>
+        )}
+      </div>
+
+      {testResult && (
+        <div style={{
+          marginBottom: 8, padding: "8px 12px", borderRadius: 6, fontSize: 11,
+          background: testResult.success ? C.tealBg : "#fef2f2",
+          border: "0.5px solid " + (testResult.success ? C.tealBorder : C.red),
+          color: testResult.success ? C.textPrimary : C.red,
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{testResult.success ? "Test OK: " : "Test FAIL: "}{testResult.message}</div>
+          {testResult.matches?.length > 0 && (
+            <div style={{ marginTop: 4, fontSize: 10, color: C.textSecondary }}>
+              Matched: {testResult.matches.map(m => m.filename).join(", ")}
+            </div>
+          )}
+          {testResult.unmatched?.length > 0 && (
+            <div style={{ marginTop: 2, fontSize: 10, color: C.textTertiary }}>
+              Unmatched (sample): {testResult.unmatched.slice(0, 5).map(u => u.filename).join(", ")}
+              {testResult.unmatched.length > 5 ? " ..." : ""}
+            </div>
+          )}
+        </div>
+      )}
+
+      {pollResult && (
+        <div style={{
+          marginBottom: 8, padding: "8px 12px", borderRadius: 6, fontSize: 11,
+          background: pollResult.success ? C.tealBg : "#fef2f2",
+          border: "0.5px solid " + (pollResult.success ? C.tealBorder : C.red),
+          color: pollResult.success ? C.textPrimary : C.red,
+        }}>
+          <div style={{ fontWeight: 600 }}>{pollResult.success ? "Poll OK: " : "Poll FAIL: "}{pollResult.message}</div>
+        </div>
+      )}
+
+      {/* Recent files table */}
+      {files.length > 0 && (
+        <>
+          <div style={{ fontSize: 10, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600, marginTop: 12, marginBottom: 4 }}>
+            Recent files received
+          </div>
+          <div style={{ maxHeight: 200, overflow: "auto", border: "0.5px solid " + C.borderLight, borderRadius: 4 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+              <thead>
+                <tr style={{ background: C.bgSecondary, borderBottom: "0.5px solid " + C.borderLight }}>
+                  <th style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: C.textSecondary, fontSize: 10 }}>FILENAME</th>
+                  <th style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: C.textSecondary, fontSize: 10 }}>TYPE</th>
+                  <th style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: C.textSecondary, fontSize: 10 }}>BYTES</th>
+                  <th style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: C.textSecondary, fontSize: 10 }}>STATUS</th>
+                  <th style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600, color: C.textSecondary, fontSize: 10 }}>RECEIVED</th>
+                </tr>
+              </thead>
+              <tbody>
+                {files.map(f => (
+                  <tr key={f.id} style={{ borderBottom: "0.5px solid " + C.borderLight }}>
+                    <td style={{ padding: "6px 10px", fontFamily: "monospace", fontSize: 10 }}>{f.remote_filename}</td>
+                    <td style={{ padding: "6px 10px" }}>{FILE_TYPE_LABEL[f.file_type] || f.file_type}</td>
+                    <td style={{ padding: "6px 10px", color: C.textSecondary }}>{f.content_bytes}</td>
+                    <td style={{ padding: "6px 10px" }}>
+                      <Badge label={f.status} variant={f.status === "parsed" ? "green" : f.status === "failed" ? "red" : "neutral"} size="xs" />
+                    </td>
+                    <td style={{ padding: "6px 10px", color: C.textTertiary, fontSize: 10 }}>
+                      {new Date(f.received_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {polls.length > 0 && (
+        <>
+          <div style={{ fontSize: 10, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600, marginTop: 12, marginBottom: 4 }}>
+            Recent polls
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, maxHeight: 120, overflow: "auto" }}>
+            {polls.map(p => (
+              <div key={p.id} style={{
+                display: "grid", gridTemplateColumns: "100px 70px 1fr 90px 100px", gap: 6,
+                padding: "4px 8px", fontSize: 10, color: C.textSecondary,
+                borderBottom: "0.5px solid " + C.borderLight,
+              }}>
+                <Badge label={p.status} variant={p.status === "Success" ? "green" : (p.status === "Partial" ? "amber" : "red")} size="xs" />
+                <span>{p.duration_ms}ms</span>
+                <span style={{ color: C.textTertiary }}>
+                  {p.files_listed}L / {p.files_matched}M / {p.files_downloaded}D / {p.files_duplicate}=
+                </span>
+                <span style={{ color: p.files_failed > 0 ? C.red : C.textTertiary }}>
+                  {p.files_failed > 0 ? p.files_failed + " failed" : ""}
+                </span>
+                <span style={{ color: C.textTertiary, fontSize: 9 }}>
+                  {new Date(p.attempted_at).toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {editingConfig !== null && (
+        <InboundConfigEditModal
+          config={editingConfig}
+          profile={profile}
+          existingTypes={new Set(configs.filter(c => c.id !== editingConfig.id).map(c => c.file_type))}
+          onClose={() => setEditingConfig(null)}
+          onSaved={() => { setEditingConfig(null); refresh(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Inbound config edit modal (nested inside Manage Credentials) ──────
+function InboundConfigEditModal({ config, profile, existingTypes, onClose, onSaved }) {
+  const isNew = !config.id;
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const [form, setForm] = useState(() => ({
+    file_type:        config.file_type || "",
+    filename_pattern: config.filename_pattern || "",
+    pattern_type:     config.pattern_type || "glob",
+    expected_cadence: config.expected_cadence || "Monthly",
+    active:           config.active !== false,
+  }));
+
+  const set = (patch) => setForm(prev => ({ ...prev, ...patch }));
+
+  const validate = () => {
+    if (!form.file_type) return "File type is required";
+    if (isNew && existingTypes.has(form.file_type)) return "This file type is already configured for this plan. Edit the existing one instead.";
+    if (!form.filename_pattern.trim()) return "Filename pattern is required";
+    return null;
+  };
+
+  const save = async () => {
+    const v = validate();
+    if (v) { setError(v); return; }
+    setError(null);
+    setSaving(true);
+    try {
+      const payload = {
+        practice_id: profile.practice_id,
+        profile_id: profile.id,
+        payer_short_name: profile.payer_short_name,
+        file_type: form.file_type,
+        filename_pattern: form.filename_pattern.trim(),
+        pattern_type: form.pattern_type,
+        expected_cadence: form.expected_cadence,
+        active: form.active,
+      };
+      if (isNew) {
+        const { error: insErr } = await supabase.from("cm_inbound_file_configs").insert(payload);
+        if (insErr) throw insErr;
+      } else {
+        const { error: updErr } = await supabase.from("cm_inbound_file_configs")
+          .update(payload).eq("id", config.id);
+        if (updErr) throw updErr;
+      }
+      onSaved();
+    } catch (e) {
+      setError(e.message || "Save failed");
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!confirm("Delete this file type config? Recent inbound files of this type will keep their existing classifications.")) return;
+    setDeleting(true);
+    try {
+      const { error: delErr } = await supabase.from("cm_inbound_file_configs").delete().eq("id", config.id);
+      if (delErr) throw delErr;
+      onSaved();
+    } catch (e) {
+      setError(e.message || "Delete failed");
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Modal title={isNew ? "Add inbound file type" : "Edit inbound file type"} onClose={onClose} maxWidth={520}>
+      <div style={{ marginBottom: 12, fontSize: 11, color: C.textSecondary, lineHeight: 1.55 }}>
+        Tells the inbound poller which filenames in <code style={{ fontFamily: "monospace" }}>{profile.inbound_directory}</code> belong to which file type. Use glob syntax: <code style={{ fontFamily: "monospace" }}>*</code> matches any chars, <code style={{ fontFamily: "monospace" }}>?</code> matches one.
+      </div>
+
+      <Select label="File type *" value={form.file_type} onChange={v => set({ file_type: v })}
+        options={FILE_TYPE_OPTIONS.map(o => o.value)}
+        disabled={!isNew} />
+
+      <Input label="Filename pattern *" value={form.filename_pattern}
+        onChange={v => set({ filename_pattern: v })}
+        placeholder="AMH_834_*.txt" />
+
+      <Select label="Pattern type" value={form.pattern_type} onChange={v => set({ pattern_type: v })}
+        options={["glob", "regex"]} />
+
+      <Select label="Expected cadence" value={form.expected_cadence}
+        onChange={v => set({ expected_cadence: v })}
+        options={CADENCE_OPTIONS} />
+
+      <div style={{ marginTop: 10, marginBottom: 10 }}>
+        <Checkbox checked={form.active} onChange={v => set({ active: v })}>
+          Active (poll will match this pattern)
+        </Checkbox>
+      </div>
+
+      {error && (
+        <div style={{ marginTop: 8, padding: "8px 12px", background: "#fef2f2", border: "0.5px solid " + C.red, borderRadius: 6, fontSize: 12, color: C.red }}>
+          {error}
+        </div>
+      )}
+
+      <div style={{ marginTop: 16, paddingTop: 12, borderTop: "0.5px solid " + C.borderLight, display: "flex", gap: 8, justifyContent: "space-between" }}>
+        {!isNew ? (
+          <Btn variant="outline" size="sm" onClick={remove} disabled={saving || deleting}
+            style={{ color: C.red, borderColor: C.red }}>
+            {deleting ? "Deleting..." : "Delete"}
+          </Btn>
+        ) : <span />}
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn variant="outline" onClick={onClose} disabled={saving || deleting}>Cancel</Btn>
+          <Btn onClick={save} disabled={saving || deleting}>{saving ? "Saving..." : (isNew ? "Add" : "Save")}</Btn>
+        </div>
+      </div>
+    </Modal>
   );
 }
