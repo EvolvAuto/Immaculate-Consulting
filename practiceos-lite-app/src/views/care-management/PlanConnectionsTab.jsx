@@ -241,6 +241,7 @@ export default function PlanConnectionsTab({ practiceId, isAdmin }) {
           credential={credByProfile[credEditing.id] || null}
           onClose={() => setCredEditing(null)}
           onSaved={() => { setCredEditing(null); refresh(); }}
+          onJumpToProfileEdit={() => { setEditing(credEditing); setCredEditing(null); }}
         />
       )}
     </div>
@@ -558,8 +559,16 @@ function ConnectionEditModal({ connection, practiceId, existingPayers, onClose, 
 // to the hedis-credential-save edge function which writes it into Supabase
 // Vault encrypted. After save we offer a one-click "Test connection" that
 // hits hedis-outbound-test-credentials and reflects the result on the cred.
-function CredentialManageModal({ profile, credential, onClose, onSaved }) {
+function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpToProfileEdit }) {
   const isRotate = !!credential;
+
+  // Detect incomplete profile - the test/deliver edge fns need at least
+  // sftp_host AND sftp_username. Surface this up front instead of letting
+  // the user save creds and discover the gap on Test.
+  const missingFields = [];
+  if (!profile.sftp_host) missingFields.push("SFTP host");
+  if (!profile.sftp_username) missingFields.push("SFTP username");
+  const profileIncomplete = missingFields.length > 0;
 
   const [authType, setAuthType] = useState(credential?.auth_type || "password");
   const [password, setPassword] = useState("");
@@ -691,8 +700,38 @@ function CredentialManageModal({ profile, credential, onClose, onSaved }) {
   return (
     <Modal title={(isRotate ? "Rotate credentials: " : "Add credentials: ") + planLabel} onClose={close} maxWidth={680}>
       <div style={{ marginBottom: 12, padding: "10px 12px", background: C.bgSecondary, borderRadius: 6, fontSize: 12, color: C.textPrimary, lineHeight: 1.55 }}>
+        <div style={{ marginBottom: 12, padding: "10px 12px", background: C.bgSecondary, borderRadius: 6, fontSize: 12, color: C.textPrimary, lineHeight: 1.55 }}>
         Credentials are stored encrypted in our secure vault. Once saved, plaintext is never visible — not to us, not back to you. To rotate, save a new value here. To remove credentials, contact support.
       </div>
+
+      {/* Connection target preview - shows admin exactly what these creds will connect to */}
+      <div style={{ marginBottom: 12, padding: "10px 12px", border: "0.5px solid " + C.borderLight, borderRadius: 6, fontSize: 12 }}>
+        <div style={{ fontSize: 10, color: C.textSecondary, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6, fontWeight: 600 }}>
+          Connection target
+        </div>
+        <div style={{ fontFamily: "monospace", fontSize: 11, color: profileIncomplete ? C.textTertiary : C.textPrimary }}>
+          {profile.sftp_username || <em style={{ color: C.amber }}>(username missing)</em>}
+          @{profile.sftp_host || <em style={{ color: C.amber }}>(host missing)</em>}
+          {profile.sftp_port && profile.sftp_port !== 22 ? ":" + profile.sftp_port : ""}
+          {profile.sftp_directory ? " · " + profile.sftp_directory : ""}
+        </div>
+      </div>
+
+      {profileIncomplete && (
+        <div style={{ marginBottom: 12, padding: "10px 12px", background: "#fffbeb", border: "0.5px solid " + C.amberBorder, borderRadius: 6, fontSize: 12, color: C.textPrimary }}>
+          <div style={{ fontWeight: 600, color: C.amber, marginBottom: 4 }}>
+            Profile is missing: {missingFields.join(", ")}
+          </div>
+          <div style={{ fontSize: 11, color: C.textSecondary, marginBottom: 8 }}>
+            You can save credentials now, but the test and SFTP delivery will fail until these fields are filled in on the connection profile.
+          </div>
+          {onJumpToProfileEdit && (
+            <Btn variant="outline" size="sm" onClick={onJumpToProfileEdit}>
+              → Edit profile to add {missingFields[0]}
+            </Btn>
+          )}
+        </div>
+      )}
 
       {isRotate && (
         <div style={{ marginBottom: 12, padding: "8px 12px", background: "#fffbeb", border: "0.5px solid " + C.amberBorder, borderRadius: 6, fontSize: 11, color: C.amber }}>
