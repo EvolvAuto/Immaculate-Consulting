@@ -752,9 +752,8 @@ function CredentialManageModal({ profile, credential, onClose, onSaved, onJumpTo
       </div>
 
       {authType === "password" ? (
-        <Input
+        <PasswordInputWithToggle
           label="SFTP password *"
-          type="password"
           value={password}
           onChange={setPassword}
           placeholder={isRotate ? "New password (existing will be replaced)" : "Password from plan onboarding email"}
@@ -870,6 +869,48 @@ function Checkbox({ checked, onChange, children }) {
   );
 }
 
+// Password input with a show/hide eye toggle. Clean, accessible, no
+// dependencies. Useful so admins can verify they typed the password
+// correctly before saving / rotating credentials.
+function PasswordInputWithToggle({ label, value, onChange, placeholder }) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <FL>{label}</FL>
+      <div style={{ position: "relative" }}>
+        <input
+          type={visible ? "text" : "password"}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder || ""}
+          autoComplete="new-password"
+          spellCheck={false}
+          style={{
+            width: "100%", padding: "8px 60px 8px 10px",
+            border: "0.5px solid " + C.borderMid, borderRadius: 4,
+            fontSize: 13, fontFamily: "inherit", background: "#fff",
+            boxSizing: "border-box",
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => setVisible(v => !v)}
+          tabIndex={-1}
+          style={{
+            position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+            background: "none", border: "none",
+            color: C.textSecondary, fontSize: 11, cursor: "pointer",
+            padding: "4px 8px", fontFamily: "inherit",
+          }}
+          aria-label={visible ? "Hide password" : "Show password"}
+        >
+          {visible ? "Hide" : "Show"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function KPICard({ label, value, accent, hint }) {
   return (
     <Card style={{ padding: 12 }}>
@@ -902,12 +943,12 @@ function Chip({ active, children, onClick }) {
 //   - See recent files received + last poll history
 
 const FILE_TYPE_OPTIONS = [
-  { value: "prl",                label: "PRL (Patient Risk List)" },
+  { value: "prl",                label: "Patient Risk List (PRL)" },
   { value: "member_assignment",  label: "Member Assignment (834 EDI)" },
-  { value: "claims_encounter",   label: "Claims / Encounter" },
-  { value: "pharmacy_lockin",    label: "Pharmacy Lock-in" },
+  { value: "claims_encounter",   label: "Claims & Encounter Data" },
+  { value: "pharmacy_lockin",    label: "Pharmacy Lock-in Members" },
   { value: "pharmacy_claims",    label: "Pharmacy Claims" },
-  { value: "icns",               label: "Initial Care Needs Screening" },
+  { value: "icns",               label: "Initial Care Needs Screening (ICNS)" },
 ];
 
 const FILE_TYPE_LABEL = {};
@@ -1256,12 +1297,27 @@ function InboundConfigEditModal({ config, profile, existingTypes, onClose, onSav
   return (
     <Modal title={isNew ? "Add inbound file type" : "Edit inbound file type"} onClose={onClose} maxWidth={520}>
       <div style={{ marginBottom: 12, fontSize: 11, color: C.textSecondary, lineHeight: 1.55 }}>
-        Tells the inbound poller which filenames in <code style={{ fontFamily: "monospace" }}>{profile.inbound_directory}</code> belong to which file type. Use glob syntax: <code style={{ fontFamily: "monospace" }}>*</code> matches any chars, <code style={{ fontFamily: "monospace" }}>?</code> matches one.
+        Plans drop files in <code style={{ fontFamily: "monospace" }}>{profile.inbound_directory}</code> with predictable names that change each month - for example, <code style={{ fontFamily: "monospace" }}>AMH_834_20260428.txt</code> in April, <code style={{ fontFamily: "monospace" }}>AMH_834_20260528.txt</code> in May. Tell us the file type and the naming pattern, using <code style={{ fontFamily: "monospace" }}>*</code> as a wildcard for the parts that change. So <code style={{ fontFamily: "monospace" }}>AMH_834_*.txt</code> matches every monthly 834 file no matter the date.
       </div>
 
-      <Select label="File type *" value={form.file_type} onChange={v => set({ file_type: v })}
-        options={FILE_TYPE_OPTIONS.map(o => o.value)}
-        disabled={!isNew} />
+      <FL>File type *</FL>
+      <select
+        value={form.file_type}
+        onChange={e => set({ file_type: e.target.value })}
+        disabled={!isNew}
+        style={{
+          width: "100%", padding: "8px 10px",
+          border: "0.5px solid " + C.borderMid, borderRadius: 4,
+          fontSize: 13, fontFamily: "inherit",
+          background: !isNew ? C.bgSecondary : "#fff",
+          marginBottom: 10,
+        }}
+      >
+        <option value="">Select a file type...</option>
+        {FILE_TYPE_OPTIONS.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
 
       <Input label="Filename pattern *" value={form.filename_pattern}
         onChange={v => set({ filename_pattern: v })}
