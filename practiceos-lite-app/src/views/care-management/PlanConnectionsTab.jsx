@@ -1236,6 +1236,7 @@ function InboundConfigEditModal({ config, profile, existingTypes, onClose, onSav
   const [form, setForm] = useState(() => ({
     file_type:        config.file_type || "",
     filename_pattern: config.filename_pattern || "",
+    // pattern_type defaults to glob; regex available via SQL for power-user edge cases
     pattern_type:     config.pattern_type || "glob",
     expected_cadence: config.expected_cadence || "Monthly",
     active:           config.active !== false,
@@ -1322,9 +1323,6 @@ function InboundConfigEditModal({ config, profile, existingTypes, onClose, onSav
       <Input label="Filename pattern *" value={form.filename_pattern}
         onChange={v => set({ filename_pattern: v })}
         placeholder="AMH_834_*.txt" />
-
-      <Select label="Pattern type" value={form.pattern_type} onChange={v => set({ pattern_type: v })}
-        options={["glob", "regex"]} />
 
       <Select label="Expected cadence" value={form.expected_cadence}
         onChange={v => set({ expected_cadence: v })}
