@@ -72,6 +72,25 @@ function dateRangeFromPreset(key) {
 
 // ----- internal sub-components -----
 
+function SortHeader({ col, label, sortBy, sortDir, onClick, align }) {
+  const active = sortBy === col;
+  const arrow = active ? (sortDir === 'asc' ? '\u25B2' : '\u25BC') : '';
+  return (
+    <div
+      onClick={() => onClick(col)}
+      style={{
+        cursor: 'pointer',
+        userSelect: 'none',
+        textAlign: align || 'left',
+        color: active ? '#0A2218' : '#888780',
+        fontWeight: active ? 500 : 400,
+      }}
+    >
+      {label}{arrow ? ' ' + arrow : ''}
+    </div>
+  );
+}
+
 function Toolbar({ lastSyncedAt, onRefresh, onReconcile, onCSV, onPrint, refreshing, reconcileBusy }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -244,11 +263,13 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
   const [view, setView]               = useState('current');     // 'current' | 'superseded' | 'unmatched'
   const [typeFilter, setTypeFilter]   = useState(null);          // null | 'pro' | 'dental' | 'inst' | 'pharmacy'
   const [actionChipKey, setActionChipKey] = useState('all');
-  const [datePreset, setDatePreset]   = useState('last30');
+  const [datePreset, setDatePreset]   = useState('thisYear');
+  const [sortBy, setSortBy]           = useState('service_date');
+  const [sortDir, setSortDir]         = useState('desc');
   const [paidPreset, setPaidPreset]   = useState('any');
   const [search, setSearch]           = useState('');
 
-  // Build the filter object for fetchClaims based on current state
+  // Build the filter object for fetchClaims based on current state.
   const buildFilters = useCallback(() => {
     const dateR = dateRangeFromPreset(datePreset);
     const paidR = (PAID_PRESETS.find((p) => p.key === paidPreset) || PAID_PRESETS[0]).range;
@@ -263,6 +284,8 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
       paidMin:      paidR.min,
       paidMax:      paidR.max,
       search,
+      sortBy,
+      sortDir,
       currentOnly:    view === 'current',
       supersededOnly: view === 'superseded',
     };
@@ -271,7 +294,39 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
       filters.currentOnly = true;
     }
     return filters;
-  }, [view, typeFilter, actionChipKey, datePreset, paidPreset, search]);
+  }, [view, typeFilter, actionChipKey, datePreset, paidPreset, search, sortBy, sortDir]);
+
+  // Filter object for the dashboard cards: same as buildFilters EXCEPT the
+  // view-dimension filters (currentOnly/supersededOnly/reconStatus). This way
+  // each card always shows "what each view would yield if you switched to it"
+  // instead of degrading to mostly zeros once the user picks a narrow view.
+  const buildDashboardFilters = useCallback(() => {
+    const dateR = dateRangeFromPreset(datePreset);
+    const paidR = (PAID_PRESETS.find((p) => p.key === paidPreset) || PAID_PRESETS[0]).range;
+    const chip = ACTION_CHIPS.find((c) => c.key === actionChipKey) || ACTION_CHIPS[0];
+    return {
+      claimType:    typeFilter,
+      actionLabel:  chip.apply.actionLabel || null,
+      serviceFrom:  dateR.from,
+      serviceTo:    dateR.to,
+      paidMin:      paidR.min,
+      paidMax:      paidR.max,
+      search,
+    };
+  }, [typeFilter, actionChipKey, datePreset, paidPreset, search]);
+
+  const handleSort = useCallback((column) => {
+    setSortBy((prev) => {
+      if (prev === column) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      // Default direction per column: descending for date/paid (most recent /
+      // largest first), ascending for patient/action (alphabetical).
+      setSortDir(column === 'patient' || column === 'action' ? 'asc' : 'desc');
+      return column;
+    });
+  }, []);
 
   // Type counts for the type filter row labels
   const refreshTypeCounts = useCallback(async () => {
@@ -295,7 +350,7 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
     try {
       const [list, dashboard] = await Promise.all([
         api.fetchClaims(buildFilters()),
-        api.fetchDashboard(),
+        api.fetchDashboard(buildDashboardFilters()),
       ]);
       setClaims(list);
       setDash(dashboard);
@@ -306,7 +361,7 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
     } finally {
       setRefreshing(false);
     }
-  }, [api, buildFilters, onUnmatchedChange]);
+  }, [api, buildFilters, buildDashboardFilters, onUnmatchedChange]);
 
   // Initial load + reload on filter change
   useEffect(() => { refresh(); }, [refresh]);
@@ -457,10 +512,10 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
           letterSpacing: '0.02em',
         }}>
           <div></div>
-          <div>patient {'\u00B7'} tcn {'\u00B7'} payer</div>
-          <div>service date</div>
-          <div>action / status</div>
-          <div style={{ textAlign: 'right' }}>paid</div>
+          <SortHeader col="patient"      label={'patient ' + '\u00B7' + ' tcn ' + '\u00B7' + ' payer'} sortBy={sortBy} sortDir={sortDir} onClick={handleSort} />
+          <SortHeader col="service_date" label="service date"     sortBy={sortBy} sortDir={sortDir} onClick={handleSort} />
+          <SortHeader col="action"       label="action / status"  sortBy={sortBy} sortDir={sortDir} onClick={handleSort} />
+          <SortHeader col="paid"         label="paid"             sortBy={sortBy} sortDir={sortDir} onClick={handleSort} align="right" />
           <div></div>
         </div>
 
