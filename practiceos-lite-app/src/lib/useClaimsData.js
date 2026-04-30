@@ -6,7 +6,7 @@
 // from the appropriate table on-demand, cached so re-expand is free.
 
 import { useState, useCallback, useRef } from 'react';
-import { supabase } from './supabase';
+import { supabase } from './supabaseClient';
 
 const VIEW = 'cm_amh_claim_headers_unified';
 
