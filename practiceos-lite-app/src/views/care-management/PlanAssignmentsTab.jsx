@@ -1029,7 +1029,7 @@ function DiscrepancyPanel({ baRow, currentUser }) {
           new_value: diff.applyValue,
         },
         p_success: true,
-        p_error_message: null,
+        p_error: null,
       });
       if (audErr) {
         console.warn("[discrepancy panel] audit_log write failed:", audErr.message);
@@ -1421,7 +1421,7 @@ function CreateFromBaModal({ row, currentUser, practiceId, onClose, onCreated })
           last_name:        created.last_name,
         },
         p_success:       true,
-        p_error_message: null,
+        p_error:         null,
       });
       if (aud1Err) console.warn("[create from BA] patient-create audit failed:", aud1Err.message);
 
@@ -1455,7 +1455,7 @@ function CreateFromBaModal({ row, currentUser, practiceId, onClose, onCreated })
           new_status:      "Auto Created",
         },
         p_success:       true,
-        p_error_message: null,
+        p_error:         null,
       });
       if (aud2Err) console.warn("[create from BA] BA-link audit failed:", aud2Err.message);
 
