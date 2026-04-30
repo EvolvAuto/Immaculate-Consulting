@@ -277,44 +277,27 @@ export default function PlanAssignmentsTab({ practiceId, currentUser }) {
   }, [rows, filterPayer, filterMaint, filterRecon, filterDateRange, search]);
 
   // -------------------------------------------------------------------------
-  // Re-poll & re-parse: invokes amh-inbound-poll then parse-amh-member-assignment.
-  // Both edge functions are verify_jwt=false and check the user's session
-  // internally, so a normal authenticated supabase.functions.invoke works.
+  // Re-run reconciliation: calls parse-amh-member-assignment with
+  // mode='reconcile_only' to retry CNDS-to-medicaid_id matching. SFTP polling
+  // happens automatically on the Tuesday cron; manual polls live on the Plan
+  // Connections tab where credentials and per-PHP profiles are managed (the
+  // poller is per-profile and requires Owner/Manager role + configured creds).
+  // This button is the everyday tool: fix a patient's medicaid_id in their
+  // chart, click here, the row flips to Matched.
   // -------------------------------------------------------------------------
   async function handleRepollAndReparse() {
-    setRepollState({ running: true, message: "Polling SFTP for new files..." });
+    setRepollState({ running: true, message: "Re-running patient reconciliation..." });
     try {
-      // Step 1: trigger the poller for this practice
-      const pollResp = await supabase.functions.invoke("amh-inbound-poll", {
-        body: { practice_id: practiceId, triggered_by: "ui_repoll" },
+      const resp = await supabase.functions.invoke("parse-amh-member-assignment", {
+        body: { practice_id: practiceId, mode: "reconcile_only" },
       });
-      if (pollResp.error) {
-        throw new Error("Poll failed: " + pollResp.error.message);
+      if (resp.error) {
+        throw new Error("Reconciliation failed: " + resp.error.message);
       }
-
-      setRepollState({ running: true, message: "Parsing any newly received files..." });
-
-      // Step 2: parse anything sitting in 'received' state for this practice
-      const parseResp = await supabase.functions.invoke("parse-amh-member-assignment", {
-        body: { practice_id: practiceId, max_files: 10 },
-      });
-      if (parseResp.error) {
-        throw new Error("Parse failed: " + parseResp.error.message);
-      }
-
-      const parseData = parseResp.data || {};
-      const filesProcessed = parseData.files_processed || 0;
-      const filesSucceeded = parseData.files_succeeded || 0;
-      const filesFailed    = parseData.files_failed || 0;
-
-      let summary;
-      if (filesProcessed === 0) {
-        summary = "No new files. Latest data is up to date.";
-      } else {
-        summary = "Processed " + filesProcessed + " file(s): "
-                + filesSucceeded + " succeeded, " + filesFailed + " failed.";
-      }
-
+      const data = resp.data || {};
+      const recon = data.reconciliation || { matched: 0, unmatched: 0 };
+      const summary = "Reconciliation complete: " + recon.matched + " matched, "
+                    + recon.unmatched + " still unmatched.";
       setRepollState({ running: false, message: summary });
       await refetch();
     } catch (e) {
@@ -363,7 +346,7 @@ export default function PlanAssignmentsTab({ practiceId, currentUser }) {
             {payerOptions.length > 0 ? " - " + payerOptions.join(", ") : ""}
           </span>
           <Btn size="sm" onClick={() => setShowRepollModal(true)}>
-            Re-poll &amp; re-parse
+            Re-run reconciliation
           </Btn>
         </div>
       </div>
@@ -712,6 +695,10 @@ function DetailModal({ row, allRows, onClose, onReconciliationChanged, practiceI
       reconciled_at: new Date().toISOString(),
     };
     if (typeof note === "string") patch.reconciliation_notes = note;
+    // Reset to pending also clears the patient link, so the next reconcile
+    // pass can re-evaluate from scratch. Without this the row sits in a
+    // zombie state (Pending status + still pointing at the old patient).
+    if (newStatus === "Pending") patch.matched_patient_id = null;
     // When resetting to Pending, also clear the patient link so auto-recon
     // can re-evaluate from scratch on the next parser run. Otherwise the
     // row sits in a zombie state (Pending status + still pointing at the
@@ -899,20 +886,21 @@ function RepollModal({ state, onConfirm, onClose }) {
   const isRunning = state.running;
   const hasResult = !state.running && state.message;
   return (
-    <Modal title="Re-poll &amp; re-parse" onClose={isRunning ? () => {} : onClose} width={500}>
+    <Modal title="Re-run reconciliation" onClose={isRunning ? () => {} : onClose} width={500}>
       {!hasResult ? (
         <>
           <div style={{ fontSize: 13, color: C.textPrimary, marginBottom: 12 }}>
-            This will:
+            This will re-run patient matching for all Pending rows in your assignments table:
           </div>
           <ol style={{ fontSize: 12, color: C.textSecondary, paddingLeft: 20, marginBottom: 16, lineHeight: 1.6 }}>
-            <li>Trigger an immediate SFTP poll for new BA files from configured PHPs.</li>
-            <li>Parse any newly received files into <code>cm_amh_member_assignments</code>.</li>
-            <li>Run the patient reconciliation pass (CNDS to medicaid_id matching).</li>
+            <li>For each Pending segment, look up a patient with a matching <code>medicaid_id</code>.</li>
+            <li>If found, set the row to <code>Matched</code> and link the patient.</li>
+            <li>If not, set the row to <code>Unmatched</code>.</li>
           </ol>
           <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: 16 }}>
-            Files that were already parsed will be skipped. To force a re-parse of an
-            existing file, use the file detail view instead.
+            Use this after fixing a patient's <code>medicaid_id</code> in their chart. SFTP polling
+            for new BA files runs automatically every Tuesday morning. To force a poll outside
+            that schedule, use the Plan Connections tab.
           </div>
           {isRunning && state.message ? (
             <div style={{
