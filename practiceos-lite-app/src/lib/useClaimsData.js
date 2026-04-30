@@ -5,7 +5,7 @@
 // INVOKER) so per-practice RLS auto-applies. Lines are fetched per claim_type
 // from the appropriate table on-demand, cached so re-expand is free.
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { supabase } from './supabaseClient';
 
 const VIEW = 'cm_amh_claim_headers_unified';
@@ -255,9 +255,17 @@ export default function useClaimsData() {
     chainCacheRef.current.clear();
   }, []);
 
-  return {
-    loading,
-    error,
+  // Pin the API into a useMemo so the returned object identity is stable
+  // across renders. All callbacks are useCallback with stable deps, so this
+  // memo only ever computes once. Without this, every render returned a
+  // fresh object literal which broke consumer dep arrays and triggered an
+  // infinite refresh loop - that's what froze the browser when the Claims
+  // tab opened.
+  //
+  // loading/error are deliberately NOT exposed externally - each consuming
+  // component manages its own loading state. Including them here would
+  // re-create the api object on every fetch and re-introduce the loop.
+  return useMemo(() => ({
     fetchClaims,
     fetchDashboard,
     fetchUnmatchedCount,
@@ -269,5 +277,17 @@ export default function useClaimsData() {
     fetchSourceFile,
     fetchPatientCandidates,
     clearCaches,
-  };
+  }), [
+    fetchClaims,
+    fetchDashboard,
+    fetchUnmatchedCount,
+    fetchLines,
+    fetchSupersedeChain,
+    updateNote,
+    matchToPatient,
+    runReconcile,
+    fetchSourceFile,
+    fetchPatientCandidates,
+    clearCaches,
+  ]);
 }
