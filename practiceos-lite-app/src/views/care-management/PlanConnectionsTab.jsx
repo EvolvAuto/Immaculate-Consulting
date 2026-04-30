@@ -497,8 +497,8 @@ function ConnectionEditModal({ connection, practiceId, existingPayers, onClose, 
             </Checkbox>
           </div>
           {form.delivery_method === "Auto SFTP" && (
-            <div style={{ padding: "8px 12px", background: "#fffbeb", border: "0.5px solid " + C.amberBorder, borderRadius: 6, fontSize: 11, color: C.amber, marginBottom: 10 }}>
-              Auto SFTP requires a credential vault (deferred to Owners admin module). For now, treat as Manual SFTP - upload via FileZilla or similar, then Mark Sent.
+            <div style={{ padding: "8px 12px", background: C.tealBg, border: "0.5px solid " + C.tealBorder, borderRadius: 6, fontSize: 11, color: C.textPrimary, marginBottom: 10 }}>
+              Auto SFTP delivers each monthly submission automatically using the saved credentials below. Save credentials and Test the connection at least once; the monthly cron handles future sends without a Mark Sent click.
             </div>
           )}
         </>
