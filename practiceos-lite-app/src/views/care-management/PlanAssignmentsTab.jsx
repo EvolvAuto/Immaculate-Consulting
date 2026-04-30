@@ -470,6 +470,7 @@ export default function PlanAssignmentsTab({ practiceId, currentUser }) {
           onClose={() => setDetailRow(null)}
           onReconciliationChanged={async () => { await refetch(); }}
           practiceId={practiceId}
+          currentUser={currentUser}
         />
       ) : null}
 
@@ -672,7 +673,7 @@ function ErrorBlock({ message, onRetry }) {
 // =============================================================================
 // Detail modal: full eligibility history for a CNDS + reconciliation actions
 // =============================================================================
-function DetailModal({ row, allRows, onClose, onReconciliationChanged, practiceId }) {
+function DetailModal({ row, allRows, onClose, onReconciliationChanged, practiceId, currentUser }) {
   // Sibling segments for this CNDS, newest first
   const history = useMemo(() => {
     return allRows
@@ -827,7 +828,7 @@ function DetailModal({ row, allRows, onClose, onReconciliationChanged, practiceI
         <div style={{ color: C.textPrimary }}>{row.source_record_index || "-"}</div>
       </div>
 
-      <DiscrepancyPanel baRow={row} />
+      <DiscrepancyPanel baRow={row} currentUser={currentUser} />
 
       {/* Reconciliation actions */}
       <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary, marginBottom: 8 }}>
@@ -906,9 +907,22 @@ function currentUserLabel() {
 // that's a hint to update the patient chart). Patient-has-data-BA-doesn't is
 // not flagged - the BA file simply doesn't track everything.
 // =============================================================================
-function DiscrepancyPanel({ baRow }) {
+function DiscrepancyPanel({ baRow, currentUser }) {
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Bumping refreshKey re-triggers the patient fetch effect after Apply,
+  // which makes the just-applied row drop out of the diff list automatically.
+  const [refreshKey, setRefreshKey] = useState(0);
+  // Tracks which field is currently saving so the row's button can show
+  // "Applying..." and avoid double-submits.
+  const [pendingField, setPendingField] = useState(null);
+  const [errMsg, setErrMsg] = useState(null);
+
+  // Apply is gated to administrative roles. CMs and CHWs can SEE the panel
+  // (it informs their workflow) but only Owners and Managers can write back
+  // to the patient record. RLS on the patients table is the real enforcement
+  // boundary; this is just the UI gate.
+  const isAdmin = currentUser?.role === "Owner" || currentUser?.role === "Manager";
 
   useEffect(() => {
     if (!baRow.matched_patient_id) {
@@ -927,16 +941,63 @@ function DiscrepancyPanel({ baRow }) {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [baRow.matched_patient_id]);
+  }, [baRow.matched_patient_id, refreshKey]);
 
-  // Hide entirely for unmatched rows. The CM has no patient to compare against.
   if (!baRow.matched_patient_id) return null;
-  // While loading, render nothing so the modal layout doesn't jump around.
   if (loading) return null;
-  // If the patient lookup failed (deleted? RLS?), don't render the panel.
   if (!patient) return null;
 
   const diffs = computeBaPatientDiffs(baRow, patient);
+
+  // Apply a single field's BA value to the patient record. Two writes:
+  //   1. UPDATE patients SET <field> = <value>
+  //   2. log_audit RPC capturing source BA segment + old/new values for
+  //      reversibility and compliance.
+  // If the audit log fails, we still consider the apply successful from the
+  // user's perspective (the patient record was updated). The audit failure
+  // is logged to console for ops to investigate; we don't roll back the
+  // patient update because the data move is the user-facing operation.
+  async function applyField(diff) {
+    setPendingField(diff.patientField);
+    setErrMsg(null);
+    try {
+      const { error: updErr } = await supabase
+        .from("patients")
+        .update({ [diff.patientField]: diff.applyValue })
+        .eq("id", baRow.matched_patient_id);
+      if (updErr) throw new Error(updErr.message);
+
+      const { error: audErr } = await supabase.rpc("log_audit", {
+        p_action: "Update",
+        p_entity_type: "patients",
+        p_entity_id: baRow.matched_patient_id,
+        p_patient_id: baRow.matched_patient_id,
+        p_details: {
+          source: "amh_ba_apply",
+          source_ba_id: baRow.id,
+          source_ba_file_id: baRow.first_seen_file_id,
+          source_cnds_id: baRow.cnds_id,
+          applied_field: diff.patientField,
+          old_value: diff.patientValue || null,
+          new_value: diff.applyValue,
+        },
+        p_success: true,
+        p_error_message: null,
+      });
+      if (audErr) {
+        console.warn("[discrepancy panel] audit_log write failed:", audErr.message);
+      }
+
+      setRefreshKey(k => k + 1);
+    } catch (e) {
+      setErrMsg("Apply failed: " + ((e && e.message) || String(e)));
+    } finally {
+      setPendingField(null);
+    }
+  }
+
+  const hasIdentityDiffs = diffs.some(d => !d.canApply);
+  const hasApplyableDiffs = diffs.some(d => d.canApply);
 
   return (
     <>
@@ -970,40 +1031,93 @@ function DiscrepancyPanel({ baRow }) {
           </div>
           <div style={{
             display: "grid",
-            gridTemplateColumns: "auto 1fr 1fr",
+            gridTemplateColumns: "auto 1fr 1fr auto",
             gap: "6px 14px",
             fontSize: 11,
+            alignItems: "center",
           }}>
             <div style={{ fontWeight: 700, color: "#854F0B", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>Field</div>
             <div style={{ fontWeight: 700, color: "#854F0B", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>BA file</div>
             <div style={{ fontWeight: 700, color: "#854F0B", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>Patient record</div>
-            {diffs.map((d, i) => (
-              <React.Fragment key={i}>
-                <div style={{ color: "#92400E", fontWeight: 500 }}>{d.label}</div>
-                <div style={{
-                  color: C.textPrimary,
-                  fontFamily: d.mono ? "ui-monospace, monospace" : "inherit",
-                }}>
-                  {d.baValue || <span style={{ color: C.textTertiary, fontStyle: "italic" }}>(empty)</span>}
-                </div>
-                <div style={{
-                  color: C.textPrimary,
-                  fontFamily: d.mono ? "ui-monospace, monospace" : "inherit",
-                }}>
-                  {d.patientValue || <span style={{ color: C.textTertiary, fontStyle: "italic" }}>(not set)</span>}
-                </div>
-              </React.Fragment>
-            ))}
+            <div></div>
+            {diffs.map((d, i) => {
+              const showApply = d.canApply && isAdmin;
+              const isPending = pendingField === d.patientField;
+              return (
+                <React.Fragment key={i}>
+                  <div style={{ color: "#92400E", fontWeight: 500 }}>{d.label}</div>
+                  <div style={{
+                    color: C.textPrimary,
+                    fontFamily: d.mono ? "ui-monospace, monospace" : "inherit",
+                  }}>
+                    {d.baValue || <span style={{ color: C.textTertiary, fontStyle: "italic" }}>(empty)</span>}
+                  </div>
+                  <div style={{
+                    color: C.textPrimary,
+                    fontFamily: d.mono ? "ui-monospace, monospace" : "inherit",
+                  }}>
+                    {d.patientValue || <span style={{ color: C.textTertiary, fontStyle: "italic" }}>(not set)</span>}
+                  </div>
+                  <div>
+                    {showApply ? (
+                      <button
+                        onClick={() => applyField(d)}
+                        disabled={isPending}
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          padding: "3px 9px",
+                          background: isPending ? C.bgSecondary : "#fff",
+                          border: "0.5px solid #D97706",
+                          borderRadius: 4,
+                          color: "#854F0B",
+                          cursor: isPending ? "wait" : "pointer",
+                          fontFamily: "inherit",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {isPending ? "Applying..." : "Apply to chart"}
+                      </button>
+                    ) : null}
+                  </div>
+                </React.Fragment>
+              );
+            })}
           </div>
+          {hasIdentityDiffs ? (
+            <div style={{ fontSize: 10, color: "#854F0B", marginTop: 10, fontStyle: "italic" }}>
+              Name and date of birth cannot be applied. If those differ, the wrong patient is probably linked - use Reset to pending below and fix the medicaid_id on the correct patient.
+            </div>
+          ) : null}
+          {!isAdmin && hasApplyableDiffs ? (
+            <div style={{ fontSize: 10, color: C.textSecondary, marginTop: 10, fontStyle: "italic" }}>
+              Only Owners and Managers can apply BA values to the patient record. Ask your practice owner if a field needs updating.
+            </div>
+          ) : null}
+          {errMsg ? (
+            <div style={{ fontSize: 11, color: C.redText, marginTop: 8 }}>
+              {errMsg}
+            </div>
+          ) : null}
         </div>
       )}
     </>
   );
 }
 
-// Returns an array of {label, baValue, patientValue, mono?} for fields that
-// differ between the BA segment and the matched patient record. See the
-// DiscrepancyPanel comment block above for the comparison rules.
+// Returns an array of diff records, one per field that differs between the
+// BA segment and the matched patient record.
+//
+// Each record:
+//   { label, baValue, patientValue, canApply, patientField?, applyValue?, mono? }
+//
+//   - canApply=false on identity fields (first_name, last_name, date_of_birth)
+//     because if those differ it means the wrong patient is linked, and the
+//     correct action is Reset to pending - not overwriting demographics.
+//   - canApply=true on demographic + address fields. patientField names the
+//     column to write, applyValue is the normalized value to write.
+//
+// See the DiscrepancyPanel comment block above for comparison rules.
 function computeBaPatientDiffs(ba, patient) {
   const norm = s => (s || "").toString().trim().toLowerCase();
   const phoneOnly = s => (s || "").toString().replace(/\D/g, "");
@@ -1011,23 +1125,41 @@ function computeBaPatientDiffs(ba, patient) {
 
   const out = [];
 
-  // Severity ordering: identity (name + DOB) first, then demographics, then address.
-  // Identity mismatches are the loudest red flag and deserve top placement.
+  // Identity fields - canApply=false. Mismatches here mean the wrong patient
+  // is linked; the right fix is Reset to pending, not overwriting the chart.
 
   if (ba.member_first_name && patient.first_name &&
       norm(ba.member_first_name) !== norm(patient.first_name)) {
-    out.push({ label: "First name", baValue: ba.member_first_name, patientValue: patient.first_name });
+    out.push({
+      label: "First name",
+      baValue: ba.member_first_name,
+      patientValue: patient.first_name,
+      canApply: false,
+    });
   }
 
   if (ba.member_last_name && patient.last_name &&
       norm(ba.member_last_name) !== norm(patient.last_name)) {
-    out.push({ label: "Last name", baValue: ba.member_last_name, patientValue: patient.last_name });
+    out.push({
+      label: "Last name",
+      baValue: ba.member_last_name,
+      patientValue: patient.last_name,
+      canApply: false,
+    });
   }
 
   if (ba.member_dob && patient.date_of_birth &&
       ba.member_dob !== patient.date_of_birth) {
-    out.push({ label: "Date of birth", baValue: ba.member_dob, patientValue: patient.date_of_birth, mono: true });
+    out.push({
+      label: "Date of birth",
+      baValue: ba.member_dob,
+      patientValue: patient.date_of_birth,
+      canApply: false,
+      mono: true,
+    });
   }
+
+  // Demographics + address - canApply=true.
 
   // Gender: BA may have desc ("Male"/"Female") OR code (1/2 or M/F).
   // Map code to desc as fallback; patients table uses Title Case enum.
@@ -1037,42 +1169,91 @@ function computeBaPatientDiffs(ba, patient) {
       : baGenderCode === "2" || baGenderCode === "F" ? "Female"
       : null);
   if (baGender && patient.gender && norm(baGender) !== norm(patient.gender)) {
-    out.push({ label: "Gender", baValue: baGender, patientValue: patient.gender });
+    out.push({
+      label: "Gender",
+      baValue: baGender,
+      patientValue: patient.gender,
+      patientField: "gender",
+      applyValue: baGender,
+      canApply: true,
+    });
   }
 
-  // Phone: BA may store raw 10 digits, patient may have formatting. Compare
-  // digits-only. Flag if BA has a number AND (patient is empty OR digits differ).
+  // Phone: BA stores raw 10 digits, patient may have formatting. Apply digits-only.
   if (ba.member_phone) {
     const baP = phoneOnly(ba.member_phone);
     const patP = phoneOnly(patient.phone_mobile);
     if (baP && (!patP || baP !== patP)) {
-      out.push({ label: "Phone", baValue: ba.member_phone, patientValue: patient.phone_mobile, mono: true });
+      out.push({
+        label: "Phone",
+        baValue: ba.member_phone,
+        patientValue: patient.phone_mobile,
+        patientField: "phone_mobile",
+        applyValue: baP,
+        canApply: true,
+        mono: true,
+      });
     }
   }
 
-  // Address line 1
   if (ba.res_address_line1) {
     if (!patient.address_line1 || norm(ba.res_address_line1) !== norm(patient.address_line1)) {
-      out.push({ label: "Address", baValue: ba.res_address_line1, patientValue: patient.address_line1 });
+      out.push({
+        label: "Address",
+        baValue: ba.res_address_line1,
+        patientValue: patient.address_line1,
+        patientField: "address_line1",
+        applyValue: ba.res_address_line1,
+        canApply: true,
+      });
     }
   }
 
   if (ba.res_city && patient.city && norm(ba.res_city) !== norm(patient.city)) {
-    out.push({ label: "City", baValue: ba.res_city, patientValue: patient.city });
+    out.push({
+      label: "City",
+      baValue: ba.res_city,
+      patientValue: patient.city,
+      patientField: "city",
+      applyValue: ba.res_city,
+      canApply: true,
+    });
   }
 
   if (ba.res_state && patient.state &&
       ba.res_state.toString().trim().toUpperCase() !== patient.state.toString().trim().toUpperCase()) {
-    out.push({ label: "State", baValue: ba.res_state, patientValue: patient.state });
+    out.push({
+      label: "State",
+      baValue: ba.res_state,
+      patientValue: patient.state,
+      patientField: "state",
+      applyValue: ba.res_state.toString().trim().toUpperCase(),
+      canApply: true,
+    });
   }
 
   if (ba.res_zip && patient.zip && zip5(ba.res_zip) !== zip5(patient.zip)) {
-    out.push({ label: "ZIP", baValue: ba.res_zip, patientValue: patient.zip, mono: true });
+    out.push({
+      label: "ZIP",
+      baValue: ba.res_zip,
+      patientValue: patient.zip,
+      patientField: "zip",
+      applyValue: zip5(ba.res_zip),
+      canApply: true,
+      mono: true,
+    });
   }
 
   if (ba.language_desc && patient.preferred_language &&
       norm(ba.language_desc) !== norm(patient.preferred_language)) {
-    out.push({ label: "Language", baValue: ba.language_desc, patientValue: patient.preferred_language });
+    out.push({
+      label: "Language",
+      baValue: ba.language_desc,
+      patientValue: patient.preferred_language,
+      patientField: "preferred_language",
+      applyValue: ba.language_desc,
+      canApply: true,
+    });
   }
 
   return out;
