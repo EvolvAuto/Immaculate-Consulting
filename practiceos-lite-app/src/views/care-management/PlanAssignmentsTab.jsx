@@ -15,7 +15,7 @@
 // tier. When the practice does not own the add-on, the parent router
 // should hide this tab entirely or render an upsell stub instead.
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useAmhAssignments } from "../../hooks/useAmhAssignments";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -827,6 +827,8 @@ function DetailModal({ row, allRows, onClose, onReconciliationChanged, practiceI
         <div style={{ color: C.textPrimary }}>{row.source_record_index || "-"}</div>
       </div>
 
+      <DiscrepancyPanel baRow={row} />
+
       {/* Reconciliation actions */}
       <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary, marginBottom: 8 }}>
         Reconciliation
@@ -877,6 +879,203 @@ function SummaryRow({ label, value }) {
 function currentUserLabel() {
   // Replace with your actual current-user accessor if you wire one in.
   return null;
+}
+
+// =============================================================================
+// DiscrepancyPanel - shows fields that differ between the BA file's view of
+// the member and the matched patient record. Read-only, informational only.
+//
+// Renders only for rows with matched_patient_id set (Matched + Manually Linked
+// + Manual Review). The panel returns null when there's no patient to compare
+// against, so it auto-hides for Pending and Unmatched rows.
+//
+// Comparison rules:
+//   - String fields are normalized (trim + lowercase) before compare so
+//     "JANE DOE" and "Jane Doe" don't flag as a difference.
+//   - Phone strips all non-digits before compare.
+//   - ZIP compares first 5 chars only (handles ZIP+4 in either source).
+//   - Gender maps the BA file's code (1/2 or M/F) to the desc when desc is
+//     missing.
+//   - We INTENTIONALLY do not compare county - BA stores 3-digit codes
+//     ("092"), patients table stores names ("Wake"). Without a mapping we'd
+//     get false positives on every row. Defer until we have the code table.
+//   - Email is not on the BA file, so we don't compare it either.
+//
+// A field counts as a discrepancy only when BOTH sides have a value AND they
+// differ, OR when the BA has a value and the patient field is empty (since
+// that's a hint to update the patient chart). Patient-has-data-BA-doesn't is
+// not flagged - the BA file simply doesn't track everything.
+// =============================================================================
+function DiscrepancyPanel({ baRow }) {
+  const [patient, setPatient] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!baRow.matched_patient_id) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("patients")
+        .select("first_name, last_name, date_of_birth, gender, phone_mobile, address_line1, city, state, zip, preferred_language")
+        .eq("id", baRow.matched_patient_id)
+        .maybeSingle();
+      if (cancelled) return;
+      setPatient(data || null);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [baRow.matched_patient_id]);
+
+  // Hide entirely for unmatched rows. The CM has no patient to compare against.
+  if (!baRow.matched_patient_id) return null;
+  // While loading, render nothing so the modal layout doesn't jump around.
+  if (loading) return null;
+  // If the patient lookup failed (deleted? RLS?), don't render the panel.
+  if (!patient) return null;
+
+  const diffs = computeBaPatientDiffs(baRow, patient);
+
+  return (
+    <>
+      <div style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary, marginBottom: 8 }}>
+        BA file vs patient record
+      </div>
+      {diffs.length === 0 ? (
+        <div style={{
+          background: C.tealLight,
+          border: "0.5px solid " + C.tealLight,
+          borderLeft: "3px solid " + C.tealMid,
+          borderRadius: 6,
+          padding: "8px 12px",
+          marginBottom: 16,
+          fontSize: 11,
+          color: C.tealText,
+        }}>
+          Patient record matches the BA file across all checked fields.
+        </div>
+      ) : (
+        <div style={{
+          background: "#FEF3C7",
+          border: "0.5px solid #FDE68A",
+          borderLeft: "3px solid #D97706",
+          borderRadius: 6,
+          padding: 12,
+          marginBottom: 16,
+        }}>
+          <div style={{ fontSize: 11, color: "#854F0B", marginBottom: 10, fontWeight: 600 }}>
+            {diffs.length} field{diffs.length === 1 ? "" : "s"} differ from the patient record. Review the match before relying on it.
+          </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "auto 1fr 1fr",
+            gap: "6px 14px",
+            fontSize: 11,
+          }}>
+            <div style={{ fontWeight: 700, color: "#854F0B", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>Field</div>
+            <div style={{ fontWeight: 700, color: "#854F0B", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>BA file</div>
+            <div style={{ fontWeight: 700, color: "#854F0B", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>Patient record</div>
+            {diffs.map((d, i) => (
+              <React.Fragment key={i}>
+                <div style={{ color: "#92400E", fontWeight: 500 }}>{d.label}</div>
+                <div style={{
+                  color: C.textPrimary,
+                  fontFamily: d.mono ? "ui-monospace, monospace" : "inherit",
+                }}>
+                  {d.baValue || <span style={{ color: C.textTertiary, fontStyle: "italic" }}>(empty)</span>}
+                </div>
+                <div style={{
+                  color: C.textPrimary,
+                  fontFamily: d.mono ? "ui-monospace, monospace" : "inherit",
+                }}>
+                  {d.patientValue || <span style={{ color: C.textTertiary, fontStyle: "italic" }}>(not set)</span>}
+                </div>
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Returns an array of {label, baValue, patientValue, mono?} for fields that
+// differ between the BA segment and the matched patient record. See the
+// DiscrepancyPanel comment block above for the comparison rules.
+function computeBaPatientDiffs(ba, patient) {
+  const norm = s => (s || "").toString().trim().toLowerCase();
+  const phoneOnly = s => (s || "").toString().replace(/\D/g, "");
+  const zip5 = s => (s || "").toString().trim().slice(0, 5);
+
+  const out = [];
+
+  // Severity ordering: identity (name + DOB) first, then demographics, then address.
+  // Identity mismatches are the loudest red flag and deserve top placement.
+
+  if (ba.member_first_name && patient.first_name &&
+      norm(ba.member_first_name) !== norm(patient.first_name)) {
+    out.push({ label: "First name", baValue: ba.member_first_name, patientValue: patient.first_name });
+  }
+
+  if (ba.member_last_name && patient.last_name &&
+      norm(ba.member_last_name) !== norm(patient.last_name)) {
+    out.push({ label: "Last name", baValue: ba.member_last_name, patientValue: patient.last_name });
+  }
+
+  if (ba.member_dob && patient.date_of_birth &&
+      ba.member_dob !== patient.date_of_birth) {
+    out.push({ label: "Date of birth", baValue: ba.member_dob, patientValue: patient.date_of_birth, mono: true });
+  }
+
+  // Gender: BA may have desc ("Male"/"Female") OR code (1/2 or M/F).
+  // Map code to desc as fallback; patients table uses Title Case enum.
+  const baGenderCode = (ba.member_gender_code || "").toString().trim().toUpperCase();
+  const baGender = ba.member_gender_desc
+    || (baGenderCode === "1" || baGenderCode === "M" ? "Male"
+      : baGenderCode === "2" || baGenderCode === "F" ? "Female"
+      : null);
+  if (baGender && patient.gender && norm(baGender) !== norm(patient.gender)) {
+    out.push({ label: "Gender", baValue: baGender, patientValue: patient.gender });
+  }
+
+  // Phone: BA may store raw 10 digits, patient may have formatting. Compare
+  // digits-only. Flag if BA has a number AND (patient is empty OR digits differ).
+  if (ba.member_phone) {
+    const baP = phoneOnly(ba.member_phone);
+    const patP = phoneOnly(patient.phone_mobile);
+    if (baP && (!patP || baP !== patP)) {
+      out.push({ label: "Phone", baValue: ba.member_phone, patientValue: patient.phone_mobile, mono: true });
+    }
+  }
+
+  // Address line 1
+  if (ba.res_address_line1) {
+    if (!patient.address_line1 || norm(ba.res_address_line1) !== norm(patient.address_line1)) {
+      out.push({ label: "Address", baValue: ba.res_address_line1, patientValue: patient.address_line1 });
+    }
+  }
+
+  if (ba.res_city && patient.city && norm(ba.res_city) !== norm(patient.city)) {
+    out.push({ label: "City", baValue: ba.res_city, patientValue: patient.city });
+  }
+
+  if (ba.res_state && patient.state &&
+      ba.res_state.toString().trim().toUpperCase() !== patient.state.toString().trim().toUpperCase()) {
+    out.push({ label: "State", baValue: ba.res_state, patientValue: patient.state });
+  }
+
+  if (ba.res_zip && patient.zip && zip5(ba.res_zip) !== zip5(patient.zip)) {
+    out.push({ label: "ZIP", baValue: ba.res_zip, patientValue: patient.zip, mono: true });
+  }
+
+  if (ba.language_desc && patient.preferred_language &&
+      norm(ba.language_desc) !== norm(patient.preferred_language)) {
+    out.push({ label: "Language", baValue: ba.language_desc, patientValue: patient.preferred_language });
+  }
+
+  return out;
 }
 
 // =============================================================================
