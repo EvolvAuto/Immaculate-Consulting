@@ -457,7 +457,7 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
           letterSpacing: '0.02em',
         }}>
           <div></div>
-          <div>patient \u00B7 tcn \u00B7 payer</div>
+          <div>patient {'\u00B7'} tcn {'\u00B7'} payer</div>
           <div>service date</div>
           <div>action / status</div>
           <div style={{ textAlign: 'right' }}>paid</div>
