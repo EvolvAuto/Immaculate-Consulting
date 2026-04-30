@@ -60,8 +60,24 @@ export default function useClaimsData() {
       q = q.or(`tcn.ilike.%${safe}%,patient_full_name.ilike.%${safe}%,subscriber_cnds.ilike.%${safe}%`);
     }
 
-    q = q.order('service_date_effective', { ascending: false, nullsFirst: false })
-         .order('first_seen_at', { ascending: false });
+    // Sortable column support. Clickable column headers in ClaimsTab pass
+    // sortBy + sortDir; defaults preserve the original behavior (newest service
+    // date first). Always tie-break by first_seen_at desc so list order is
+    // deterministic when the primary sort key is null or duplicate.
+    const sortBy = filters.sortBy || 'service_date';
+    const sortDir = filters.sortDir || 'desc';
+    const asc = sortDir === 'asc';
+    if (sortBy === 'paid') {
+      q = q.order('claim_payment_amount', { ascending: asc, nullsFirst: false });
+    } else if (sortBy === 'patient') {
+      q = q.order('patient_last_name',  { ascending: asc, nullsFirst: false })
+           .order('patient_first_name', { ascending: asc, nullsFirst: false });
+    } else if (sortBy === 'action') {
+      q = q.order('claim_action_label', { ascending: asc, nullsFirst: false });
+    } else {
+      q = q.order('service_date_effective', { ascending: asc, nullsFirst: false });
+    }
+    q = q.order('first_seen_at', { ascending: false });
 
     if (filters.limit) q = q.limit(filters.limit);
 
@@ -74,34 +90,42 @@ export default function useClaimsData() {
     return data || [];
   }, []);
 
-  const fetchDashboard = useCallback(async (extraFilter = {}) => {
-    // PostgREST filter methods (.is, .not, .eq) only exist on
-    // PostgrestFilterBuilder, which is what .select(...) returns. So
-    // .select() must come BEFORE any filter chain. Earlier version called
-    // .is() on the raw PostgrestQueryBuilder, which threw "is is not a
-    // function" and broke the whole dashboard load.
-    const headQuery = () => {
+  const fetchDashboard = useCallback(async (filters = {}) => {
+    // Dashboard counts are scope-aware. Each card reflects what its filter
+    // would yield on top of the user's current type/date/payer/search/action
+    // filters. View-dimension filters (currentOnly/supersededOnly/unmatched)
+    // are deliberately excluded so the cards stay useful as drill-in shortcuts:
+    // "Superseded" always shows the count you'd see if you clicked it.
+    const baseQuery = () => {
       let q = supabase.from(VIEW).select('id', { count: 'exact', head: true });
-      if (extraFilter.patientId) {
-        q = q.eq('matched_patient_id', extraFilter.patientId);
+      if (filters.patientId)         q = q.eq('matched_patient_id', filters.patientId);
+      if (filters.claimType)         q = q.eq('claim_type', filters.claimType);
+      if (filters.actionLabel)       q = q.eq('claim_action_label', filters.actionLabel);
+      if (filters.payerShortName)    q = q.eq('payer_short_name', filters.payerShortName);
+      if (filters.serviceFrom)       q = q.gte('service_date_effective', filters.serviceFrom);
+      if (filters.serviceTo)         q = q.lte('service_date_effective', filters.serviceTo);
+      if (filters.paidMin != null)   q = q.gte('claim_payment_amount', filters.paidMin);
+      if (filters.paidMax != null)   q = q.lte('claim_payment_amount', filters.paidMax);
+      const s = (filters.search || '').trim();
+      if (s) {
+        const safe = s.replace(/[%,]/g, ' ');
+        q = q.or('tcn.ilike.%' + safe + '%,patient_full_name.ilike.%' + safe + '%,subscriber_cnds.ilike.%' + safe + '%');
       }
       return q;
     };
 
-    const ytdStart = new Date().getUTCFullYear() + '-01-01';
     let ytdQuery = supabase.from(VIEW)
       .select('claim_payment_amount')
-      .gte('date_of_payment', ytdStart)
+      .gte('date_of_payment', new Date().getUTCFullYear() + '-01-01')
       .limit(50000);
-    if (extraFilter.patientId) {
-      ytdQuery = ytdQuery.eq('matched_patient_id', extraFilter.patientId);
-    }
+    if (filters.patientId)      ytdQuery = ytdQuery.eq('matched_patient_id', filters.patientId);
+    if (filters.claimType)      ytdQuery = ytdQuery.eq('claim_type', filters.claimType);
+    if (filters.payerShortName) ytdQuery = ytdQuery.eq('payer_short_name', filters.payerShortName);
 
-    const [total, current, superseded, unmatched, ytdRows] = await Promise.all([
-      headQuery(),
-      headQuery().is('superseded_by_id', null),
-      headQuery().not('superseded_by_id', 'is', null),
-      headQuery().eq('reconciliation_status', 'Unmatched'),
+    const [current, superseded, unmatched, ytdRows] = await Promise.all([
+      baseQuery().is('superseded_by_id', null),
+      baseQuery().not('superseded_by_id', 'is', null),
+      baseQuery().eq('reconciliation_status', 'Unmatched'),
       ytdQuery,
     ]);
 
@@ -111,10 +135,10 @@ export default function useClaimsData() {
     );
 
     return {
-      total: total.count || 0,
-      current: current.count || 0,
+      total: 0,
+      current:    current.count    || 0,
       superseded: superseded.count || 0,
-      unmatched: unmatched.count || 0,
+      unmatched:  unmatched.count  || 0,
       paidYtd,
     };
   }, []);
