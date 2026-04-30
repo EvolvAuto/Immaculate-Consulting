@@ -918,11 +918,31 @@ function DiscrepancyPanel({ baRow, currentUser }) {
   const [pendingField, setPendingField] = useState(null);
   const [errMsg, setErrMsg] = useState(null);
 
-  // Apply is gated to administrative roles. CMs and CHWs can SEE the panel
-  // (it informs their workflow) but only Owners and Managers can write back
-  // to the patient record. RLS on the patients table is the real enforcement
-  // boundary; this is just the UI gate.
-  const isAdmin = currentUser?.role === "Owner" || currentUser?.role === "Manager";
+  // Apply is gated to roles that routinely maintain patient demographics.
+  // RLS on the patients table is the real enforcement boundary - this is a
+  // UI-only gate that controls whether the Apply button is even rendered.
+  //
+  // v1 hardcoded allow-list. Onboarding wizard will replace with a
+  // per-practice configurable list and a per-user override so an Office
+  // Manager can grant or revoke this privilege individually.
+  //
+  // Intentionally excluded:
+  //   Patient - can't reach this page anyway
+  //   Provider - clinical role; chart maintenance isn't their workflow
+  //   CHW - field worker without onsite supervision when applying
+  // If a practice needs Provider or CHW included, add them here for now;
+  // the wizard will make this surface-level customizable.
+  const APPLY_ROLES = new Set([
+    "Owner",
+    "Manager",
+    "Front Desk",
+    "Medical Assistant",
+    "Billing",
+    "Care Manager",
+    "Supervising Care Manager",
+    "Care Manager Supervisor",
+  ]);
+  const canApply = !!(currentUser?.role && APPLY_ROLES.has(currentUser.role));
 
   useEffect(() => {
     if (!baRow.matched_patient_id) {
@@ -1041,7 +1061,7 @@ function DiscrepancyPanel({ baRow, currentUser }) {
             <div style={{ fontWeight: 700, color: "#854F0B", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>Patient record</div>
             <div></div>
             {diffs.map((d, i) => {
-              const showApply = d.canApply && isAdmin;
+              cconst showApply = d.canApply && canApply;
               const isPending = pendingField === d.patientField;
               return (
                 <React.Fragment key={i}>
@@ -1089,9 +1109,9 @@ function DiscrepancyPanel({ baRow, currentUser }) {
               Name and date of birth cannot be applied. If those differ, the wrong patient is probably linked - use Reset to pending below and fix the medicaid_id on the correct patient.
             </div>
           ) : null}
-          {!isAdmin && hasApplyableDiffs ? (
+          {!canApply && hasApplyableDiffs ? (
             <div style={{ fontSize: 10, color: C.textSecondary, marginTop: 10, fontStyle: "italic" }}>
-              Only Owners and Managers can apply BA values to the patient record. Ask your practice owner if a field needs updating.
+              Your role does not have permission to apply BA values to the patient chart. Ask your office manager.
             </div>
           ) : null}
           {errMsg ? (
