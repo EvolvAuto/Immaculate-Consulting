@@ -165,6 +165,29 @@ function KpiCard({ label, value, hint, accent }) {
   );
 }
 
+// =============================================================================
+// APPLY_ROLES - shared role allow-list for the AMH CM Add-On's write-back
+// actions (Apply BA value to chart, Create patient from BA). Used by both
+// DiscrepancyPanel and DetailModal. The onboarding wizard will eventually
+// replace this hardcoded set with a per-practice configurable list and a
+// per-user override so an Office Manager can grant or revoke individually.
+//
+// Intentionally excluded:
+//   Patient - can never reach this page
+//   Provider - clinical role; chart maintenance isn't their workflow
+//   CHW - field worker without onsite supervision
+// =============================================================================
+const APPLY_ROLES = new Set([
+  "Owner",
+  "Manager",
+  "Front Desk",
+  "Medical Assistant",
+  "Billing",
+  "Care Manager",
+  "Supervising Care Manager",
+  "Care Manager Supervisor",
+]);
+
 function Btn({ children, onClick, variant, size, disabled }) {
   const base = {
     fontSize:    size === "sm" ? 12 : 13,
@@ -687,6 +710,12 @@ function DetailModal({ row, allRows, onClose, onReconciliationChanged, practiceI
 
   const [busy, setBusy] = useState(false);
   const [actionMsg, setActionMsg] = useState(null);
+  // Tracks whether the "Create patient from BA" modal is open. Only relevant
+  // for Unmatched rows; the button itself is hidden otherwise.
+  const [showCreate, setShowCreate] = useState(false);
+  // Same role gate used for Apply-to-chart. Front-office and care-management
+  // staff can create a patient from a BA segment.
+  const canCreateFromBa = !!(currentUser?.role && APPLY_ROLES.has(currentUser.role));
 
   async function setReconciliationStatus(newStatus, note) {
     setBusy(true);
@@ -840,14 +869,20 @@ function DetailModal({ row, allRows, onClose, onReconciliationChanged, practiceI
           {row.reconciled_at ? <span style={{ color: C.textTertiary }}> - reconciled {fmtDateTime(row.reconciled_at)}</span> : null}
         </div>
       ) : (
-        <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 12 }}>
-          This segment is not linked to a patient yet. To link it, set the patient&apos;s
-          {" "}<span style={{ fontFamily: "ui-monospace, monospace" }}>medicaid_id</span>{" "}
-          to <span style={{ fontFamily: "ui-monospace, monospace" }}>{row.cnds_id}</span> from the patient chart, then click Re-poll &amp; re-parse on the assignments tab. Auto-reconciliation runs after every parse.
+        <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 12, lineHeight: 1.5 }}>
+          This segment is not linked to a patient yet. If this person already has a chart,
+          set their <span style={{ fontFamily: "ui-monospace, monospace" }}>medicaid_id</span>{" "}
+          to <span style={{ fontFamily: "ui-monospace, monospace" }}>{row.cnds_id}</span> and
+          re-run reconciliation. If they are new to your practice, use Create patient from BA below.
         </div>
       )}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {row.reconciliation_status === "Unmatched" && canCreateFromBa ? (
+          <Btn size="sm" variant="primary" onClick={() => setShowCreate(true)} disabled={busy}>
+            Create patient from BA
+          </Btn>
+        ) : null}
         <Btn size="sm" onClick={() => setReconciliationStatus("Manual Review", "Flagged for manual review by " + (currentUserLabel() || "staff"))} disabled={busy}>
           Flag for manual review
         </Btn>
@@ -862,6 +897,20 @@ function DetailModal({ row, allRows, onClose, onReconciliationChanged, practiceI
           marginTop: 10, fontSize: 11,
           color: actionMsg.startsWith("Update failed") ? C.redText : C.tealText,
         }}>{actionMsg}</div>
+      ) : null}
+
+      {showCreate ? (
+        <CreateFromBaModal
+          row={row}
+          currentUser={currentUser}
+          practiceId={practiceId}
+          onClose={() => setShowCreate(false)}
+          onCreated={async (newPatientId) => {
+            setShowCreate(false);
+            setActionMsg("Patient created and BA row linked.");
+            await onReconciliationChanged();
+          }}
+        />
       ) : null}
     </Modal>
   );
@@ -918,30 +967,8 @@ function DiscrepancyPanel({ baRow, currentUser }) {
   const [pendingField, setPendingField] = useState(null);
   const [errMsg, setErrMsg] = useState(null);
 
-  // Apply is gated to roles that routinely maintain patient demographics.
-  // RLS on the patients table is the real enforcement boundary - this is a
-  // UI-only gate that controls whether the Apply button is even rendered.
-  //
-  // v1 hardcoded allow-list. Onboarding wizard will replace with a
-  // per-practice configurable list and a per-user override so an Office
-  // Manager can grant or revoke this privilege individually.
-  //
-  // Intentionally excluded:
-  //   Patient - can't reach this page anyway
-  //   Provider - clinical role; chart maintenance isn't their workflow
-  //   CHW - field worker without onsite supervision when applying
-  // If a practice needs Provider or CHW included, add them here for now;
-  // the wizard will make this surface-level customizable.
-  const APPLY_ROLES = new Set([
-    "Owner",
-    "Manager",
-    "Front Desk",
-    "Medical Assistant",
-    "Billing",
-    "Care Manager",
-    "Supervising Care Manager",
-    "Care Manager Supervisor",
-  ]);
+  // canApply gates the per-row Apply buttons. Uses the file-scope APPLY_ROLES
+  // set; see that comment for the role rationale.
   const canApply = !!(currentUser?.role && APPLY_ROLES.has(currentUser.role));
 
   useEffect(() => {
@@ -1282,6 +1309,306 @@ function computeBaPatientDiffs(ba, patient) {
 // =============================================================================
 // Re-poll & re-parse confirmation modal
 // =============================================================================
+// =============================================================================
+// CreateFromBaModal - "Create patient from this BA" workflow.
+//
+// Opens from the BA detail modal when a row is Unmatched. Pre-fills a new-patient
+// form with the BA segment's demographics: title-cased name, normalized phone,
+// address, language, gender. The CNDS pre-fills medicaid_id and is read-only -
+// it must match for the BA row to flip to "Auto Created" and for future
+// reconciliation passes to keep finding this patient.
+//
+// On save, three writes happen in order:
+//   1. INSERT into patients + log_audit (action=Create, source=amh_ba_create_patient)
+//   2. UPDATE cm_amh_member_assignments: matched_patient_id, status='Auto Created'
+//   3. log_audit the BA row update too, for full traceability
+//
+// If step 1 succeeds but step 2 fails, the patient exists with the right CNDS,
+// so the next reconciliation pass will pick them up automatically. The state
+// is self-healing - no rollback needed.
+// =============================================================================
+function CreateFromBaModal({ row, currentUser, practiceId, onClose, onCreated }) {
+  // Title-case BA values that arrive uppercase (JANE DOE -> Jane Doe).
+  const tc = s => !s ? "" : String(s).toLowerCase().replace(/\b([a-z])/g, c => c.toUpperCase());
+  const phoneOnly = s => (s || "").toString().replace(/\D/g, "");
+  const zip5 = s => (s || "").toString().trim().slice(0, 5);
+
+  // Map BA gender code/desc to the patients.gender enum (Title Case).
+  const baGenderCode = (row.member_gender_code || "").toString().trim().toUpperCase();
+  const initialGender = row.member_gender_desc
+    || (baGenderCode === "1" || baGenderCode === "M" ? "Male"
+      : baGenderCode === "2" || baGenderCode === "F" ? "Female"
+      : "Unknown");
+
+  const [f, setF] = useState({
+    first_name:           tc(row.member_first_name),
+    last_name:            tc(row.member_last_name),
+    preferred_name:       "",
+    date_of_birth:        row.member_dob || "",
+    gender:               initialGender,
+    phone_mobile:         phoneOnly(row.member_phone),
+    email:                "",
+    address_line1:        tc(row.res_address_line1),
+    city:                 tc(row.res_city),
+    state:                (row.res_state || "").toString().trim().toUpperCase(),
+    zip:                  zip5(row.res_zip),
+    county:               "", // intentionally blank - BA gives 3-digit FIPS code, not a name
+    preferred_language:   tc(row.language_desc),
+    mrn:                  "",
+  });
+  const set = (k) => (v) => setF(p => ({ ...p, [k]: v }));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function save() {
+    setErr(null);
+    if (!f.first_name?.trim() || !f.last_name?.trim() || !f.date_of_birth) {
+      setErr("First name, last name, and date of birth are required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      // Step 1: insert the patient row
+      const insertPayload = {
+        practice_id:        practiceId,
+        first_name:         f.first_name.trim(),
+        last_name:          f.last_name.trim(),
+        preferred_name:     f.preferred_name?.trim() || null,
+        date_of_birth:      f.date_of_birth,
+        gender:             f.gender || "Unknown",
+        phone_mobile:       f.phone_mobile?.trim() || null,
+        email:              f.email?.trim() || null,
+        address_line1:      f.address_line1?.trim() || null,
+        city:               f.city?.trim() || null,
+        state:              f.state?.trim().toUpperCase() || null,
+        zip:                f.zip?.trim() || null,
+        county:             f.county?.trim() || null,
+        preferred_language: f.preferred_language?.trim() || null,
+        mrn:                f.mrn?.trim() || null,
+        // medicaid_id locked to the BA segment's CNDS - this is what makes the link work
+        medicaid_id:        row.cnds_id,
+        status:             "Active",
+      };
+
+      const { data: created, error: insErr } = await supabase
+        .from("patients")
+        .insert(insertPayload)
+        .select()
+        .single();
+      if (insErr) {
+        // Surface a friendlier message on the unique-index violation since
+        // that's the most likely real-world failure mode (CNDS already exists).
+        if (insErr.code === "23505") {
+          throw new Error("Another patient already has this Medicaid ID. Find them in the patient list and link manually.");
+        }
+        throw new Error("Patient insert failed: " + insErr.message);
+      }
+      if (!created || !created.id) throw new Error("Patient insert returned no id");
+
+      // Audit-log the patient creation, tagged with the BA source. The audit
+      // failure is logged to console but not raised - the patient is real.
+      const { error: aud1Err } = await supabase.rpc("log_audit", {
+        p_action:        "Create",
+        p_entity_type:   "patients",
+        p_entity_id:     created.id,
+        p_patient_id:    created.id,
+        p_details: {
+          source:           "amh_ba_create_patient",
+          source_ba_id:     row.id,
+          source_ba_file_id: row.first_seen_file_id,
+          source_cnds_id:   row.cnds_id,
+          first_name:       created.first_name,
+          last_name:        created.last_name,
+        },
+        p_success:       true,
+        p_error_message: null,
+      });
+      if (aud1Err) console.warn("[create from BA] patient-create audit failed:", aud1Err.message);
+
+      // Step 2: flip the BA row to Auto Created and link it to the new patient.
+      // If this fails, the patient is still correctly created with the right CNDS,
+      // so the next reconciliation pass will pick them up. Self-healing.
+      const { error: baErr } = await supabase
+        .from("cm_amh_member_assignments")
+        .update({
+          matched_patient_id:    created.id,
+          reconciliation_status: "Auto Created",
+          reconciled_at:         new Date().toISOString(),
+        })
+        .eq("id", row.id);
+      if (baErr) {
+        console.warn("[create from BA] BA row flip failed:", baErr.message);
+        setErr("Patient was created, but the BA row could not be flipped automatically. Re-run reconciliation to complete the link.");
+        return;
+      }
+
+      // Step 3: audit the BA-side linkage too
+      const { error: aud2Err } = await supabase.rpc("log_audit", {
+        p_action:        "Update",
+        p_entity_type:   "cm_amh_member_assignments",
+        p_entity_id:     row.id,
+        p_patient_id:    created.id,
+        p_details: {
+          source:          "amh_ba_create_patient",
+          source_cnds_id:  row.cnds_id,
+          new_patient_id:  created.id,
+          new_status:      "Auto Created",
+        },
+        p_success:       true,
+        p_error_message: null,
+      });
+      if (aud2Err) console.warn("[create from BA] BA-link audit failed:", aud2Err.message);
+
+      if (onCreated) onCreated(created.id);
+      onClose();
+    } catch (e) {
+      setErr(e.message || String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Reusable styles - the file has no Input helper, so we render raw inputs.
+  const inputStyle = {
+    width: "100%",
+    padding: "8px 10px",
+    border: "0.5px solid " + C.borderMid,
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: "inherit",
+    boxSizing: "border-box",
+  };
+  const labelStyle = {
+    display: "block",
+    fontSize: 10, fontWeight: 700,
+    letterSpacing: "0.04em", textTransform: "uppercase",
+    color: C.textSecondary, marginBottom: 4,
+  };
+
+  return (
+    <Modal title={"Create patient from BA segment - " + (row.cnds_id || "")} onClose={saving ? () => {} : onClose} width={680}>
+      <div style={{
+        background: C.tealLight,
+        border: "0.5px solid " + C.tealLight,
+        borderLeft: "3px solid " + C.tealMid,
+        borderRadius: 6,
+        padding: "10px 14px",
+        marginBottom: 16,
+        fontSize: 11,
+        color: C.tealText,
+        lineHeight: 1.5,
+      }}>
+        Fields are pre-filled from the BA file. Review and edit before saving. On Create,
+        a new patient record is added and this BA row will flip to "Auto Created" and
+        link to them. The Medicaid ID is locked to the BA segment's CNDS so future
+        reconciliation passes find this patient.
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={labelStyle}>First name *</label>
+          <input style={inputStyle} value={f.first_name} onChange={e => set("first_name")(e.target.value)} />
+        </div>
+        <div>
+          <label style={labelStyle}>Last name *</label>
+          <input style={inputStyle} value={f.last_name} onChange={e => set("last_name")(e.target.value)} />
+        </div>
+        <div>
+          <label style={labelStyle}>Preferred name</label>
+          <input style={inputStyle} value={f.preferred_name} onChange={e => set("preferred_name")(e.target.value)} />
+        </div>
+        <div>
+          <label style={labelStyle}>Date of birth *</label>
+          <input style={inputStyle} type="date" value={f.date_of_birth} onChange={e => set("date_of_birth")(e.target.value)} />
+        </div>
+        <div>
+          <label style={labelStyle}>Gender</label>
+          <select style={inputStyle} value={f.gender} onChange={e => set("gender")(e.target.value)}>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Non-Binary">Non-Binary</option>
+            <option value="Other">Other</option>
+            <option value="Unknown">Unknown</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Phone (mobile)</label>
+          <input style={inputStyle} value={f.phone_mobile} onChange={e => set("phone_mobile")(e.target.value)} />
+        </div>
+        <div>
+          <label style={labelStyle}>Email</label>
+          <input style={inputStyle} value={f.email} onChange={e => set("email")(e.target.value)} type="email" />
+        </div>
+        <div>
+          <label style={labelStyle}>Preferred language</label>
+          <input style={inputStyle} value={f.preferred_language} onChange={e => set("preferred_language")(e.target.value)} />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <label style={labelStyle}>Address line 1</label>
+        <input style={inputStyle} value={f.address_line1} onChange={e => set("address_line1")(e.target.value)} />
+      </div>
+
+      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={labelStyle}>City</label>
+          <input style={inputStyle} value={f.city} onChange={e => set("city")(e.target.value)} />
+        </div>
+        <div>
+          <label style={labelStyle}>State</label>
+          <input style={inputStyle} value={f.state} onChange={e => set("state")(e.target.value.toUpperCase())} maxLength={2} />
+        </div>
+        <div>
+          <label style={labelStyle}>ZIP</label>
+          <input style={inputStyle} value={f.zip} onChange={e => set("zip")(e.target.value)} maxLength={5} />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div>
+          <label style={labelStyle}>
+            County{row.res_county_code ? " (BA shows code " + row.res_county_code + ")" : ""}
+          </label>
+          <input style={inputStyle} value={f.county} onChange={e => set("county")(e.target.value)} placeholder="Type county name" />
+        </div>
+        <div>
+          <label style={labelStyle}>MRN (optional)</label>
+          <input style={inputStyle} value={f.mrn} onChange={e => set("mrn")(e.target.value)} placeholder="Leave blank to skip" />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <label style={labelStyle}>NC Medicaid ID (CNDS) *</label>
+        <input
+          style={{ ...inputStyle, background: C.bgSecondary, color: C.textTertiary, fontFamily: "ui-monospace, monospace" }}
+          value={row.cnds_id || ""}
+          disabled
+          readOnly
+        />
+        <div style={{ fontSize: 10, color: C.textTertiary, marginTop: 4, fontStyle: "italic" }}>
+          Locked to the BA segment's CNDS so reconciliation can find this patient.
+        </div>
+      </div>
+
+      {err ? (
+        <div style={{
+          marginTop: 14, padding: "8px 12px",
+          background: "#FEE2E2", border: "0.5px solid #FCA5A5", borderRadius: 6,
+          color: "#991B1B", fontSize: 12,
+        }}>{err}</div>
+      ) : null}
+
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 18 }}>
+        <Btn variant="ghost" onClick={onClose} disabled={saving}>Cancel</Btn>
+        <Btn variant="primary" onClick={save} disabled={saving}>
+          {saving ? "Creating..." : "Create patient"}
+        </Btn>
+      </div>
+    </Modal>
+  );
+}
+
 function RepollModal({ state, onConfirm, onClose }) {
   const isRunning = state.running;
   const hasResult = !state.running && state.message;
