@@ -14,6 +14,8 @@ import TouchpointsTab from "./care-management/TouchpointsTab";
 import PlansTab from "./care-management/PlansTab";
 import BillingTab from "./care-management/BillingTab";
 import PlanAssignmentsTab from "./care-management/PlanAssignmentsTab";  
+import ClaimsTab from "./care-management/claims/ClaimsTab";
+import { supabase } from "../lib/supabaseClient";
 
 // ===============================================================================
 // CareManagementView - entry point for the Care Management Console (Command tier)
@@ -33,7 +35,7 @@ import PlanAssignmentsTab from "./care-management/PlanAssignmentsTab";
 // React hooks-order error #310 when auth loads asynchronously.
 // ===============================================================================
 
-const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis", "vbp", "outbound", "connections", "assignments"];
+const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis", "claims", "vbp", "outbound", "connections", "assignments"];
 const TAB_META = {
   registry:    { label: "Registry",           icon: "\u25A3" },
   touchpoints: { label: "Touchpoints",        icon: "\u25C9" },
@@ -42,6 +44,7 @@ const TAB_META = {
   chw:         { label: "CHW Coordination",   icon: "\u25C8" },
   prl:         { label: "PRL",                icon: "\u25A6" },
   hedis:       { label: "HEDIS",              icon: "\u25A7" },
+  claims:      { label: "Claims",             icon: "\u25C7" },
   vbp:         { label: "VBP Contracts",      icon: "\u25A8" },
   outbound:    { label: "Outbound",           icon: "\u25A9" },
   connections: { label: "Plan Connections",   icon: "\u25CE" },
@@ -72,6 +75,9 @@ export default function CareManagementView() {
   // form saves it sends users back here with state: { tab: "vbp" }. Falls
   // back to "registry" for direct visits or browser refresh.
   const [tab, setTab] = useState(location.state?.tab || "registry");
+  // Drives the amber count badge on the Claims tab. Updated on mount and
+  // again whenever ClaimsTab calls onUnmatchedChange after a match action.
+  const [claimsUnmatchedCount, setClaimsUnmatchedCount] = useState(0);
 
   // Role-based tab visibility. Computed unconditionally (no hooks below this
   // point can be skipped by the early-return below).
@@ -83,7 +89,7 @@ export default function CareManagementView() {
     ? ["registry", "touchpoints", "chw"]
     : isAdmin
       ? TAB_KEYS
-      : ["registry", "touchpoints", "plans", "billing", "chw", "hedis", "assignments"];
+      : ["registry", "touchpoints", "plans", "billing", "chw", "hedis", "claims", "assignments"];
   // Keep tab valid for role. MUST run before any conditional return below,
   // or React's hook-ordering check will fire error #310 when auth loads
   // asynchronously (first render no role -> early return -> fewer hooks;
@@ -91,6 +97,24 @@ export default function CareManagementView() {
   useEffect(() => {
     if (!visibleTabs.includes(tab)) setTab(visibleTabs[0]);
   }, [role]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // One-time fetch so the Claims tab badge is correct on first paint.
+  // ClaimsTab also calls setClaimsUnmatchedCount via onUnmatchedChange
+  // after each refresh / match action, keeping the badge in sync.
+  useEffect(() => {
+    if (!profile?.practice_id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { count } = await supabase
+          .from("cm_amh_claim_headers_unified")
+          .select("id", { count: "exact", head: true })
+          .eq("reconciliation_status", "Unmatched");
+        if (!cancelled) setClaimsUnmatchedCount(count || 0);
+      } catch (e) { /* badge silently stays at 0 if RLS denies or table missing */ }
+    })();
+    return () => { cancelled = true; };
+  }, [profile?.practice_id]);
 
   // Unauthorized roles see a polite block instead of the console
   if (!canAccess) {
@@ -129,6 +153,19 @@ export default function CareManagementView() {
             <TabButton key={k} active={tab === k} onClick={() => setTab(k)}>
               <span style={{ marginRight: 6, opacity: 0.7 }}>{TAB_META[k].icon}</span>
               {TAB_META[k].label}
+              {k === "claims" && claimsUnmatchedCount > 0 && (
+                <span style={{
+                  marginLeft: 6,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: "1px 7px",
+                  borderRadius: 999,
+                  background: "#FAEEDA",
+                  color: "#854F0B",
+                }}>
+                  {claimsUnmatchedCount}
+                </span>
+              )}
             </TabButton>
           ))}
         </div>
@@ -149,6 +186,7 @@ export default function CareManagementView() {
         {/* TODO: gate visibility on practice_addons once amh_cm_* SKUs are seeded.  */}
         {/* For now the in-tab "Add-on" pill signals the positioning visually.       */}
         {tab === "assignments" && <PlanAssignmentsTab practiceId={profile?.practice_id} currentUser={profile} />}
+        {tab === "claims"      && <ClaimsTab practiceId={profile?.practice_id} onUnmatchedChange={setClaimsUnmatchedCount} />}
       </div>
     </div>
   );
