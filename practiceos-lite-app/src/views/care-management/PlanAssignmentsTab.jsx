@@ -712,6 +712,11 @@ function DetailModal({ row, allRows, onClose, onReconciliationChanged, practiceI
       reconciled_at: new Date().toISOString(),
     };
     if (typeof note === "string") patch.reconciliation_notes = note;
+    // When resetting to Pending, also clear the patient link so auto-recon
+    // can re-evaluate from scratch on the next parser run. Otherwise the
+    // row sits in a zombie state (Pending status + still pointing at the
+    // old patient) and the recon pass skips it.
+    if (newStatus === "Pending") patch.matched_patient_id = null;
     const { error } = await supabase
       .from("cm_amh_member_assignments")
       .update(patch)
