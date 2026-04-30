@@ -16,11 +16,11 @@ import { formatCurrency } from './utils';
 import { exportClaimsCSV, printClaims } from './claimsExport';
 
 const TYPE_FILTERS = [
-  { key: 'all',      label: 'All',     value: null },
-  { key: 'pro',      label: 'Pro',     value: 'pro' },
-  { key: 'dental',   label: 'Dental',  value: 'dental' },
-  { key: 'inst',     label: 'Inst',    value: 'inst' },
-  { key: 'pharmacy', label: 'Pharm',   value: 'pharmacy' },
+  { key: 'all',      label: 'All',           value: null       },
+  { key: 'pro',      label: 'Professional',  value: 'pro'      },
+  { key: 'dental',   label: 'Dental',        value: 'dental'   },
+  { key: 'inst',     label: 'Institutional', value: 'inst'     },
+  { key: 'pharmacy', label: 'Pharmacy',      value: 'pharmacy' },
 ];
 
 const ACTION_CHIPS = [
