@@ -13,6 +13,7 @@ import RegistryTab from "./care-management/RegistryTab";
 import TouchpointsTab from "./care-management/TouchpointsTab";
 import PlansTab from "./care-management/PlansTab";
 import BillingTab from "./care-management/BillingTab";
+import PlanAssignmentsTab from "./care-management/PlanAssignmentsTab";  
 
 // ===============================================================================
 // CareManagementView - entry point for the Care Management Console (Command tier)
@@ -32,7 +33,7 @@ import BillingTab from "./care-management/BillingTab";
 // React hooks-order error #310 when auth loads asynchronously.
 // ===============================================================================
 
-const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis", "vbp", "outbound", "connections"];
+const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis", "vbp", "outbound", "connections", "assignments"];
 const TAB_META = {
   registry:    { label: "Registry",           icon: "\u25A3" },
   touchpoints: { label: "Touchpoints",        icon: "\u25C9" },
@@ -44,6 +45,7 @@ const TAB_META = {
   vbp:         { label: "VBP Contracts",      icon: "\u25A8" },
   outbound:    { label: "Outbound",           icon: "\u25A9" },
   connections: { label: "Plan Connections",   icon: "\u25CE" },
+  assignments: { label: "Plan Assignments",   icon: "\u25CA" },
 };
 
 const CM_ROLES = new Set([
@@ -81,8 +83,7 @@ export default function CareManagementView() {
     ? ["registry", "touchpoints", "chw"]
     : isAdmin
       ? TAB_KEYS
-      : ["registry", "touchpoints", "plans", "billing", "chw", "hedis"];
-
+      : ["registry", "touchpoints", "plans", "billing", "chw", "hedis", "assignments"];
   // Keep tab valid for role. MUST run before any conditional return below,
   // or React's hook-ordering check will fire error #310 when auth loads
   // asynchronously (first render no role -> early return -> fewer hooks;
@@ -144,6 +145,10 @@ export default function CareManagementView() {
         {tab === "vbp"         && <VBPContractsTab practiceId={profile?.practice_id} isAdmin={isAdmin} />}
         {tab === "outbound"    && <OutboundTab practiceId={profile?.practice_id} isAdmin={isAdmin} />}
         {tab === "connections" && <PlanConnectionsTab practiceId={profile?.practice_id} isAdmin={isAdmin} />}
+        {/* Plan Assignments is part of the AMH CM Data Add-On, NOT standard Command. */}
+        {/* TODO: gate visibility on practice_addons once amh_cm_* SKUs are seeded.  */}
+        {/* For now the in-tab "Add-on" pill signals the positioning visually.       */}
+        {tab === "assignments" && <PlanAssignmentsTab practiceId={profile?.practice_id} currentUser={profile} />}
       </div>
     </div>
   );
