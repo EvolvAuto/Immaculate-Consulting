@@ -1061,7 +1061,7 @@ function DiscrepancyPanel({ baRow, currentUser }) {
             <div style={{ fontWeight: 700, color: "#854F0B", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>Patient record</div>
             <div></div>
             {diffs.map((d, i) => {
-              cconst showApply = d.canApply && canApply;
+              const showApply = d.canApply && canApply;
               const isPending = pendingField === d.patientField;
               return (
                 <React.Fragment key={i}>
