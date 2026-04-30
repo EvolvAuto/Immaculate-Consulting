@@ -55,11 +55,9 @@ function ProLine({ line }) {
       </div>
       <div style={{ fontSize: 11, color: '#5F5E5A' }}>{line.place_of_service || ''}</div>
       <div style={{ textAlign: 'right', ...SHARED.num }}>
-        {line.line_charge_amount != null ? formatCurrency(line.line_charge_amount) : ''}
+        {line.total_line_charge_amount != null ? formatCurrency(line.total_line_charge_amount) : ''}
       </div>
-      <div style={{ textAlign: 'right', ...SHARED.num }}>
-        {line.line_payment_amount != null ? formatCurrency(line.line_payment_amount) : ''}
-      </div>
+      <div style={{ textAlign: 'right', color: '#888780', ...SHARED.num }}>{'\u2014'}</div>
     </>
   );
 }
@@ -103,7 +101,7 @@ function GenericLine({ line }) {
         {line.revenue_code ? `rev ${line.revenue_code}` : ''}
       </div>
       <div style={{ textAlign: 'right', ...SHARED.num }}>
-        {line.line_charge_amount != null ? formatCurrency(line.line_charge_amount) : ''}
+        {line.total_line_charge_amount != null ? formatCurrency(line.total_line_charge_amount) : ''}
       </div>
       <div style={{ textAlign: 'right', ...SHARED.num }}>
         {line.line_payment_amount != null ? formatCurrency(line.line_payment_amount) : ''}
