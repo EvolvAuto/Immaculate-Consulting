@@ -84,6 +84,10 @@ export default function PatientChartPage() {
   // HEDIS gap rows linked to this patient via hedis-match. Command-tier only;
   // skipped on Lite/Pro to avoid an unnecessary query that would always return [].
   const [hedisGaps, setHedisGaps] = useState([]);
+  // Active matched AMH BA segment for this patient (most recent non-terminated).
+  // Null if patient has no matched BA segments yet, or practice isn't using
+  // the AMH CM Add-On. The card hides automatically when null.
+  const [amhSegment, setAmhSegment] = useState(null);
   const [editing, setEditing] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showAssignForms, setShowAssignForms] = useState(false);
@@ -132,7 +136,7 @@ export default function PatientChartPage() {
 
   const reload = async () => {
     if (!patientId) return;
-    const [a, e, i, s, enr, plans, gaps] = await Promise.all([
+    const [a, e, i, s, enr, plans, gaps, amh] = await Promise.all([
       supabase.from("appointments").select("id, appt_date, start_slot, appt_type, status, providers(last_name)").eq("patient_id", patientId).order("appt_date", { ascending: false }).limit(30),
       supabase.from("encounters").select("id, encounter_date, status, appt_type, chief_complaint, assessment, provider_id, providers(first_name, last_name)").eq("patient_id", patientId).order("encounter_date", { ascending: false }).limit(20),
       supabase.from("insurance_policies").select("*").eq("patient_id", patientId).order("rank"),
@@ -158,6 +162,18 @@ export default function PatientChartPage() {
             .order("compliant", { ascending: true, nullsFirst: true })
             .order("measure_anchor_date", { ascending: false })
         : Promise.resolve({ data: [] }),
+      // AMH plan card data: most recent matched, non-terminated BA segment
+      // for this patient. .maybeSingle() returns null if there are none, so
+      // the card hides for patients not on a plan or practices not using
+      // the AMH CM Add-On.
+      supabase.from("cm_amh_member_assignments")
+        .select("id, cnds_id, php_organization_name, plan_coverage_description, php_amh_pcp_type_and_tier, amh_first_name, amh_last_name, pcp_first_name, pcp_last_name, php_eligibility_begin_date, php_eligibility_end_date, maintenance_type_code, last_seen_at, payer_short_name")
+        .eq("matched_patient_id", patientId)
+        .eq("reconciliation_status", "Matched")
+        .neq("maintenance_type_code", "024")
+        .order("php_eligibility_begin_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
     setAppts(a.data || []);
     setEncounters(e.data || []);
@@ -166,6 +182,7 @@ export default function PatientChartPage() {
     setEnrollments(enr.data || []);
     setCarePlans(plans.data || []);
     setHedisGaps(gaps.data || []);
+    setAmhSegment(amh.data || null);
   };
   useEffect(() => { if (patient) reload(); }, [patient?.id]);
 
@@ -234,7 +251,7 @@ export default function PatientChartPage() {
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 20, fontWeight: 700 }}>{patient.first_name} {patient.last_name}</div>
           <div style={{ fontSize: 12, color: C.textSecondary }}>
-            DOB {patient.date_of_birth} ({ageFromDOB(patient.date_of_birth)} y/o {patient.gender}) · MRN {patient.mrn || "—"}
+            DOB {patient.date_of_birth} ({ageFromDOB(patient.date_of_birth)} y/o {patient.gender}) · MRN {patient.mrn || "—"}{patient.medicaid_id ? " · CNDS " + patient.medicaid_id : ""}
           </div>
         </div>
         <Badge label={patient.status} variant={patient.status === "Active" ? "green" : "neutral"} />
@@ -242,6 +259,9 @@ export default function PatientChartPage() {
 
       {enrollments.length > 0 && (
         <CareManagementStrip enrollments={enrollments} popLabels={popLabels} />
+      )}
+      {amhSegment && (
+        <AmhPlanCard segment={amhSegment} />
       )}
 
       <div style={{ marginBottom: 16 }}>
@@ -1166,6 +1186,129 @@ function DetailMicro({ label, value, span = 1 }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// AmhPlanCard - compact view of the patient's current AMH plan assignment
+// (CCH / WellCare / UHC / etc), AMH/PCP-of-record, tier, and eligibility
+// window. Sourced from cm_amh_member_assignments where matched_patient_id =
+// this patient AND reconciliation_status='Matched' AND not terminated. The
+// card hides itself when no matching segment exists, so practices not on
+// the AMH CM Add-On (or patients not yet on a plan) see nothing extra.
+//
+// "View on Plan Assignments" deep-links to the Plan Assignments tab; the
+// user can search by CNDS once there. Pre-filling the CNDS filter would
+// require PlanAssignmentsTab to read location.state.filterCnds on mount;
+// queued as a small follow-up.
+// ═══════════════════════════════════════════════════════════════════════════════
+function AmhPlanCard({ segment }) {
+  const navigate = useNavigate();
+  if (!segment) return null;
+
+  const tierLabel    = segment.php_amh_pcp_type_and_tier;
+  const planName     = segment.php_organization_name || segment.payer_short_name;
+  const planCoverage = segment.plan_coverage_description;
+
+  const amhProvider = (segment.amh_first_name || segment.amh_last_name)
+    ? [segment.amh_first_name, segment.amh_last_name].filter(Boolean).join(" ")
+    : null;
+  const pcpProvider = (segment.pcp_first_name || segment.pcp_last_name)
+    ? [segment.pcp_first_name, segment.pcp_last_name].filter(Boolean).join(" ")
+    : null;
+
+  const eligStart = segment.php_eligibility_begin_date;
+  const eligEnd   = segment.php_eligibility_end_date;
+  const cnds      = segment.cnds_id;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const isCurrent = (!eligStart || eligStart <= today) && (!eligEnd || eligEnd >= today);
+
+  const goToAssignments = () => {
+    navigate("/care-management", {
+      state: { tab: "assignments", filterCnds: cnds },
+    });
+  };
+
+  return (
+    <div style={{
+      marginBottom: 14,
+      border: "0.5px solid " + C.borderLight,
+      borderRadius: 8,
+      background: "#FAFAFA",
+      overflow: "hidden",
+    }}>
+      <div style={{
+        padding: "10px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+      }}>
+        <span style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: "0.06em",
+          textTransform: "uppercase", color: C.teal, background: C.tealBg,
+          padding: "3px 8px", borderRadius: 3,
+        }}>
+          AMH Plan
+        </span>
+        {tierLabel && (
+          <span style={{
+            fontSize: 10, fontWeight: 700, color: C.teal,
+            background: C.tealBg, padding: "2px 7px", borderRadius: 3,
+            letterSpacing: "0.04em",
+          }}>
+            {tierLabel}
+          </span>
+        )}
+        <span style={{ fontSize: 12, fontWeight: 600, color: C.textPrimary }}>
+          {planName || "Plan"}
+        </span>
+        {planCoverage && (
+          <span style={{ fontSize: 11, color: C.textSecondary }}>
+            ({planCoverage})
+          </span>
+        )}
+        {!isCurrent && (
+          <span style={{
+            fontSize: 10, fontWeight: 700, color: "#854F0B",
+            background: "#FEF3C7", padding: "2px 7px", borderRadius: 3,
+            letterSpacing: "0.04em",
+          }}>
+            Outside eligibility window
+          </span>
+        )}
+        <button
+          onClick={goToAssignments}
+          style={{
+            marginLeft: "auto", background: "transparent", border: "none",
+            fontSize: 11, color: C.teal, cursor: "pointer",
+            fontFamily: "inherit", fontWeight: 600, padding: 0,
+          }}
+        >
+          View on Plan Assignments
+        </button>
+      </div>
+
+      <div style={{
+        padding: "10px 14px",
+        background: "#fff",
+        borderTop: "0.5px solid " + C.borderLight,
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+        gap: 12,
+      }}>
+        {amhProvider && <DetailMicro label="AMH provider" value={amhProvider} />}
+        {pcpProvider && <DetailMicro label="PCP of record" value={pcpProvider} />}
+        <DetailMicro label="CNDS" value={cnds || "-"} />
+        {eligStart && (
+          <DetailMicro
+            label="Eligibility"
+            value={eligStart + " to " + (eligEnd || "open-ended")}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // CarePlanTab - read-only view of the patient's active care plan(s).
 // Providers see this tab on the chart for clinical context. Editing happens
 // in the Care Management module.
@@ -1602,6 +1745,7 @@ function PatientEditForm({ patient, onSave, onCancel }) {
         <Input label="ZIP" value={f.zip} onChange={set("zip")} />
         <Input label="County" value={f.county} onChange={set("county")} />
         <Input label="MRN" value={f.mrn} onChange={set("mrn")} />
+        <Input label="NC Medicaid ID (CNDS)" value={f.medicaid_id} onChange={set("medicaid_id")} />
         <Input label="Emergency Contact" value={f.emergency_contact_name} onChange={set("emergency_contact_name")} />
         <Input label="Emergency Phone" value={f.emergency_contact_phone} onChange={set("emergency_contact_phone")} />
       </div>
@@ -1612,7 +1756,9 @@ function PatientEditForm({ patient, onSave, onCancel }) {
           date_of_birth: f.date_of_birth, gender: f.gender, pronouns: f.pronouns,
           phone_mobile: f.phone_mobile, email: f.email,
           address_line1: f.address_line1, city: f.city, state: f.state, zip: f.zip, county: f.county,
-          mrn: f.mrn, emergency_contact_name: f.emergency_contact_name, emergency_contact_phone: f.emergency_contact_phone,
+          mrn: f.mrn,
+          medicaid_id: f.medicaid_id?.trim() || null,
+          emergency_contact_name: f.emergency_contact_name, emergency_contact_phone: f.emergency_contact_phone,
         })}>Save Changes</Btn>
       </div>
     </div>
