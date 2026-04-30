@@ -75,22 +75,34 @@ export default function useClaimsData() {
   }, []);
 
   const fetchDashboard = useCallback(async (extraFilter = {}) => {
-    const ref = () => {
-      let q = supabase.from(VIEW);
-      if (extraFilter.patientId)
+    // PostgREST filter methods (.is, .not, .eq) only exist on
+    // PostgrestFilterBuilder, which is what .select(...) returns. So
+    // .select() must come BEFORE any filter chain. Earlier version called
+    // .is() on the raw PostgrestQueryBuilder, which threw "is is not a
+    // function" and broke the whole dashboard load.
+    const headQuery = () => {
+      let q = supabase.from(VIEW).select('id', { count: 'exact', head: true });
+      if (extraFilter.patientId) {
         q = q.eq('matched_patient_id', extraFilter.patientId);
+      }
       return q;
     };
-    const head = (q) => q.select('id', { count: 'exact', head: true });
 
-    const ytdStart = `${new Date().getUTCFullYear()}-01-01`;
+    const ytdStart = new Date().getUTCFullYear() + '-01-01';
+    let ytdQuery = supabase.from(VIEW)
+      .select('claim_payment_amount')
+      .gte('date_of_payment', ytdStart)
+      .limit(50000);
+    if (extraFilter.patientId) {
+      ytdQuery = ytdQuery.eq('matched_patient_id', extraFilter.patientId);
+    }
 
     const [total, current, superseded, unmatched, ytdRows] = await Promise.all([
-      head(ref()),
-      head(ref().is('superseded_by_id', null)),
-      head(ref().not('superseded_by_id', 'is', null)),
-      head(ref().eq('reconciliation_status', 'Unmatched')),
-      ref().select('claim_payment_amount').gte('date_of_payment', ytdStart).limit(50000),
+      headQuery(),
+      headQuery().is('superseded_by_id', null),
+      headQuery().not('superseded_by_id', 'is', null),
+      headQuery().eq('reconciliation_status', 'Unmatched'),
+      ytdQuery,
     ]);
 
     const paidYtd = (ytdRows.data || []).reduce(
