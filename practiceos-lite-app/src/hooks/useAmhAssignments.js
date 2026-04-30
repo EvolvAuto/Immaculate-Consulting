@@ -14,7 +14,7 @@
 // Adjust the supabase import path to match your project layout.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../lib/supabaseClient";
 
 const SELECT_COLUMNS = [
   "id",
