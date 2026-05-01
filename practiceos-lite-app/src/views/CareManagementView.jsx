@@ -14,6 +14,7 @@ import TouchpointsTab from "./care-management/TouchpointsTab";
 import PlansTab from "./care-management/PlansTab";
 import BillingTab from "./care-management/BillingTab";
 import PlanAssignmentsTab from "./care-management/PlanAssignmentsTab";  
+import AmhQualityDashboardTab from "./care-management/AmhQualityDashboardTab";
 import ClaimsTab from "./care-management/claims/ClaimsTab";
 import { supabase } from "../lib/supabaseClient";
 
@@ -35,7 +36,7 @@ import { supabase } from "../lib/supabaseClient";
 // React hooks-order error #310 when auth loads asynchronously.
 // ===============================================================================
 
-const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis", "claims", "vbp", "outbound", "connections", "assignments"];
+const TAB_KEYS = ["registry", "touchpoints", "plans", "billing", "chw", "prl", "hedis", "claims", "vbp", "quality", "outbound", "connections", "assignments"];
 const TAB_META = {
   registry:    { label: "Registry",           icon: "\u25A3" },
   touchpoints: { label: "Touchpoints",        icon: "\u25C9" },
@@ -46,6 +47,7 @@ const TAB_META = {
   hedis:       { label: "HEDIS",              icon: "\u25A7" },
   claims:      { label: "Claims",             icon: "\u25C7" },
   vbp:         { label: "VBP Contracts",      icon: "\u25A8" },
+  quality:     { label: "Quality Dashboard",  icon: "\u2605" },
   outbound:    { label: "Quality Submissions", icon: "\u25A9" },
   connections: { label: "Plan Connections",   icon: "\u25CE" },
   assignments: { label: "Plan Assignments",   icon: "\u25CA" },
@@ -89,7 +91,7 @@ export default function CareManagementView() {
     ? ["registry", "touchpoints", "chw"]
     : isAdmin
       ? TAB_KEYS
-      : ["registry", "touchpoints", "plans", "billing", "chw", "hedis", "claims", "assignments"];
+      : ["registry", "touchpoints", "plans", "billing", "chw", "hedis", "claims", "quality", "assignments"];
   // Keep tab valid for role. MUST run before any conditional return below,
   // or React's hook-ordering check will fire error #310 when auth loads
   // asynchronously (first render no role -> early return -> fewer hooks;
@@ -182,10 +184,12 @@ export default function CareManagementView() {
         {tab === "vbp"         && <VBPContractsTab practiceId={profile?.practice_id} isAdmin={isAdmin} />}
         {tab === "outbound"    && <OutboundTab practiceId={profile?.practice_id} isAdmin={isAdmin} />}
         {tab === "connections" && <PlanConnectionsTab practiceId={profile?.practice_id} isAdmin={isAdmin} />}
-        {/* Plan Assignments is part of the AMH CM Data Add-On, NOT standard Command. */}
-        {/* TODO: gate visibility on practice_addons once amh_cm_* SKUs are seeded.  */}
-        {/* For now the in-tab "Add-on" pill signals the positioning visually.       */}
+        {/* Plan Assignments and Quality Dashboard are part of the AMH CM Add-On,    */}
+        {/* NOT standard Command. TODO: gate visibility on practice_addons once      */}
+        {/* amh_cm_* SKUs are seeded. For now the in-tab "Add-on" pill signals the   */}
+        {/* positioning visually.                                                    */}
         {tab === "assignments" && <PlanAssignmentsTab practiceId={profile?.practice_id} currentUser={profile} />}
+        {tab === "quality"     && <AmhQualityDashboardTab practiceId={profile?.practice_id} currentUser={profile} />}
         {tab === "claims"      && <ClaimsTab practiceId={profile?.practice_id} onUnmatchedChange={setClaimsUnmatchedCount} />}
       </div>
     </div>
