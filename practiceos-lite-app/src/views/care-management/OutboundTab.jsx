@@ -148,9 +148,9 @@ export default function OutboundTab({ practiceId, isAdmin }) {
   if (!isAdmin) {
     return (
       <Card style={{ padding: 24, textAlign: "center" }}>
-        <SectionHead title="Outbound Submissions" />
+        <SectionHead title="Quality Submissions" />
         <div style={{ marginTop: 12, fontSize: 13, color: C.textSecondary }}>
-          Outbound submissions are administrative artifacts (Owner / Manager only).
+          Quality submissions are administrative artifacts (Owner / Manager only).
         </div>
       </Card>
     );
@@ -162,9 +162,9 @@ export default function OutboundTab({ practiceId, isAdmin }) {
       {/* Header + CTA */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div>
-          <SectionHead title="Outbound Submissions" />
+          <SectionHead title="Quality Submissions" />
           <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>
-            Generate Duke-Margolis canonical supplemental-data files from closed HEDIS gaps. Submit to plans monthly via SFTP, portal, or email; mark Sent here for audit trail.
+            Generate canonical supplemental-data files from closed HEDIS gaps. Submit to plans monthly via SFTP, portal, or email; mark Sent here for audit trail.
           </div>
         </div>
         <Btn onClick={() => setGenerateOpen(true)}>+ New submission</Btn>
@@ -429,7 +429,7 @@ function GenerateModal({ configs, onClose, onGenerated }) {
   };
 
   return (
-    <Modal title="New outbound submission" onClose={onClose} maxWidth={680}>
+    <Modal title="New quality submission" onClose={onClose} maxWidth={680}>
       {/* Step 1: pick scope */}
       {(stage === "input" || stage === "previewing") && (
         <>
