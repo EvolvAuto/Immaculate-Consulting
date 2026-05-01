@@ -230,6 +230,7 @@ export default function AmhQualityDashboardTab({ practiceId, currentUser }) {
   const [filterMy, setFilterMy]     = useState(currentYear);
   const [filterPlan, setFilterPlan] = useState("all");
   const [viewMode, setViewMode]     = useState("all"); // 'all' | 'vbp_only'
+  const [selectedVbpContract, setSelectedVbpContract] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy]         = useState("name");
   const [selectedKey, setSelectedKey] = useState(null);
@@ -257,6 +258,22 @@ export default function AmhQualityDashboardTab({ practiceId, currentUser }) {
     [measures]
   );
 
+  // Distinct active VBP contracts across all measures - powers the per-contract
+  // filter when viewMode === 'vbp_only'. A practice with multiple PHP contracts
+  // (e.g. Healthy Blue P4P + CCH Quality Bonus + UHC Stars) needs to drill to
+  // one arrangement at a time since incentive structures differ per contract.
+  const availableContracts = useMemo(() => {
+    const map = new Map();
+    for (const m of measures) {
+      for (const vc of m.vbp_contracts) {
+        if (!map.has(vc.contract_id)) map.set(vc.contract_id, vc.contract);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      (a.contract_label || "").localeCompare(b.contract_label || "")
+    );
+  }, [measures]);
+
   // Apply view mode + filters + sort
   const visibleMeasures = useMemo(() => {
     let list = measures;
@@ -264,6 +281,12 @@ export default function AmhQualityDashboardTab({ practiceId, currentUser }) {
     // VBP-only view
     if (viewMode === "vbp_only") {
       list = list.filter(m => m.has_vbp_contract);
+      // Optional drill: filter to a specific contract's measures only
+      if (selectedVbpContract !== "all") {
+        list = list.filter(m =>
+          m.vbp_contracts.some(vc => vc.contract_id === selectedVbpContract)
+        );
+      }
     }
 
     // Status filter
@@ -287,7 +310,7 @@ export default function AmhQualityDashboardTab({ practiceId, currentUser }) {
       sorted.sort((a, b) => (b.practice_denominator || 0) - (a.practice_denominator || 0));
     }
     return sorted;
-  }, [measures, viewMode, statusFilter, sortBy]);
+  }, [measures, viewMode, selectedVbpContract, statusFilter, sortBy]);
 
   // Auto-select first measure on first load (so the drill-in isn't empty)
   useEffect(() => {
@@ -380,19 +403,44 @@ export default function AmhQualityDashboardTab({ practiceId, currentUser }) {
         {/* VBP toggle - only when contracts exist */}
         {hasAnyVbp ? (
           <div style={{
-            display: "flex", gap: 4, marginBottom: 16,
-            padding: 4, background: C.bgPrimary,
-            border: "0.5px solid " + C.borderLight, borderRadius: 8,
-            width: "fit-content",
+            display: "flex", gap: 12, alignItems: "center",
+            marginBottom: 16, flexWrap: "wrap",
           }}>
-            <ViewToggleButton
-              active={viewMode === "all"}
-              onClick={() => setViewMode("all")}
-            >All Measures</ViewToggleButton>
-            <ViewToggleButton
-              active={viewMode === "vbp_only"}
-              onClick={() => setViewMode("vbp_only")}
-            >VBP-Contracted Only</ViewToggleButton>
+            <div style={{
+              display: "flex", gap: 4,
+              padding: 4, background: C.bgPrimary,
+              border: "0.5px solid " + C.borderLight, borderRadius: 8,
+              width: "fit-content",
+            }}>
+              <ViewToggleButton
+                active={viewMode === "all"}
+                onClick={() => { setViewMode("all"); setSelectedVbpContract("all"); }}
+              >All Measures</ViewToggleButton>
+              <ViewToggleButton
+                active={viewMode === "vbp_only"}
+                onClick={() => setViewMode("vbp_only")}
+              >VBP-Contracted Only</ViewToggleButton>
+            </div>
+            {/* Per-contract drill - shown in VBP-only mode when contracts exist */}
+            {viewMode === "vbp_only" && availableContracts.length > 0 ? (
+              <select
+                value={selectedVbpContract}
+                onChange={e => setSelectedVbpContract(e.target.value)}
+                style={selectStyle}
+              >
+                <option value="all">
+                  All VBP Contracts ({availableContracts.length})
+                </option>
+                {availableContracts.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.contract_label}
+                    {c.payer_short_name
+                      ? " - " + (PLAN_LABEL[c.payer_short_name] || c.payer_short_name.toUpperCase())
+                      : ""}
+                  </option>
+                ))}
+              </select>
+            ) : null}
           </div>
         ) : null}
 
@@ -449,6 +497,34 @@ export default function AmhQualityDashboardTab({ practiceId, currentUser }) {
             Last computed: {fmtTimeAgo(lastComputed)}
           </span>
         </div>
+
+        {/* Cold-start banner: catalog has measures but no snapshot rows yet.   */}
+        {/* Provides a prominent compute trigger so the user does not have to   */}
+        {/* hunt for the smaller Refresh button up top.                         */}
+        {!loading && !error && lastComputed == null && measures.length > 0 ? (
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 12, padding: "12px 16px", marginBottom: 16,
+            background: C.tealLight,
+            border: "0.5px solid " + C.tealMid + "55",
+            borderLeft: "3px solid " + C.tealMid,
+            borderRadius: 8,
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.tealText, marginBottom: 2 }}>
+                No performance data computed yet
+              </div>
+              <div style={{ fontSize: 11, color: C.tealText, lineHeight: 1.5 }}>
+                Click Compute to roll up the practice's HEDIS gap data into measure-level rates.
+                Snapshots also recompute nightly. If no AMH gap data has arrived yet, computing
+                will still succeed but cards will remain empty until your next HEDIS upload.
+              </div>
+            </div>
+            <Btn size="sm" variant="primary" onClick={refresh} disabled={refreshing}>
+              {refreshing ? "Computing..." : "Compute now"}
+            </Btn>
+          </div>
+        ) : null}
 
         {/* Body */}
         {error ? (
