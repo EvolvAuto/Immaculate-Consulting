@@ -117,10 +117,15 @@ export default function VBPContractFormPage() {
   // Section collapsed state (edit mode only)
   const [collapsed, setCollapsed] = useState({ identity: false, payment: false, eligibility: true, measures: false });
 
-  // Load measure catalog for the picker dropdown
+  // Load measure catalog for the picker dropdown.
+  // amh_measure_set_year (int[]) drives the AMH-set-only constraint enforced
+  // in MeasuresSection. Per NC, VBP contracts offered to AMH practices by
+  // Standard Plans must use only measures from the AMH Measure Set for the
+  // contract's MY. Future flexibility may relax this; an override toggle in
+  // the section will allow non-AMH measures when explicitly enabled.
   useEffect(() => {
     supabase.from("cm_hedis_measures")
-      .select("measure_code, measure_name, classification_status, measure_kind, active")
+      .select("measure_code, measure_name, classification_status, measure_kind, active, amh_measure_set_year")
       .eq("active", true)
       .order("measure_code")
       .then(({ data, error: e }) => {
@@ -830,6 +835,44 @@ function MeasuresSection({ contract, measures, setMeasures, measureCatalog }) {
   const measurementPeriods = (contract.payment_methodology?.measurement_periods) || [];
   const hasMultiMP = contract.program_type === "fee_inflator" && measurementPeriods.length > 0;
 
+  // AMH Measure Set constraint: NC requires VBP contracts offered to AMH
+  // practices by Standard Plans to include ONLY measures from the AMH
+  // Measure Set for the contract's measurement year. The picker dropdown
+  // is filtered to AMH-set measures by default. The override toggle below
+  // is for future NC flexibility - leave OFF unless your Plan has confirmed
+  // the contract may include non-AMH measures.
+  const [allowNonAmh, setAllowNonAmh] = useState(false);
+  const my = parseInt(contract.measurement_year, 10) || new Date().getFullYear();
+
+  // Annotate each catalog entry with whether it's in the AMH set for this MY.
+  // amh_measure_set_year is an integer array column on cm_hedis_measures.
+  const annotatedCatalog = useMemo(
+    () => (measureCatalog || []).map(c => ({
+      ...c,
+      in_amh_set_for_my:
+        Array.isArray(c.amh_measure_set_year) && c.amh_measure_set_year.includes(my),
+    })),
+    [measureCatalog, my]
+  );
+
+  // Picker shows AMH-set only by default; full catalog when override is ON.
+  const pickerCatalog = useMemo(
+    () => allowNonAmh ? annotatedCatalog : annotatedCatalog.filter(c => c.in_amh_set_for_my),
+    [annotatedCatalog, allowNonAmh]
+  );
+
+  // Detect legacy rows: an existing measure_code in the form NOT in the AMH
+  // set for the contract's MY. Surfaces a single banner so users know their
+  // contract has measures outside current NC policy. We do NOT auto-strip -
+  // that's the user's decision and may require Plan dialogue.
+  const nonAmhRowCount = useMemo(() => {
+    if (!measures.length) return 0;
+    const amhCodes = new Set(
+      annotatedCatalog.filter(c => c.in_amh_set_for_my).map(c => c.measure_code)
+    );
+    return measures.filter(m => m.measure_code && !amhCodes.has(m.measure_code)).length;
+  }, [measures, annotatedCatalog]);
+
   // Adding a new measure: if multi-MP, default to first MP. If multi-MP and
   // user picks an existing measure code, we don't auto-clone - admins should
   // intentionally duplicate the row per MP.
@@ -867,10 +910,41 @@ function MeasuresSection({ contract, measures, setMeasures, measureCatalog }) {
 
   return (
     <div>
-      <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 14, lineHeight: 1.55 }}>
+      <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 10, lineHeight: 1.55 }}>
         Measures included in this contract. Each row is a (measure × MP) combination - for multi-MP contracts, duplicate the row per MP and set different targets/payment rules.
         {contract.program_type === "qrt_gate" && " Weight is used for the quality rating threshold calculation."}
       </div>
+
+      {/* AMH Measure Set constraint controls. Default: dropdown filtered to */}
+      {/* the contract's MY's AMH set. Toggle ON only with NC-approved      */}
+      {/* flexibility (rare under current policy).                          */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+        padding: "8px 12px", marginBottom: 12,
+        background: C.bgSecondary, borderRadius: 6,
+      }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.textPrimary }}>
+          <input
+            type="checkbox"
+            checked={allowNonAmh}
+            onChange={e => setAllowNonAmh(e.target.checked)}
+          />
+          Include measures outside the AMH Measure Set (NC flexibility)
+        </label>
+        <span style={{ fontSize: 11, color: C.textTertiary, flex: 1, minWidth: 220 }}>
+          Default: picker shows only measures in the AMH Measure Set for MY {my}.
+        </span>
+      </div>
+
+      {nonAmhRowCount > 0 && (
+        <div style={{
+          padding: "10px 12px", marginBottom: 12,
+          background: C.amberBg, border: "0.5px solid " + C.amber, borderRadius: 6,
+          fontSize: 12, color: C.textPrimary, lineHeight: 1.55,
+        }}>
+          <strong>{nonAmhRowCount} measure{nonAmhRowCount === 1 ? " is" : "s are"} outside the AMH Measure Set for MY {my}.</strong> NC policy requires AMH VBP contracts to use only AMH Measure Set measures unless the Health Plan has confirmed flexibility. Review with your Plan before activating this contract.
+        </div>
+      )}
 
       {measures.length === 0 ? (
         <div style={{ fontSize: 12, color: C.textTertiary, fontStyle: "italic", padding: 20, textAlign: "center", border: "0.5px dashed " + C.borderLight, borderRadius: 6, marginBottom: 12 }}>
@@ -882,7 +956,8 @@ function MeasuresSection({ contract, measures, setMeasures, measureCatalog }) {
             <MeasureRow
               key={m._key || m.id || i}
               measure={m}
-              measureCatalog={measureCatalog}
+              measureCatalog={annotatedCatalog}
+              pickerCatalog={pickerCatalog}
               programType={contract.program_type}
               measurementPeriods={measurementPeriods}
               onUpdate={(patch) => updateMeasure(i, patch)}
@@ -900,10 +975,18 @@ function MeasuresSection({ contract, measures, setMeasures, measureCatalog }) {
   );
 }
 
-function MeasureRow({ measure, measureCatalog, programType, measurementPeriods, onUpdate, onRemove, onDuplicateForMP }) {
+function MeasureRow({ measure, measureCatalog, pickerCatalog, programType, measurementPeriods, onUpdate, onRemove, onDuplicateForMP }) {
   const [expanded, setExpanded] = useState(!measure.measure_code);  // expand new rows
   const m = measure;
+  // measureCatalog = full annotated catalog (used for name lookup so legacy
+  // non-AMH measure rows still render their measure_name).
+  // pickerCatalog  = filtered catalog for the dropdown (AMH-set only by
+  // default, full catalog when MeasuresSection's "Include non-AMH" toggle
+  // is on).
   const cat = measureCatalog.find(c => c.measure_code === m.measure_code);
+  // True when this row references a measure NOT in the AMH set for the
+  // contract's MY. Drives an inline "Non-AMH" pill in the row header.
+  const isNonAmhRow = !!(cat && cat.in_amh_set_for_my === false);
 
   return (
     <div style={{
@@ -926,6 +1009,7 @@ function MeasureRow({ measure, measureCatalog, programType, measurementPeriods, 
               <code style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: C.teal }}>{m.measure_code}</code>
               {cat && <span style={{ marginLeft: 8, fontSize: 12, color: C.textPrimary }}>{cat.measure_name}</span>}
               {cat?.classification_status === "unknown" && <span style={{ marginLeft: 8 }}><Badge label="Unknown" variant="amber" size="xs" /></span>}
+              {isNonAmhRow && <span style={{ marginLeft: 8 }}><Badge label="Non-AMH" variant="amber" size="xs" /></span>}
               {m.measurement_period_label && <span style={{ marginLeft: 8 }}><Badge label={m.measurement_period_label} variant="blue" size="xs" /></span>}
             </>
           ) : (
@@ -952,10 +1036,19 @@ function MeasureRow({ measure, measureCatalog, programType, measurementPeriods, 
                 style={selectStyle}
               >
                 <option value="">Pick a measure...</option>
-                {measureCatalog.map(c => (
+                {/* Legacy fallback: if this row's measure_code is NOT in the */}
+                {/* picker (e.g. non-AMH legacy with override OFF), keep it  */}
+                {/* visible so the select doesn't silently drop the value.  */}
+                {m.measure_code && !pickerCatalog.some(c => c.measure_code === m.measure_code) && cat ? (
+                  <option key={"_legacy_" + cat.measure_code} value={cat.measure_code}>
+                    {cat.measure_code} - {cat.measure_name} [Non-AMH, locked]
+                  </option>
+                ) : null}
+                {pickerCatalog.map(c => (
                   <option key={c.measure_code} value={c.measure_code}>
                     {c.measure_code} - {c.measure_name}
                     {c.classification_status === "unknown" ? " [Unknown]" : ""}
+                    {c.in_amh_set_for_my === false ? " [Non-AMH]" : ""}
                   </option>
                 ))}
               </select>
