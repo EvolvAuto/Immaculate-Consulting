@@ -46,7 +46,7 @@ const TAB_META = {
   hedis:       { label: "HEDIS",              icon: "\u25A7" },
   claims:      { label: "Claims",             icon: "\u25C7" },
   vbp:         { label: "VBP Contracts",      icon: "\u25A8" },
-  outbound:    { label: "Outbound",           icon: "\u25A9" },
+  outbound:    { label: "Quality Submissions", icon: "\u25A9" },
   connections: { label: "Plan Connections",   icon: "\u25CE" },
   assignments: { label: "Plan Assignments",   icon: "\u25CA" },
 };
