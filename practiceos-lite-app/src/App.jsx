@@ -31,8 +31,9 @@ import InsuranceUpdatesView from "./views/InsuranceUpdatesView";
 import PortalView           from "./views/PortalView";
 
 // Command tier views (tier + role gate is inside each view)
-import CareManagementView   from "./views/CareManagementView";
-import VBPContractFormPage  from "./views/care-management/VBPContractFormPage";
+import CareManagementView      from "./views/CareManagementView";
+import VBPContractFormPage     from "./views/care-management/VBPContractFormPage";
+import VBPContractSummaryPage  from "./views/care-management/VBPContractSummaryPage";
 
 // Super admin (Administrator) section
 import AdministratorView    from "./views/admin/AdministratorView";
@@ -98,9 +99,14 @@ export default function App() {
           <Route path="/care-management" element={<CareManagementView />} />
           {/* VBP contract form is full-page (not a sub-tab); list view lives
               inside CareManagementView's VBP Contracts tab. /new must precede
-              /:id so the literal route wins over the param route. */}
-          <Route path="/care-management/vbp-contracts/new" element={<VBPContractFormPage />} />
-          <Route path="/care-management/vbp-contracts/:id" element={<VBPContractFormPage />} />
+              /:id so the literal route wins over the param route. The
+              /:id/summary read-only view is the default landing page from
+              the Quality Dashboard's "View contract" button - clinical staff
+              should land on a summary, not the editor. Owners and Managers
+              see an Edit button on the summary that takes them to the form.  */}
+          <Route path="/care-management/vbp-contracts/new"          element={<VBPContractFormPage />} />
+          <Route path="/care-management/vbp-contracts/:id/summary"  element={<VBPContractSummaryPage />} />
+          <Route path="/care-management/vbp-contracts/:id"          element={<VBPContractFormPage />} />
 
           {/* Super admin section. Splat catches sub-tabs (subscriptions, practices, health, flags, audit, settings).
               SuperAdminRoute redirects non-super-admins to /dashboard before AdministratorView mounts.
