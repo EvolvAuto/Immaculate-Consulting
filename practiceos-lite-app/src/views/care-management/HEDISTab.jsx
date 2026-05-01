@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthProvider";
 import { C } from "../../lib/tokens";
@@ -61,8 +62,32 @@ function fmtDateOnly(iso) {
 // Top-level shell - sub-tab routing + role gating
 // ===============================================================================
 export default function HEDISTab({ practiceId, profile, isAdmin }) {
-  // CMs default to Open Gaps; admins default to Uploads (admin first job is upload)
-  const [mode, setMode] = useState(isAdmin ? "uploads" : "gaps");
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Deep-link entry from the Quality Dashboard sets state.measureCode (e.g.
+  // "CBP", "W30") so HEDIS can land on Open Gaps with that measure filter
+  // pre-applied. We capture it once, then strip it from history state so
+  // tab-switching back doesn't sticky-re-apply the filter on every remount.
+  const incomingMeasureCode = location.state?.measureCode || null;
+  const [capturedMeasureCode, setCapturedMeasureCode] = useState(incomingMeasureCode);
+
+  useEffect(() => {
+    if (incomingMeasureCode) {
+      setCapturedMeasureCode(incomingMeasureCode);
+      // Clear measureCode but preserve any other location state (e.g. tab).
+      navigate(location.pathname, {
+        replace: true,
+        state: { ...location.state, measureCode: undefined },
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingMeasureCode]);
+
+  // CMs default to Open Gaps; admins default to Uploads (admin first job is
+  // upload). Deep-links always land on Open Gaps regardless of role default.
+  const [mode, setMode] = useState(
+    capturedMeasureCode ? "gaps" : (isAdmin ? "uploads" : "gaps")
+  );
 
   return (
     <div>
@@ -74,7 +99,7 @@ export default function HEDISTab({ practiceId, profile, isAdmin }) {
         )}
         <SubTabButton active={mode === "outbound"} onClick={() => setMode("outbound")}>Outbound</SubTabButton>
       </div>
-      {mode === "gaps"        && <HEDISOpenGaps practiceId={practiceId} />}
+      {mode === "gaps"        && <HEDISOpenGaps practiceId={practiceId} initialMeasureCode={capturedMeasureCode} />}
       {mode === "regressions" && <HEDISRegressionQueue practiceId={practiceId} />}
       {mode === "uploads"     && isAdmin && <HEDISUploads practiceId={practiceId} />}
       {mode === "outbound"    && <HEDISOutboundPlaceholder />}
@@ -85,19 +110,28 @@ export default function HEDISTab({ practiceId, profile, isAdmin }) {
 // ===============================================================================
 // Open Gaps - clinical view (all roles)
 // ===============================================================================
-function HEDISOpenGaps({ practiceId }) {
+function HEDISOpenGaps({ practiceId, initialMeasureCode }) {
   const [rows, setRows]               = useState([]);
   const [measures, setMeasures]       = useState([]);
   const [uploads, setUploads]         = useState([]); // for "Run month" filter
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState(null);
 
-  // Filters
+  // Filters. filterMeasure honors the deep-link measureCode on first render
+  // (Quality Dashboard "View open gaps" CTA) and on subsequent prop changes
+  // (a new deep-link arriving while the gaps view is already mounted).
   const [filterPlan, setFilterPlan]             = useState("");
-  const [filterMeasure, setFilterMeasure]       = useState("");
+  const [filterMeasure, setFilterMeasure]       = useState(initialMeasureCode || "");
   const [filterCompliant, setFilterCompliant]   = useState("actionable"); // 'actionable' | 'all' | 'open' | 'unknown' | 'compliant'
   const [filterMatch, setFilterMatch]           = useState("matched");      // 'all' | 'matched' | 'unmatched' | 'multi'
   const [filterReportingPeriod, setFilterPeriod] = useState("");            // upload.id
+
+  // Deep-link prop changes arrive when the user is already on the gaps view
+  // and triggers another "View open gaps" CTA from the dashboard. The parent
+  // captures + clears, then bumps this prop; we re-apply the filter here.
+  useEffect(() => {
+    if (initialMeasureCode) setFilterMeasure(initialMeasureCode);
+  }, [initialMeasureCode]);
 
   // Member-detail modal state. Stores plan_member_id; gap subset is derived
   // from `rows` so it stays in sync after save+reload.
