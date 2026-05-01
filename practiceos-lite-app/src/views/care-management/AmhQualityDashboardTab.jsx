@@ -337,13 +337,12 @@ export default function AmhQualityDashboardTab({ practiceId, currentUser }) {
     navigate("/care-management", { state: { tab: "hedis", measureCode: code } });
   }
   function openVbpContract(contractId) {
-    // Direct-open the contract's edit page rather than landing on the VBP
-    // Contracts list. The route is registered by VBPContractFormPage.jsx:
-    //   /care-management/vbp-contracts/:id  -> edit mode
-    // This gives the user a single-click path from "I see this measure has
-    // a contract attached" to "I'm reading the contract terms" without an
-    // intermediate list-and-find step.
-    navigate(`/care-management/vbp-contracts/${contractId}`);
+    // Open the contract's read-only summary page. Clinical staff land on a
+    // scannable arrangement summary (current performance vs contract target,
+    // payment methodology, eligibility gates, contracted measures), not the
+    // edit form. Owners and Managers see an Edit button on the summary if
+    // they need to modify terms.
+    navigate(`/care-management/vbp-contracts/${contractId}/summary`);
   }
 
   return (
