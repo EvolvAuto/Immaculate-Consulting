@@ -8,83 +8,40 @@
 //   3. nc_amh_reference_targets for the year (NC benchmarks + disparity targets)
 //   4. cm_vbp_contracts + cm_vbp_contract_measures for practice + MY (enrichment)
 //
-// Returns an "assembled" array of per-measure objects with everything the UI
-// needs to render a card and its drill-in panel - practice rate, plan rates,
-// stratum rates, NC targets, and any VBP contract attachments.
-//
-// refresh() calls public.refresh_amh_dashboard_for_caller() which recomputes
-// the snapshot rows for the caller's practice + current calendar year, then
-// refetches.
-//
-// Keep snapshot reads scoped tight - we filter on (practice_id, measurement_year)
-// and let the idx_cm_amh_perf_unique index do the heavy lifting. The full snapshot
-// set for one practice + one MY is at most ~200 rows (13 measures x ~15 scopes),
-// so client-side assembly is cheap.
+// Submeasure handling: many measures (WCV, CHL, GSD, IMA-E, W30, PPC) have
+// submeasures - the seed inserts a row per submeasure with values like
+// "Total (Ages)", "Ages 3-11", "Total (All Ages)", "Glycemic Status (<8.0%)".
+// For card display we anchor on a single "headline" submeasure. Resolution:
+//   1. If a snapshot exists, use its submeasure (snapshot drives target lookup)
+//   2. If no snapshot exists yet, pick a Total*-style submeasure from the
+//      catalog's targets so the card still shows the correct NC target before
+//      first compute
+//   3. Else fall back to NULL or first-alphabetical
+// All submeasure-sensitive matching uses headlineSubmeasure as the join key.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
-// What we read from each table. Joined as comma-separated strings since
-// supabase-js treats them as PostgREST select expressions.
 const MEASURE_COLS = [
-  "measure_code",
-  "measure_name",
-  "measure_kind",
-  "classification_status",
-  "amh_measure_set_year",
-  "sub_components",
-  "active",
+  "measure_code", "measure_name", "measure_kind", "classification_status",
+  "amh_measure_set_year", "sub_components", "active",
 ].join(", ");
 
 const SNAPSHOT_COLS = [
-  "measure_code",
-  "submeasure",
-  "scope",
-  "payer_short_name",
-  "priority_population",
-  "numerator",
-  "denominator",
-  "rate",
-  "gaps_open",
-  "gaps_closed",
-  "direction",
-  "snapshot_date",
-  "computed_at",
+  "measure_code", "submeasure", "scope", "payer_short_name", "priority_population",
+  "numerator", "denominator", "rate", "gaps_open", "gaps_closed", "direction",
+  "snapshot_date", "computed_at",
 ].join(", ");
 
 const TARGET_COLS = [
-  "measure_code",
-  "submeasure",
-  "scope",
-  "payer_short_name",
-  "priority_population",
-  "baseline_rate",
-  "target_rate",
-  "goal_benchmark",
-  "direction",
-  "has_disparity",
-  "relative_difference_pct",
-  "reference_group_rate",
-  "notes",
+  "measure_code", "submeasure", "scope", "payer_short_name", "priority_population",
+  "baseline_rate", "target_rate", "goal_benchmark", "direction",
+  "has_disparity", "relative_difference_pct", "reference_group_rate", "notes",
 ].join(", ");
 
-// Measures whose rates are calculated by the Health Plan or EQRO, NOT by the
-// practice. The dashboard renders an "Awaiting Plan Report" badge for these
-// when no data has been received via HEDIS gap files yet.
-//   AAP - plan-reported starting MY2025
-//   PCR - EQRO-calculated, observed/expected ratio
-const PLAN_REPORTED_MEASURES = new Set(["AAP", "PCR"]);
-
-// Measures that require clinical data NC has flagged as not yet collectible
-// at the AMH level via current data flows. The dashboard renders an
-// "Awaiting Clinical Data" badge.
-//   CDF - depression screening (PHQ-2/PHQ-9), needs chart capture
+const PLAN_REPORTED_MEASURES     = new Set(["AAP", "PCR"]);
 const AWAITING_CLINICAL_MEASURES = new Set(["CDF"]);
-
-// Measures using NC's "beat-the-trend" methodology. No fixed target rate -
-// the goal is to beat declining national trends. UI shows trajectory only,
-// no delta vs target.
-const BEAT_THE_TREND_MEASURES = new Set(["CIS-E"]);
+const BEAT_THE_TREND_MEASURES    = new Set(["CIS-E"]);
 
 export function useAmhMeasurePerformance(practiceId, measurementYear) {
   const [measures, setMeasures]                       = useState([]);
@@ -105,7 +62,6 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
     setError(null);
 
     try {
-      // Run the four core reads in parallel
       const [mRes, sRes, tRes, cRes] = await Promise.all([
         supabase
           .from("cm_hedis_measures")
@@ -135,9 +91,6 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
       if (sRes.error) throw new Error("Performance snapshots: " + sRes.error.message);
       if (tRes.error) throw new Error("Reference targets: " + tRes.error.message);
 
-      // VBP query is enrichment - if it fails, the dashboard still renders.
-      // Most likely failure mode is a deferred RLS policy on cm_vbp_contracts;
-      // that should not block clinical staff from seeing measure performance.
       let contractRows = [];
       let contractMeasureRows = [];
       if (cRes.error) {
@@ -177,11 +130,6 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // Refresh button handler. Calls SECURITY DEFINER RPC then refetches.
-  // The RPC computes for the caller's practice + current calendar year, so
-  // a refresh from the MY2025 view still recomputes the current MY's data.
-  // After recompute, fetchAll re-reads using whatever measurementYear is
-  // currently selected.
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -194,49 +142,36 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
     setRefreshing(false);
   }, [fetchAll]);
 
-  // -----------------------------------------------------------------------
-  // Index helpers - build lookup maps once, reuse across the assembly loop
-  // -----------------------------------------------------------------------
-
-  // Snapshots indexed by measure_code
   const snapshotsByMeasure = useMemo(() => {
     const idx = new Map();
     for (const s of snapshots) {
-      const key = s.measure_code;
-      if (!idx.has(key)) idx.set(key, []);
-      idx.get(key).push(s);
+      if (!idx.has(s.measure_code)) idx.set(s.measure_code, []);
+      idx.get(s.measure_code).push(s);
     }
     return idx;
   }, [snapshots]);
 
-  // Targets indexed by measure_code
   const targetsByMeasure = useMemo(() => {
     const idx = new Map();
     for (const t of targets) {
-      const key = t.measure_code;
-      if (!idx.has(key)) idx.set(key, []);
-      idx.get(key).push(t);
+      if (!idx.has(t.measure_code)) idx.set(t.measure_code, []);
+      idx.get(t.measure_code).push(t);
     }
     return idx;
   }, [targets]);
 
-  // VBP contract measures indexed by measure_code, joined to their parent contract
   const vbpByMeasure = useMemo(() => {
     const contractById = new Map(vbpContracts.map(c => [c.id, c]));
     const idx = new Map();
     for (const cm of vbpContractMeasures) {
       const contract = contractById.get(cm.contract_id);
       if (!contract) continue;
-      const key = cm.measure_code;
-      if (!idx.has(key)) idx.set(key, []);
-      idx.get(key).push({ ...cm, contract });
+      if (!idx.has(cm.measure_code)) idx.set(cm.measure_code, []);
+      idx.get(cm.measure_code).push({ ...cm, contract });
     }
     return idx;
   }, [vbpContracts, vbpContractMeasures]);
 
-  // -----------------------------------------------------------------------
-  // Assemble per-measure objects
-  // -----------------------------------------------------------------------
   const assembledMeasures = useMemo(() => {
     return measures.map(m => {
       const code = m.measure_code;
@@ -244,20 +179,19 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
       const measureTargets   = targetsByMeasure.get(code) || [];
       const measureVbp       = vbpByMeasure.get(code) || [];
 
-      // Pick the headline submeasure for the card. Preference order:
-      //   1. snapshot with submeasure IS NULL (most common - simple measures)
-      //   2. snapshot with submeasure ILIKE 'Total%' (composite measures)
-      //   3. first submeasure alphabetically
-      // Drill-in detail panel shows all submeasures.
+      // Anchor submeasure for the headline rate + target.
+      // Snapshot wins if present; else fall back to catalog targets so the
+      // card has a meaningful NC target at cold-start.
       const practiceAggregate = pickPrimarySubmeasure(
         measureSnapshots.filter(s => s.scope === "practice_aggregate")
       );
+      const headlineSubmeasure = practiceAggregate?.submeasure
+        ?? pickPreferredTargetSubmeasure(measureTargets);
 
-      // Plan-filtered snapshots for the same submeasure pick
       const planRates = measureSnapshots
         .filter(s =>
           s.scope === "plan_filtered"
-          && sameSubmeasure(s.submeasure, practiceAggregate?.submeasure)
+          && sameSubmeasure(s.submeasure, headlineSubmeasure)
         )
         .map(s => ({
           plan: s.payer_short_name,
@@ -269,11 +203,10 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
         }))
         .sort((a, b) => (a.plan || "").localeCompare(b.plan || ""));
 
-      // Priority-population stratification snapshots for the same submeasure
       const stratumRates = measureSnapshots
         .filter(s =>
           s.scope === "priority_population"
-          && sameSubmeasure(s.submeasure, practiceAggregate?.submeasure)
+          && sameSubmeasure(s.submeasure, headlineSubmeasure)
         )
         .map(s => ({
           population: s.priority_population,
@@ -283,7 +216,6 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
         }))
         .sort((a, b) => stratumOrder(a.population) - stratumOrder(b.population));
 
-      // All submeasures (for drill-in)
       const submeasureRows = measureSnapshots
         .filter(s => s.scope === "practice_aggregate")
         .map(s => ({
@@ -296,20 +228,16 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
           direction: s.direction,
         }));
 
-      // Targets - find overall_nc base, plan-specific, and priority-population.
-      // Match against the same submeasure as the practice aggregate so the UI
-      // shows like-vs-like (e.g. PPC Postpartum target paired with PPC
-      // Postpartum practice rate).
       const overallNcTarget = measureTargets.find(t =>
         t.scope === "overall_nc"
         && t.priority_population == null
-        && sameSubmeasure(t.submeasure, practiceAggregate?.submeasure)
+        && sameSubmeasure(t.submeasure, headlineSubmeasure)
       );
       const planTargets = {};
       for (const t of measureTargets) {
         if (t.scope === "plan_specific"
             && t.priority_population == null
-            && sameSubmeasure(t.submeasure, practiceAggregate?.submeasure)) {
+            && sameSubmeasure(t.submeasure, headlineSubmeasure)) {
           planTargets[t.payer_short_name] = {
             target_rate: t.target_rate != null ? Number(t.target_rate) : null,
             baseline_rate: t.baseline_rate != null ? Number(t.baseline_rate) : null,
@@ -321,7 +249,7 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
       for (const t of measureTargets) {
         if (t.priority_population != null
             && t.scope === "overall_nc"
-            && sameSubmeasure(t.submeasure, practiceAggregate?.submeasure)) {
+            && sameSubmeasure(t.submeasure, headlineSubmeasure)) {
           priorityPopulationTargets[t.priority_population] = {
             target_rate: t.target_rate != null ? Number(t.target_rate) : null,
             has_disparity: !!t.has_disparity,
@@ -333,7 +261,6 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
         }
       }
 
-      // Performance status vs NC overall target
       const direction = practiceAggregate?.direction
         || (BEAT_THE_TREND_MEASURES.has(code) ? "beat_the_trend" : "higher_is_better");
       const targetForStatus = overallNcTarget?.target_rate != null
@@ -350,19 +277,15 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
         hasData: !!practiceAggregate,
       });
 
-      // Disparity flag: true if any priority population target is set with
-      // has_disparity = true AND the practice's stratum rate is below it
-      // (relative threshold not re-evaluated client-side - we trust NC's flag).
       const hasDisparity = stratumRates.some(sr => {
         const tgt = priorityPopulationTargets[sr.population];
         return !!(tgt && tgt.has_disparity);
       });
 
-      // Trend: monthly snapshots for this measure + submeasure across the MY
       const trend = measureSnapshots
         .filter(s =>
           s.scope === "practice_aggregate"
-          && sameSubmeasure(s.submeasure, practiceAggregate?.submeasure)
+          && sameSubmeasure(s.submeasure, headlineSubmeasure)
         )
         .map(s => ({
           snapshot_date: s.snapshot_date,
@@ -373,7 +296,7 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
       return {
         measure_code: code,
         measure_name: m.measure_name,
-        submeasure: practiceAggregate?.submeasure || null,
+        submeasure: headlineSubmeasure,
         measure_kind: m.measure_kind,
         sub_components: m.sub_components,
         direction,
@@ -403,14 +326,11 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
         vbp_contracts: measureVbp,
         has_vbp_contract: measureVbp.length > 0,
         has_disparity: hasDisparity,
-        status,  // 'above', 'near', 'below', 'plan_reported', 'awaiting_clinical', 'beat_the_trend', 'no_data'
+        status,
       };
     });
   }, [measures, snapshotsByMeasure, targetsByMeasure, vbpByMeasure]);
 
-  // -----------------------------------------------------------------------
-  // KPI strip
-  // -----------------------------------------------------------------------
   const kpis = useMemo(() => {
     let atOrAbove = 0;
     let belowTarget = 0;
@@ -428,7 +348,6 @@ export function useAmhMeasurePerformance(practiceId, measurementYear) {
     };
   }, [assembledMeasures]);
 
-  // Latest computed_at across all snapshots - drives the "Last computed" hint
   const lastComputed = useMemo(() => {
     let latest = null;
     for (const s of snapshots) {
@@ -461,15 +380,35 @@ function pickPrimarySubmeasure(snapshots) {
     typeof s.submeasure === "string" && /total/i.test(s.submeasure)
   );
   if (total) return total;
-  // Sort alphabetically and pick the first
   const sorted = [...snapshots].sort((a, b) =>
     (a.submeasure || "").localeCompare(b.submeasure || "")
   );
   return sorted[0];
 }
 
+// Cold-start fallback: when no practice snapshot exists yet, peek at the
+// reference targets to find the "headline" submeasure for this measure.
+// Same precedence as snapshots: NULL first, then "Total*", then alphabetical.
+// Scoped to overall_nc + non-priority-population so we anchor on the base
+// reference row.
+function pickPreferredTargetSubmeasure(targets) {
+  const candidates = targets.filter(t =>
+    t.scope === "overall_nc" && t.priority_population == null
+  );
+  if (!candidates.length) return null;
+  const noSub = candidates.find(t => t.submeasure == null);
+  if (noSub !== undefined) return null;
+  const total = candidates.find(t =>
+    typeof t.submeasure === "string" && /total/i.test(t.submeasure)
+  );
+  if (total) return total.submeasure;
+  const sorted = [...candidates].sort((a, b) =>
+    (a.submeasure || "").localeCompare(b.submeasure || "")
+  );
+  return sorted[0]?.submeasure || null;
+}
+
 function sameSubmeasure(a, b) {
-  // Treat null and "" as equivalent (defensive against schema drift)
   const norm = v => (v == null || v === "") ? null : v;
   return norm(a) === norm(b);
 }
@@ -481,14 +420,6 @@ function stratumOrder(pop) {
   return 99;
 }
 
-// Returns one of:
-//   'above'              - meets or exceeds target
-//   'near'               - within 5% of target (relative)
-//   'below'              - meaningfully below target
-//   'plan_reported'      - waiting on plan/EQRO data
-//   'awaiting_clinical'  - waiting on chart capture (e.g. CDF)
-//   'beat_the_trend'     - CIS-E, no fixed target
-//   'no_data'            - no snapshot exists yet
 function computeStatus({ practiceRate, targetForStatus, direction, isPlanReported, isAwaitingClinical, isBeatTheTrend, hasData }) {
   if (isAwaitingClinical) return "awaiting_clinical";
   if (isBeatTheTrend) return "beat_the_trend";
