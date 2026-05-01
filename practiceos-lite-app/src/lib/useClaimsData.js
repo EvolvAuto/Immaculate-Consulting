@@ -155,6 +155,29 @@ export default function useClaimsData() {
     return count || 0;
   }, []);
 
+  // Distinct payer_short_name values present in this practice's claims.
+  // Used by the Claims tab to populate the payer filter dropdown without
+  // forcing the user to discover payers by scrolling. Fetched once on
+  // mount and after reconcile (which may surface new payers from newly
+  // parsed inbound files). Returns an alphabetically-sorted string array.
+  // PostgREST has no native DISTINCT; we pull one column and dedupe in JS.
+  // Bounded at 5000 rows - one practice should never have more than a
+  // handful of payers, so this is plenty of headroom.
+  const fetchDistinctPayers = useCallback(async () => {
+    const { data, error: e } = await supabase
+      .from(VIEW)
+      .select('payer_short_name')
+      .not('payer_short_name', 'is', null)
+      .limit(5000);
+    if (e) {
+      setError(e.message);
+      return [];
+    }
+    const set = new Set();
+    for (const r of (data || [])) if (r.payer_short_name) set.add(r.payer_short_name);
+    return Array.from(set).sort();
+  }, []);
+
   const fetchLines = useCallback(async ({ claimType, practiceId, tcn }) => {
     const key = `${claimType}:${practiceId}:${tcn}`;
     const cached = linesCacheRef.current.get(key);
@@ -305,6 +328,7 @@ export default function useClaimsData() {
     fetchClaims,
     fetchDashboard,
     fetchUnmatchedCount,
+    fetchDistinctPayers,
     fetchLines,
     fetchSupersedeChain,
     updateNote,
@@ -317,6 +341,7 @@ export default function useClaimsData() {
     fetchClaims,
     fetchDashboard,
     fetchUnmatchedCount,
+    fetchDistinctPayers,
     fetchLines,
     fetchSupersedeChain,
     updateNote,
@@ -326,4 +351,3 @@ export default function useClaimsData() {
     fetchPatientCandidates,
     clearCaches,
   ]);
-}
