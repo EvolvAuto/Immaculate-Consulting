@@ -28,6 +28,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 import { useAuth } from "../../auth/AuthProvider";
 import { C } from "../../lib/tokens";
+import { NC_HEALTH_PLANS_GROUPED } from "./constants";
 import {
   Btn, Card, Loader, ErrorBanner, FL, Badge, Input, Select, Textarea,
 } from "../../components/ui";
@@ -72,75 +73,6 @@ const STATUS_OPTIONS = ["Draft", "Active", "Expired", "Cancelled", "Archived"];
 // Grouped by line of business. Tailored Plan PHPs (Alliance, Partners,
 // Trillium, Vaya) are NC's behavioral health/I-DD/TBI Medicaid plans.
 // Standard Plan PHPs are the 5 statewide Medicaid managed care plans.
-const NC_HEALTH_PLANS = [
-  {
-    group: "NC Medicaid - Standard Plan PHPs",
-    options: [
-      { short: "wellcare",      label: "WellCare of North Carolina" },
-      { short: "amerihealth",   label: "AmeriHealth Caritas North Carolina" },
-      { short: "healthy_blue",  label: "Healthy Blue (BCBS NC Medicaid)" },
-      { short: "uhc_community", label: "UnitedHealthcare Community Plan of NC" },
-      { short: "cch",           label: "Carolina Complete Health" },
-    ],
-  },
-  {
-    group: "NC Medicaid - Tailored Plan PHPs (BH/I-DD/TBI)",
-    options: [
-      { short: "alliance", label: "Alliance Health" },
-      { short: "partners", label: "Partners Health Management" },
-      { short: "trillium", label: "Trillium Health Resources" },
-      { short: "vaya",     label: "Vaya Health" },
-    ],
-  },
-  {
-    group: "NC Medicaid - Other",
-    options: [
-      { short: "ebci",               label: "EBCI Tribal Option" },
-      { short: "nc_medicaid_direct", label: "NC Medicaid Direct (FFS)" },
-    ],
-  },
-  {
-    group: "Behavioral Health Carve-out",
-    options: [
-      { short: "ubh", label: "United Behavioral Health (Optum)" },
-    ],
-  },
-  {
-    group: "Commercial",
-    options: [
-      { short: "bcbs_nc",        label: "Blue Cross Blue Shield of NC (Commercial)" },
-      { short: "aetna",          label: "Aetna" },
-      { short: "cigna",          label: "Cigna" },
-      { short: "uhc_commercial", label: "UnitedHealthcare (Commercial)" },
-      { short: "humana",         label: "Humana" },
-    ],
-  },
-  {
-    group: "Medicare Advantage",
-    options: [
-      { short: "wellcare_ma",         label: "WellCare Medicare Advantage" },
-      { short: "humana_ma",           label: "Humana Medicare Advantage" },
-      { short: "uhc_ma",              label: "UnitedHealthcare Medicare Advantage" },
-      { short: "aetna_ma",            label: "Aetna Medicare Advantage" },
-      { short: "bcbs_nc_ma",          label: "BCBS NC Medicare Advantage" },
-      { short: "healthteam_advantage",label: "HealthTeam Advantage" },
-      { short: "alignment",           label: "Alignment Healthcare" },
-    ],
-  },
-  {
-    group: "Medicare",
-    options: [
-      { short: "medicare_ffs", label: "Original Medicare (FFS)" },
-      { short: "mssp",         label: "Medicare Shared Savings Program (MSSP) ACO" },
-    ],
-  },
-  {
-    group: "Other",
-    options: [
-      { short: "other", label: "Other (specify in contract notes)" },
-    ],
-  },
-];
 
 // HCP-LAN APM Framework categories. Industry-standard taxonomy from the
 // Health Care Payment Learning & Action Network. Practices use this for
@@ -540,7 +472,7 @@ function IdentitySection({ contract, setContract }) {
           style={selectStyle}
         >
           <option value="">Select a health plan...</option>
-          {NC_HEALTH_PLANS.map(group => (
+          {NC_HEALTH_PLANS_GROUPED.map(group => (
             <optgroup key={group.group} label={group.group}>
               {group.options.map(opt => (
                 <option key={opt.short} value={opt.short}>{opt.label}</option>
