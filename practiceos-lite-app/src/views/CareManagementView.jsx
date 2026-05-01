@@ -100,6 +100,19 @@ export default function CareManagementView() {
     if (!visibleTabs.includes(tab)) setTab(visibleTabs[0]);
   }, [role]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Same-route deep-link tab routing. Cross-page navigations (e.g. the VBP
+  // form save into /care-management) trigger a fresh mount, so the useState
+  // initializer above already reads state.tab. But same-page navigations
+  // (e.g. Quality Dashboard's "View open gaps" CTA -> navigate with state
+  // tab: "hedis") do NOT remount this component, so the initializer is
+  // stale. This effect picks up the new state.tab value and switches.
+  useEffect(() => {
+    const incomingTab = location.state?.tab;
+    if (incomingTab && incomingTab !== tab && visibleTabs.includes(incomingTab)) {
+      setTab(incomingTab);
+    }
+  }, [location.state?.tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // One-time fetch so the Claims tab badge is correct on first paint.
   // ClaimsTab also calls setClaimsUnmatchedCount via onUnmatchedChange
   // after each refresh / match action, keeping the badge in sync.
