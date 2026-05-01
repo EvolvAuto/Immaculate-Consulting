@@ -322,6 +322,7 @@ export default function VBPContractsTab({ practiceId, isAdmin }) {
                   measureCounts={measureCountsById[c.id]}
                   isExpanded={expanded === c.id}
                   onToggle={() => toggleExpand(c.id)}
+                  onView={() => navigate("/care-management/vbp-contracts/" + c.id + "/summary")}
                   onEdit={() => navigate("/care-management/vbp-contracts/" + c.id)}
                   measures={detailMeasures[c.id]}
                   loadingDetail={loadingDetail && expanded === c.id && !detailMeasures[c.id]}
@@ -337,7 +338,7 @@ export default function VBPContractsTab({ practiceId, isAdmin }) {
 }
 
 // ─── Table row + inline expansion ────────────────────────────────────────────
-function ContractRow({ contract, measureCounts, isExpanded, onToggle, onEdit, measures, loadingDetail, isLast }) {
+function ContractRow({ contract, measureCounts, isExpanded, onToggle, onView, onEdit, measures, loadingDetail, isLast }) {
   const c = contract;
   const counts = measureCounts || { measures: 0, mps: 0 };
   const measuresLabel = counts.mps > 1
@@ -398,7 +399,10 @@ function ContractRow({ contract, measureCounts, isExpanded, onToggle, onEdit, me
         <Td>{measuresLabel}</Td>
         <Td><StatusBadge status={c.status} /></Td>
         <Td align="right">
-          <Btn size="sm" variant="outline" onClick={e => { e.stopPropagation(); onEdit(); }}>Edit</Btn>
+          <div style={{ display: "inline-flex", gap: 6, justifyContent: "flex-end" }}>
+            <Btn size="sm" variant="primary" onClick={e => { e.stopPropagation(); onView(); }}>View</Btn>
+            <Btn size="sm" variant="outline" onClick={e => { e.stopPropagation(); onEdit(); }}>Edit</Btn>
+          </div>
         </Td>
       </tr>
       {isExpanded && (
