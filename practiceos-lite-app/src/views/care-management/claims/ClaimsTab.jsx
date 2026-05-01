@@ -14,6 +14,7 @@ import ClaimDetailPanel from './ClaimDetailPanel';
 import { CLAIM_TYPE_COLORS, SHARED } from './styles';
 import { formatCurrency } from './utils';
 import { exportClaimsCSV, printClaims } from './claimsExport';
+import { PLAN_LABEL } from '../constants';
 
 const TYPE_FILTERS = [
   { key: 'all',      label: 'All',           value: null       },
@@ -268,6 +269,8 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
   const [sortDir, setSortDir]         = useState('desc');
   const [paidPreset, setPaidPreset]   = useState('any');
   const [search, setSearch]           = useState('');
+  const [payerFilter, setPayerFilter] = useState(null);   // null = all payers; otherwise short_code
+  const [allPayers, setAllPayers]     = useState([]);     // distinct codes in scope, loaded once
 
   // Build the filter object for fetchClaims based on current state.
   const buildFilters = useCallback(() => {
@@ -276,13 +279,14 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
     const chip = ACTION_CHIPS.find((c) => c.key === actionChipKey) || ACTION_CHIPS[0];
 
     const filters = {
-      claimType:    typeFilter,
-      actionLabel:  chip.apply.actionLabel,
-      reconStatus:  chip.apply.reconStatus || null,
-      serviceFrom:  dateR.from,
-      serviceTo:    dateR.to,
-      paidMin:      paidR.min,
-      paidMax:      paidR.max,
+      claimType:      typeFilter,
+      actionLabel:    chip.apply.actionLabel,
+      reconStatus:    chip.apply.reconStatus || null,
+      payerShortName: payerFilter,
+      serviceFrom:    dateR.from,
+      serviceTo:      dateR.to,
+      paidMin:        paidR.min,
+      paidMax:        paidR.max,
       search,
       sortBy,
       sortDir,
@@ -294,7 +298,7 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
       filters.currentOnly = true;
     }
     return filters;
-  }, [view, typeFilter, actionChipKey, datePreset, paidPreset, search, sortBy, sortDir]);
+  }, [view, typeFilter, actionChipKey, datePreset, paidPreset, search, sortBy, sortDir, payerFilter]);
 
   // Filter object for the dashboard cards: same as buildFilters EXCEPT the
   // view-dimension filters (currentOnly/supersededOnly/reconStatus). This way
@@ -305,15 +309,16 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
     const paidR = (PAID_PRESETS.find((p) => p.key === paidPreset) || PAID_PRESETS[0]).range;
     const chip = ACTION_CHIPS.find((c) => c.key === actionChipKey) || ACTION_CHIPS[0];
     return {
-      claimType:    typeFilter,
-      actionLabel:  chip.apply.actionLabel || null,
-      serviceFrom:  dateR.from,
-      serviceTo:    dateR.to,
-      paidMin:      paidR.min,
-      paidMax:      paidR.max,
+      claimType:      typeFilter,
+      actionLabel:    chip.apply.actionLabel || null,
+      payerShortName: payerFilter,
+      serviceFrom:    dateR.from,
+      serviceTo:      dateR.to,
+      paidMin:        paidR.min,
+      paidMax:        paidR.max,
       search,
     };
-  }, [typeFilter, actionChipKey, datePreset, paidPreset, search]);
+  }, [typeFilter, actionChipKey, datePreset, paidPreset, search, payerFilter]);
 
   const handleSort = useCallback((column) => {
     setSortBy((prev) => {
@@ -363,10 +368,26 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
     }
   }, [api, buildFilters, buildDashboardFilters, onUnmatchedChange]);
 
+  // Distinct payers for the filter dropdown - loaded once on mount and after
+  // reconcile (which may surface new payers from newly parsed inbound files).
+  // Independent of current filters so the dropdown shows everything in scope
+  // even when the user has narrowed claims to a single payer.
+  const refreshAllPayers = useCallback(async () => {
+    try {
+      const list = await api.fetchDistinctPayers();
+      setAllPayers(list);
+    } catch (e) {
+      // Soft failure - the dropdown just renders empty if this errors.
+      // Filter still works manually if user knows the short_code.
+    }
+  }, [api]);
+
   // Initial load + reload on filter change
   useEffect(() => { refresh(); }, [refresh]);
   // Initial type counts (rare refresh)
   useEffect(() => { refreshTypeCounts(); }, [refreshTypeCounts]);
+  // Initial distinct-payer load (rare refresh)
+  useEffect(() => { refreshAllPayers(); }, [refreshAllPayers]);
 
   const handleCardClick = (cardKey) => {
     if (cardKey === 'paidYtd') return; // YTD is informational only
@@ -487,6 +508,16 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
             style={{ fontSize: 12, height: 30, padding: '0 8px', minWidth: 150 }}
           >
             {PAID_PRESETS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+          </select>
+          <select
+            value={payerFilter || ''}
+            onChange={(e) => setPayerFilter(e.target.value || null)}
+            style={{ fontSize: 12, height: 30, padding: '0 8px', minWidth: 160 }}
+          >
+            <option value="">{'Payer \u00B7 all'}</option>
+            {allPayers.map((p) => (
+              <option key={p} value={p}>{PLAN_LABEL[p] || p}</option>
+            ))}
           </select>
           <input
             type="search"
