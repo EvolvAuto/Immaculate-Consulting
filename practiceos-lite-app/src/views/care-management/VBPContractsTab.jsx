@@ -255,7 +255,7 @@ export default function VBPContractsTab({ practiceId, isAdmin }) {
             <FL>Payer</FL>
             <select value={filterPayer} onChange={e => setFilterPayer(e.target.value)} style={selectStyle}>
               <option value="">All payers</option>
-              {distinctPayers.map(p => <option key={p} value={p}>{p}</option>)}
+              {distinctPayers.map(p => <option key={p} value={p}>{PLAN_LABEL[p] || p}</option>)}
             </select>
           </div>
           <div>
