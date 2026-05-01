@@ -410,8 +410,7 @@ export default function ClaimsTab({ practiceId, onUnmatchedChange }) {
         text: 'Reconcile complete: ' + res.matched + ' matched, ' + res.unmatched + ' unmatched'
             + (res.errors.length ? ' (' + res.errors.length + ' errors)' : ''),
       });
-      api.clearCaches();
-      await refresh();
+      api.clearCaches();       await Promise.all([refresh(), refreshAllPayers()]);
     } catch (e) {
       setToast({ kind: 'error', text: 'Reconcile failed: ' + (e.message || 'unknown') });
     } finally {
