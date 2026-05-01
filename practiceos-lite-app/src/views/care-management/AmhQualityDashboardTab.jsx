@@ -337,7 +337,13 @@ export default function AmhQualityDashboardTab({ practiceId, currentUser }) {
     navigate("/care-management", { state: { tab: "hedis", measureCode: code } });
   }
   function openVbpContract(contractId) {
-    navigate("/care-management", { state: { tab: "vbp", contractId } });
+    // Direct-open the contract's edit page rather than landing on the VBP
+    // Contracts list. The route is registered by VBPContractFormPage.jsx:
+    //   /care-management/vbp-contracts/:id  -> edit mode
+    // This gives the user a single-click path from "I see this measure has
+    // a contract attached" to "I'm reading the contract terms" without an
+    // intermediate list-and-find step.
+    navigate(`/care-management/vbp-contracts/${contractId}`);
   }
 
   return (
