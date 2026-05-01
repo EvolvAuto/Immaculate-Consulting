@@ -17,7 +17,7 @@ import { NC_HEALTH_PLANS_GROUPED, PLAN_LABEL } from "./constants";
 
 const DELIVERY_METHODS = [
   { value: "Manual SFTP", label: "Manual SFTP" },
-  { value: "Auto SFTP",   label: "Auto SFTP (deferred)" },
+  { value: "Auto SFTP",   label: "Auto SFTP (auto-delivers monthly)" },
   { value: "Email",       label: "Email" },
   { value: "Plan Portal", label: "Plan Portal" },
   { value: "Other",       label: "Other" },
