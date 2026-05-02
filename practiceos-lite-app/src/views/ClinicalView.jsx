@@ -227,6 +227,10 @@ function EncounterEditor({ encounter, profile, tier, capabilities, onClose, onSa
   const [scribeOpen, setScribeOpen] = useState(false);
   const [amending, setAmending] = useState(false);
   const [amendReason, setAmendReason] = useState("");
+  // Telehealth modality drives billing modifier (95=video, 93=audio-only) on
+  // sign and amend. POS stays 10 either way. Initialized from existing
+  // modifier so reopening a signed encounter shows the current value.
+  const [telehealthIsAudioOnly, setTelehealthIsAudioOnly] = useState(encounter.billing_modifier === "93");
   const [saving, setSaving] = useState(false);
 
   const locked = e.status === "Signed" && !amending;
@@ -276,16 +280,14 @@ function EncounterEditor({ encounter, profile, tier, capabilities, onClose, onSa
     if (!confirm("Sign and lock this encounter? After signing, changes require an amendment.")) return;
     try {
       setSaving(true);
-      // Auto-stamp Place of Service + billing modifier for telehealth encounters
-      // so claims pull the right values without manual entry. POS 10 = telehealth
-      // delivered in patient's home; modifier 95 = real-time interactive
-      // audio-video. Audio-only (modifier 93) is rare enough billing can override
-      // post-sign by editing the encounter directly. We don't overwrite values
-      // already set manually.
+      // Stamp Place of Service + billing modifier for telehealth encounters.
+      // POS 10 = telehealth in patient's home (preserved if billing pre-set
+      // something else, e.g. POS 02). Modifier comes from the audio-only
+      // toggle: 95 = real-time interactive audio-video, 93 = audio-only.
       const billingPatch = e.appt_type === "Telehealth"
         ? {
             place_of_service: e.place_of_service || "10",
-            billing_modifier: e.billing_modifier || "95",
+            billing_modifier: telehealthIsAudioOnly ? "93" : "95",
           }
         : {};
       const u = await updateRow("encounters", e.id, {
@@ -326,9 +328,17 @@ function EncounterEditor({ encounter, profile, tier, capabilities, onClose, onSa
         revision_number: 1, changed_by: profile.id, change_reason: amendReason,
         before_snapshot: encounter, after_snapshot: e,
       });
+      // Re-stamp billing on amend so a corrected modality flows to claims.
+      const billingPatch = e.appt_type === "Telehealth"
+        ? {
+            place_of_service: e.place_of_service || "10",
+            billing_modifier: telehealthIsAudioOnly ? "93" : "95",
+          }
+        : {};
       const u = await updateRow("encounters", e.id, {
         chief_complaint: e.chief_complaint, subjective: e.subjective, objective: e.objective,
         assessment: e.assessment, plan: e.plan, diagnoses: e.diagnoses || [], cpt_codes: e.cpt_codes || [],
+        ...billingPatch,
         status: "Amended", amended_at: new Date().toISOString(), amended_by: profile.id, amendment_reason: amendReason,
       }, { audit: { entityType: "encounters", patientId: e.patient_id, details: { action: "amend", reason: amendReason } } });
       onSaved(u); setAmending(false); onClose();
@@ -344,6 +354,9 @@ function EncounterEditor({ encounter, profile, tier, capabilities, onClose, onSa
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
         <Badge label={e.status} variant={e.status === "Signed" ? "green" : e.status === "Amended" ? "amber" : "neutral"} />
         <Badge label={e.appt_type} variant="teal" size="xs" />
+        {e.appt_type === "Telehealth" && e.billing_modifier === "93" && (
+          <Badge label="Audio-only" variant="amber" size="xs" />
+        )}
         {locked && <span style={{ fontSize: 11, color: C.textTertiary }}>🔒 Signed — use Amend to make changes</span>}
       </div>
 
@@ -405,6 +418,44 @@ function EncounterEditor({ encounter, profile, tier, capabilities, onClose, onSa
             </div>
           ))}
       </div>
+
+      {e.appt_type === "Telehealth" && !locked && (
+        <div style={{
+          padding: "10px 12px",
+          background: C.tealBg,
+          border: `0.5px solid ${C.tealBorder}`,
+          borderRadius: 6,
+          marginBottom: 16,
+          fontSize: 12,
+        }}>
+          <div style={{ fontWeight: 600, color: C.textPrimary, marginBottom: 6 }}>
+            Telehealth modality
+          </div>
+          <div style={{ display: "flex", gap: 18 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="telehealth-modality"
+                checked={!telehealthIsAudioOnly}
+                onChange={() => setTelehealthIsAudioOnly(false)}
+              />
+              <span>Video <span style={{ color: C.textTertiary, fontSize: 11 }}>(modifier 95)</span></span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="telehealth-modality"
+                checked={telehealthIsAudioOnly}
+                onChange={() => setTelehealthIsAudioOnly(true)}
+              />
+              <span>Audio-only <span style={{ color: C.textTertiary, fontSize: 11 }}>(modifier 93)</span></span>
+            </label>
+          </div>
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 6, lineHeight: 1.4 }}>
+            Stamped to the claim on Sign or Amend. Place of service stays 10 (patient&apos;s home) regardless. Switch to audio-only if the patient could not connect by video.
+          </div>
+        </div>
+      )}
 
       {amending && (
         <div style={{ padding: 12, background: C.amberBg, borderRadius: 8, marginBottom: 12 }}>
