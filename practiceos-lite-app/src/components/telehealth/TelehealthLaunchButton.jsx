@@ -96,3 +96,54 @@ export default function TelehealthLaunchButton({
     </div>
   );
 }
+// Patient-portal variant. No attestation write (patient joining doesn't
+// constitute provider attestation). Just opens the room.
+export function TelehealthJoinButton({ appointment }) {
+  const [busy, setBusy] = useState(false);
+
+  if (appointment?.appt_type !== "Telehealth") return null;
+  if (!appointment.telehealth_room_url) {
+    return (
+      <div style={{
+        padding: "6px 10px",
+        background: "#FAEEDA",
+        border: "0.5px solid #FAC775",
+        borderRadius: 6,
+        fontSize: 11,
+        color: "#854F0B",
+      }}>
+        Your provider has not finished setting up the video room yet.
+        Please contact the office.
+      </div>
+    );
+  }
+
+  const handleJoin = () => {
+    setBusy(true);
+    window.open(appointment.telehealth_room_url, "_blank", "noopener,noreferrer");
+    setTimeout(() => setBusy(false), 1500);
+  };
+
+  return (
+    <button
+      onClick={handleJoin}
+      disabled={busy}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "8px 14px",
+        background: busy ? "#7DD3C0" : "#1D9E75",
+        color: "#fff",
+        border: "none",
+        borderRadius: 6,
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: busy ? "not-allowed" : "pointer",
+        fontFamily: "inherit",
+      }}
+    >
+      {busy ? "Opening..." : "Join Video Visit"}
+    </button>
+  );
+}
