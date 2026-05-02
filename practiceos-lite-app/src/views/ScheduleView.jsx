@@ -495,6 +495,19 @@ function ApptFormModal({ initial, providers, apptTypes, onSave, onClose, onDelet
         <Select label="Duration" value={form.duration_slots} onChange={(v) => set("duration_slots")(parseInt(v))}
           options={DURATION_OPTIONS} />
       </div>
+      {form.appt_type === "Telehealth" && (
+        <div style={{
+          padding: "8px 12px",
+          background: C.tealBg,
+          border: `0.5px solid ${C.tealBorder}`,
+          borderRadius: 6,
+          fontSize: 11,
+          color: C.teal,
+          marginBottom: 10,
+        }}>
+          Telehealth visit. The patient will receive a Join Video Visit button in their portal and on appointment reminders. A Start Telehealth Visit button will appear in the chart for staff. The video room is configured per-provider in Settings &gt; Telehealth.
+        </div>
+      )}
       <Input label="Chief Complaint" value={form.chief_complaint} onChange={set("chief_complaint")} placeholder="e.g. Annual physical, med refill, follow-up BP" />
       <Textarea label="Notes" value={form.notes} onChange={set("notes")} rows={3} />
 
