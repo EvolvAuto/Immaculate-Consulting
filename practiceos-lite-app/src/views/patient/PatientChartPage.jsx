@@ -22,6 +22,7 @@ import TrendsTab from "./TrendsTab";
 import MedicationsTab from "./MedicationsTab";
 import PatientClaimsTab from "../care-management/claims/PatientClaimsTab";
 import TelehealthLaunchButton from "../../components/telehealth/TelehealthLaunchButton";
+import DocumentsTab from "./DocumentsTab";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const HRSN_DOMAIN_KEYS = [
@@ -52,7 +53,7 @@ const SCREENER_SEVERITY_COLORS = {
 //      tier-gated query in a ternary that resolves to {data:[]} on lower
 //      tiers so the destructure stays clean.
 // ────────────────────────────────────────────────────────────────────────────
-const VALID_TABS = ["info", "appts", "notes", "trends", "meds", "screening", "clinical", "insurance", "hedis", "plan", "claims"];
+const VALID_TABS = ["info", "appts", "notes", "trends", "meds", "screening", "clinical", "documents", "insurance", "hedis", "plan", "claims"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -89,6 +90,7 @@ export default function PatientChartPage() {
   // Count of current (non-superseded) AMH claims for this patient. Drives
   // the Claims tab badge. Refreshed by reload() alongside other lists.
   const [claimsCount, setClaimsCount] = useState(0);
+  const [documentsCount, setDocumentsCount] = useState(0);
   // Active matched AMH BA segment for this patient (most recent non-terminated).
   // Null if patient has no matched BA segments yet, or practice isn't using
   // the AMH CM Add-On. The card hides automatically when null.
@@ -141,7 +143,7 @@ export default function PatientChartPage() {
 
   const reload = async () => {
     if (!patientId) return;
-    const [a, e, i, s, enr, plans, gaps, amh, claimsCountResult] = await Promise.all([
+    const [a, e, i, s, enr, plans, gaps, amh, claimsCountResult, documentsCountResult] = await Promise.all([
       supabase.from("appointments").select("id, appt_date, start_slot, appt_type, status, telehealth_room_url, telehealth_attestation_at, provider_id, providers(last_name)").eq("patient_id", patientId).order("appt_date", { ascending: false }).limit(30),
       supabase.from("encounters").select("id, encounter_date, status, appt_type, chief_complaint, assessment, provider_id, providers(first_name, last_name)").eq("patient_id", patientId).order("encounter_date", { ascending: false }).limit(20),
       supabase.from("insurance_policies").select("*").eq("patient_id", patientId).order("rank"),
@@ -179,13 +181,18 @@ export default function PatientChartPage() {
         .order("php_eligibility_begin_date", { ascending: false })
         .limit(1)
         .maybeSingle(),
-      // Current claims count for this patient. Drives the Claims tab badge.
+       // Current claims count for this patient. Drives the Claims tab badge.
       // Filtered to current rows; superseded versions are visible inside the
       // expanded chain panel, not in the count.
       supabase.from("cm_amh_claim_headers_unified")
         .select("id", { count: "exact", head: true })
         .eq("matched_patient_id", patientId)
         .is("superseded_by_id", null),
+      // Active (non-archived) document count for the chart Documents tab badge.
+      supabase.from("patient_documents")
+        .select("id", { count: "exact", head: true })
+        .eq("patient_id", patientId)
+        .eq("is_archived", false),
     ]);
     setAppts(a.data || []);
     setEncounters(e.data || []);
@@ -196,6 +203,7 @@ export default function PatientChartPage() {
     setHedisGaps(gaps.data || []);
     setAmhSegment(amh.data || null);
     setClaimsCount(claimsCountResult.count || 0);
+    setDocumentsCount(documentsCountResult.count || 0);
   };
   useEffect(() => { if (patient) reload(); }, [patient?.id]);
 
@@ -288,6 +296,7 @@ export default function PatientChartPage() {
             ["screening", `Screenings (${hrsnScreeners.length + mentalHealthScreeners.length})`],
             ["clinical", "Clinical"],
             ["insurance", `Insurance (${insurance.length})`],
+            ["documents", documentsCount > 0 ? `Documents (${documentsCount})` : "Documents"],
             // HEDIS tab is Command-tier only. Conditionally added so the tab
             // bar simply skips it on Lite/Pro rather than rendering disabled.
             ...(isCommandTier ? [["hedis", hedisGaps.filter(g => g.compliant !== true && !g.closed_at).length > 0
@@ -442,6 +451,11 @@ export default function PatientChartPage() {
 
       {tab === "insurance" && (
         <InsuranceTab patient={patient} insurance={insurance} practiceId={practiceId} onReload={reload} />
+      )}
+
+      {tab === "documents" && (
+        <DocumentsTab patientId={patient.id} practiceId={practiceId} />
+      )}
       )}
 
       {tab === "screening" && (
