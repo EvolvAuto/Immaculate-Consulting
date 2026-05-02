@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import ClinicalPanelsTab from "./settings/ClinicalPanelsTab";
+import TelehealthSettings from "./settings/TelehealthSettings";
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useAuth } from "../auth/AuthProvider";
@@ -30,6 +31,7 @@ export default function SettingsView() {
           ["rooms", "Rooms"],
           ["hours", "Hours"],
           ["holidays", "Holidays"],
+          ["telehealth", "Telehealth"],
         ]} active={tab} onChange={setTab} />} />
 
       <div style={{ flex: 1, overflowY: "auto", padding: 24 }}>
@@ -43,7 +45,8 @@ export default function SettingsView() {
         {tab === "panels"     && <ClinicalPanelsTab canEdit={canEdit} />}
         {tab === "rooms"     && <RoomsTab         practiceId={practiceId} canEdit={canEdit} />}
         {tab === "hours"     && <HoursTab         practiceId={practiceId} canEdit={canEdit} />}
-        {tab === "holidays"  && <HolidaysTab      practiceId={practiceId} canEdit={canEdit} />}
+        {tab === "holidays"  && <HolidaysTab       practiceId={practiceId} canEdit={canEdit} />}
+        {tab === "telehealth" && <TelehealthSettings practiceId={practiceId} canEdit={canEdit} />}
       </div>
     </div>
   );
