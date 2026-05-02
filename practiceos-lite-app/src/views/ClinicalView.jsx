@@ -276,10 +276,23 @@ function EncounterEditor({ encounter, profile, tier, capabilities, onClose, onSa
     if (!confirm("Sign and lock this encounter? After signing, changes require an amendment.")) return;
     try {
       setSaving(true);
+      // Auto-stamp Place of Service + billing modifier for telehealth encounters
+      // so claims pull the right values without manual entry. POS 10 = telehealth
+      // delivered in patient's home; modifier 95 = real-time interactive
+      // audio-video. Audio-only (modifier 93) is rare enough billing can override
+      // post-sign by editing the encounter directly. We don't overwrite values
+      // already set manually.
+      const billingPatch = e.appt_type === "Telehealth"
+        ? {
+            place_of_service: e.place_of_service || "10",
+            billing_modifier: e.billing_modifier || "95",
+          }
+        : {};
       const u = await updateRow("encounters", e.id, {
         chief_complaint: e.chief_complaint, subjective: e.subjective, objective: e.objective,
         assessment: e.assessment, plan: e.plan, diagnoses: e.diagnoses || [], cpt_codes: e.cpt_codes || [],
         em_level: e.em_level || null, vitals: e.vitals || {},
+        ...billingPatch,
         status: "Signed", signed_at: new Date().toISOString(), signed_by: profile.id,
       }, { audit: { entityType: "encounters", patientId: e.patient_id, details: { action: "sign" } } });
 
