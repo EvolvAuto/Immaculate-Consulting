@@ -21,6 +21,7 @@ import CloseGapModal from "../../components/hedis/CloseGapModal";
 import TrendsTab from "./TrendsTab";
 import MedicationsTab from "./MedicationsTab";
 import PatientClaimsTab from "../care-management/claims/PatientClaimsTab";
+import TelehealthLaunchButton from "../../components/telehealth/TelehealthLaunchButton";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const HRSN_DOMAIN_KEYS = [
@@ -141,7 +142,7 @@ export default function PatientChartPage() {
   const reload = async () => {
     if (!patientId) return;
     const [a, e, i, s, enr, plans, gaps, amh, claimsCountResult] = await Promise.all([
-      supabase.from("appointments").select("id, appt_date, start_slot, appt_type, status, providers(last_name)").eq("patient_id", patientId).order("appt_date", { ascending: false }).limit(30),
+      supabase.from("appointments").select("id, appt_date, start_slot, appt_type, status, telehealth_room_url, telehealth_attestation_at, provider_id, providers(last_name)").eq("patient_id", patientId).order("appt_date", { ascending: false }).limit(30),
       supabase.from("encounters").select("id, encounter_date, status, appt_type, chief_complaint, assessment, provider_id, providers(first_name, last_name)").eq("patient_id", patientId).order("encounter_date", { ascending: false }).limit(20),
       supabase.from("insurance_policies").select("*").eq("patient_id", patientId).order("rank"),
       supabase.from("screener_responses").select("*").eq("patient_id", patientId).order("completed_at", { ascending: false }).limit(20),
@@ -348,7 +349,16 @@ export default function PatientChartPage() {
           {appts.map((a) => (
             <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 10px", border: `0.5px solid ${C.borderLight}`, borderRadius: 8 }}>
               <div style={{ fontSize: 12, color: C.textSecondary, minWidth: 100 }}>{a.appt_date}</div>
-              <div style={{ flex: 1, fontSize: 12 }}>{a.appt_type}{a.providers && ` · Dr. ${a.providers.last_name}`}</div>
+              <div style={{ flex: 1, fontSize: 12 }}>
+                {a.appt_type}
+                {a.appt_type === "Telehealth" && (
+                  <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: C.teal, background: C.tealBg, padding: "2px 6px", borderRadius: 3, letterSpacing: "0.04em", textTransform: "uppercase" }}>Video</span>
+                )}
+                {a.providers && ` · Dr. ${a.providers.last_name}`}
+              </div>
+              {a.appt_type === "Telehealth" && a.status !== "Completed" && a.status !== "Cancelled" && (
+                <TelehealthLaunchButton appointment={a} size="sm" onLaunched={reload} />
+              )}
               <Badge label={a.status} variant={APPT_STATUS_VARIANT[a.status] || "neutral"} size="xs" />
             </div>
           ))}
