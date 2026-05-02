@@ -138,15 +138,23 @@ export default function ScheduleView() {
         notes: form.notes || null,
       };
       if (form.id) {
-        const row = await updateRow("appointments", form.id, payload, {
+        await updateRow("appointments", form.id, payload, {
           audit: { entityType: "appointments", patientId: form.patient_id },
         });
-        setAppts((prev) => prev.map((a) => a.id === row.id ? { ...a, ...row } : a));
+        // Refetch with the patient + provider joins so the calendar tile
+        // shows the patient name immediately, not "Block".
+        const { data: hydrated } = await supabase.from("appointments")
+          .select("*, patients(id, first_name, last_name, date_of_birth), providers(first_name, last_name, color)")
+          .eq("id", form.id).single();
+        if (hydrated) setAppts((prev) => prev.map((a) => a.id === hydrated.id ? hydrated : a));
       } else {
         const row = await insertRow("appointments", payload, practiceId, {
           audit: { entityType: "appointments", patientId: form.patient_id },
         });
-        setAppts((prev) => [...prev, row]);
+        const { data: hydrated } = await supabase.from("appointments")
+          .select("*, patients(id, first_name, last_name, date_of_birth), providers(first_name, last_name, color)")
+          .eq("id", row.id).single();
+        setAppts((prev) => [...prev, hydrated || row]);
       }
       setEditing(null);
     } catch (e) { setError(e.message); }
@@ -321,7 +329,9 @@ function DayGrid({ providers, appts, apptTypes, timeLabels, gridStart, gridEnd, 
                     }}
                   >
                     <div style={{ fontSize: 11, fontWeight: 700, color: cfg.color, lineHeight: 1.2, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
-                      {a.patients ? `${a.patients.first_name} ${a.patients.last_name}` : "Block"}
+                      {a.patients
+                        ? `${a.patients.first_name} ${a.patients.last_name}`
+                        : a.patient_id ? "(loading)" : "Block"}
                     </div>
                     <div style={{ fontSize: 9, color: cfg.color, opacity: 0.8 }}>
                       {a.appt_type} · {slotToTime(a.start_slot)}
@@ -377,7 +387,7 @@ function MonthGrid({ date, appts, apptTypes, onDayClick, onApptClick }) {
                 return (
                   <div key={a.id} onClick={(e) => { e.stopPropagation(); onApptClick(a); }}
                     style={{ fontSize: 10, padding: "2px 5px", background: cfg.bg, color: cfg.color, borderRadius: 3, borderLeft: `2px solid ${cfg.dot}`, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", opacity: a.status === "Cancelled" ? 0.45 : 1 }}>
-                    {slotToTime(a.start_slot)} {a.patients ? `${a.patients.first_name[0]}. ${a.patients.last_name}` : ""}
+                    {slotToTime(a.start_slot)} {a.patients ? `${a.patients.first_name[0]}. ${a.patients.last_name}` : a.patient_id ? "(loading)" : ""}
                   </div>
                 );
               })}
