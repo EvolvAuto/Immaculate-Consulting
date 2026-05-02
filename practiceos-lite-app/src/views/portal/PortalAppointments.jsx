@@ -9,7 +9,6 @@
 import { useState, useEffect } from "react";
 import { supabase, logAudit } from "../../lib/supabaseClient";
 import {
-  import {
   C, Panel, Badge, Btn, Field, SectionHead, Select, TextArea, Input,
   Toast, InfoBox, Empty, fmtDate, slotToTime,
 } from "./_ui.jsx";
