@@ -9,9 +9,11 @@
 import { useState, useEffect } from "react";
 import { supabase, logAudit } from "../../lib/supabaseClient";
 import {
+  import {
   C, Panel, Badge, Btn, Field, SectionHead, Select, TextArea, Input,
   Toast, InfoBox, Empty, fmtDate, slotToTime,
 } from "./_ui.jsx";
+import { TelehealthJoinButton } from "../../components/telehealth/TelehealthLaunchButton";
 
 export default function PortalAppointments({ patient, patientId, practiceId }) {
   const [upcoming, setUpcoming]   = useState([]);
@@ -36,7 +38,7 @@ export default function PortalAppointments({ patient, patientId, practiceId }) {
         const today = new Date().toISOString().slice(0, 10);
         const [up, pa, pr] = await Promise.all([
           supabase.from("appointments")
-            .select("id, appt_date, start_slot, duration_slots, appt_type, status, provider_id, room_id, notes")
+            .select("id, appt_date, start_slot, duration_slots, appt_type, status, provider_id, room_id, notes, telehealth_room_url")
             .eq("patient_id", patientId).gte("appt_date", today)
             .not("status", "in", "(Cancelled,Completed,No Show)")
             .order("appt_date", { ascending:true }).order("start_slot", { ascending:true }),
@@ -207,6 +209,9 @@ export default function PortalAppointments({ patient, patientId, practiceId }) {
               </div>
             </div>
             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {a.appt_type === "Telehealth" && (
+                <TelehealthJoinButton appointment={a} />
+              )}
               <Btn variant="secondary" onClick={() => setCancelFor(a)}>Request Cancel</Btn>
             </div>
           </div>
