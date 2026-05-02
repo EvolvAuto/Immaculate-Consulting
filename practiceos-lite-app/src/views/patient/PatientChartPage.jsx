@@ -456,7 +456,6 @@ export default function PatientChartPage() {
       {tab === "documents" && (
         <DocumentsTab patientId={patient.id} practiceId={practiceId} />
       )}
-      )}
 
       {tab === "screening" && (
         <ScreeningsTab
